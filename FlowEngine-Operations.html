@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowEngine — Operations Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--text2:#c9d1d9;--muted:#8b949e;
+    --teal:#1D9E75;--amber:#EF9F27;--coral:#D85A30;--blue:#378ADD;
+    --purple:#7F77DD;--green:#3FB950;
+    --code-bg:#161b22;--inline-code-color:#EF9F27;
+    --h1-span-color:#1D9E75;
+    --th-bg:var(--bg3);
+    --tr-hover:rgba(255,255,255,.02);
+    --callout-teal-bg:rgba(29,158,117,.08);--callout-teal-fg:#b8e8d6;
+    --callout-amber-bg:rgba(239,159,39,.08);--callout-amber-fg:#f5d898;
+    --callout-blue-bg:rgba(55,138,221,.08);--callout-blue-fg:#a8ccee;
+    --arch-color:var(--muted);
+    --node-card-bg:var(--bg2);
+    --canvas-top:rgba(29,158,117,.08);
+    --canvas-bottom:rgba(55,138,221,.06);
+    --content-surface:rgba(22,27,34,.96);
+    --content-border:rgba(139,148,158,.28);
+    --content-shadow:0 28px 72px rgba(0,0,0,.32);
+    --content-max:920px;
+  }
+  [data-theme="light"] {
+    --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;
+    --text:#1f2328;--text2:#36454f;--muted:#656d76;
+    --teal:#1a7f64;--amber:#b45309;--coral:#bc4c00;--blue:#0969da;
+    --purple:#6e40c9;--green:#1a7f37;
+    --code-bg:#f6f8fa;--inline-code-color:#b45309;
+    --h1-span-color:#1a7f64;
+    --th-bg:#eaeef2;
+    --tr-hover:rgba(0,0,0,.02);
+    --callout-teal-bg:rgba(26,127,100,.08);--callout-teal-fg:#1a7f64;
+    --callout-amber-bg:rgba(180,83,9,.08);--callout-amber-fg:#b45309;
+    --callout-blue-bg:rgba(9,105,218,.08);--callout-blue-fg:#0969da;
+    --arch-color:#36454f;
+    --node-card-bg:#ffffff;
+    --canvas-top:rgba(26,127,100,.05);
+    --canvas-bottom:rgba(9,105,218,.04);
+    --content-surface:rgba(255,255,255,.94);
+    --content-border:rgba(208,215,222,.95);
+    --content-shadow:0 24px 56px rgba(31,35,40,.08);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;overflow-x:hidden;}
+  body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;transition:background .2s,color .2s;overflow-x:hidden;padding:0 clamp(12px,2.8vw,32px) 56px;}
+
+  .doc-header{width:min(100%,var(--content-max));max-width:var(--content-max);background:var(--bg2);border:1px solid var(--content-border);padding:40px 64px 36px;position:relative;overflow:hidden;margin:16px auto 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header-badge{display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;}
+  .header-back{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:3px;transition:color .15s,border-color .15s;}
+  .header-back:hover{color:var(--text);border-color:var(--muted);}
+  .doc-header h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;}
+  .doc-header h1 span{color:var(--h1-span-color);}
+  .doc-header .tagline{font-size:15px;font-weight:300;color:var(--muted);max-width:640px;line-height:1.6;margin-bottom:0;}
+  .theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;margin-left:auto;}
+  .theme-toggle:hover{background:var(--border);color:var(--text);}
+
+  .content{width:min(100%,var(--content-max));max-width:var(--content-max);margin:20px auto 0;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  h2{font-size:22px;font-weight:600;color:var(--text);margin:52px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);letter-spacing:-.01em;}
+  h2:first-child{margin-top:0;}
+  h3{font-size:16px;font-weight:600;color:var(--text);margin:28px 0 8px;}
+  h4{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--teal);margin:20px 0 6px;letter-spacing:.02em;}
+  p{margin-bottom:12px;color:var(--text2);}
+  ul,ol{margin:0 0 12px 1.4rem;color:var(--text2);}
+  li{margin-bottom:4px;}
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0;}
+  strong{color:var(--text);font-weight:600;}
+  blockquote{border-left:3px solid var(--border);padding:8px 16px;margin:12px 0;color:var(--muted);font-style:italic;}
+  blockquote p{color:var(--muted);}
+
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--inline-code-color);}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;overflow-x:auto;margin:12px 0 18px;position:relative;}
+  pre code{background:none;border:none;padding:0;color:var(--text);font-size:12.5px;line-height:1.65;}
+  .lang-tag{position:absolute;top:8px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 18px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{background:var(--th-bg);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:8px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--tr-hover);}
+
+  .callout{border-radius:6px;padding:13px 17px;margin:14px 0;border-left:3px solid;font-size:14px;line-height:1.65;}
+  .callout-teal{background:var(--callout-teal-bg);border-color:var(--teal);color:var(--callout-teal-fg);}
+  .callout-amber{background:var(--callout-amber-bg);border-color:var(--amber);color:var(--callout-amber-fg);}
+  .callout-blue{background:var(--callout-blue-bg);border-color:var(--blue);color:var(--callout-blue-fg);}
+  .callout strong{color:inherit;font-weight:600;}
+  .callout code{background:rgba(127,119,221,.1);border-color:var(--border);color:inherit;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+  @media (max-width:768px){
+    body{padding:0 12px 32px;}
+    .doc-header{padding:24px 20px 20px;margin-top:12px;border-radius:20px;}
+    .doc-header h1{font-size:22px;}
+    .content{margin-top:16px;padding:24px 18px;border-radius:20px;}
+    pre{font-size:12px;padding:14px 16px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Operations Reference</div>
+    <a class="header-back" href="FlowEngine-Design-Doc.html">← Tech Doc</a>
+    <a class="header-back" href="../FlowEngine-README.md" style="margin-left:4px;">← README</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀️</button>
+  </div>
+  <h1><span>Flow</span>Engine — Operations Reference</h1>
+  <p class="tagline">Admin API, Ops Dashboard, Transactional Outbox, Distributed Circuit Breakers, and Migration Tooling.</p>
+</div>
+
+<div class="content">
+
+<h2 id="toc">Contents</h2>
+<ul>
+  <li><a href="#admin-api">Admin API (<code>EF.FlowEngine.AdminApi</code>)</a></li>
+  <li><a href="#dashboard">Ops Dashboard (<code>EF.FlowEngine.Dashboard</code>)</a></li>
+  <li><a href="#outbox">Transactional Outbox (<code>EF.FlowEngine.Outbox.Sql</code>)</a></li>
+  <li><a href="#circuit-breaker">Distributed Circuit Breaker</a></li>
+  <li><a href="#migration">Migration Tooling</a></li>
+  <li><a href="#testing">Testing Failure Modes</a></li>
+</ul>
+
+<hr>
+
+<h2 id="admin-api">Admin API</h2>
+<p>Package: <code>EF.FlowEngine.AdminApi</code></p>
+<p>Exposes workflow engine operations over HTTP as a minimal-API extension. Designed to be mounted in your existing ASP.NET Core host — it does not require a dedicated service.</p>
+
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code>// Program.cs — add policies and services
+builder.Services.AddFlowEngineAdminPolicies();   // registers FlowEngine.Admin + FlowEngine.HumanTask policies
+builder.Services.AddFlowEngine()                 // FlowEngineAdminService registered automatically
+    .UseStateStoreSql&lt;AppDbContext&gt;()
+    // ... other engine setup
+
+// Map all admin endpoints under a prefix
+app.MapFlowEngineAdmin(prefix: "/api/flowengine");
+</code></pre>
+
+<h3>Authorization Policies</h3>
+<p><code>AddFlowEngineAdminPolicies()</code> registers two named policies. Configure them to match your identity provider:</p>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddAuthorization(o =>
+{
+    o.AddPolicy("FlowEngine.Admin", p =>
+        p.RequireClaim("role", "flowengine-admin"));
+
+    o.AddPolicy("FlowEngine.HumanTask", p =>
+        p.RequireClaim("role", "task-worker"));
+});
+</code></pre>
+<p>All admin endpoints require <code>FlowEngine.Admin</code>. Human-task endpoints accept either policy.</p>
+
+<h3>Endpoint Reference</h3>
+<div class="table-wrap"><table>
+  <tr><th>Method</th><th>Path (relative to prefix)</th><th>Policy</th><th>Description</th></tr>
+  <tr><td><code>GET</code></td><td><code>/instances</code></td><td>Admin</td><td>Query instances — filter by status, workflow ID, date range, tags</td></tr>
+  <tr><td><code>GET</code></td><td><code>/instances/{id}</code></td><td>Admin</td><td>Load a single instance with full history</td></tr>
+  <tr><td><code>POST</code></td><td><code>/instances/{id}/retry</code></td><td>Admin</td><td>Retry a <code>Faulted</code> instance from its last checkpoint</td></tr>
+  <tr><td><code>POST</code></td><td><code>/instances/{id}/terminate</code></td><td>Admin</td><td>Immediately terminate a <code>Running</code> or <code>Suspended</code> instance</td></tr>
+  <tr><td><code>POST</code></td><td><code>/instances/{id}/resume</code></td><td>Admin</td><td>Resume a <code>Suspended</code> instance with an optional signal payload</td></tr>
+  <tr><td><code>GET</code></td><td><code>/circuit-breakers</code></td><td>Admin</td><td>List all circuit breaker keys and their current state</td></tr>
+  <tr><td><code>POST</code></td><td><code>/circuit-breakers/{key}/reset</code></td><td>Admin</td><td>Manually close an open circuit</td></tr>
+  <tr><td><code>GET</code></td><td><code>/human-tasks</code></td><td>Admin or HumanTask</td><td>List pending human tasks with optional assignee filter</td></tr>
+  <tr><td><code>GET</code></td><td><code>/workflows/{id}/compatibility</code></td><td>Admin</td><td>Analyze breaking changes between two versions of a workflow</td></tr>
+</table></div>
+
+<h3>IFlowEngineAdminApi contract</h3>
+<p>The underlying service abstraction — implement it to expose engine operations through any transport:</p>
+<pre><span class="lang-tag">csharp</span><code>public interface IFlowEngineAdminApi
+{
+    Task&lt;ExecutionQueryResult&gt; QueryInstancesAsync(ExecutionQuery query, CancellationToken ct = default);
+    Task&lt;ExecutionInstance?&gt;   GetInstanceAsync(string instanceId, CancellationToken ct = default);
+    Task                       RetryInstanceAsync(string instanceId, CancellationToken ct = default);
+    Task                       TerminateInstanceAsync(string instanceId, CancellationToken ct = default);
+    Task                       ResumeInstanceAsync(string instanceId, JsonElement? payload, CancellationToken ct = default);
+    Task&lt;IReadOnlyList&lt;CircuitBreakerStatus&gt;&gt; GetCircuitBreakerStatusAsync(CancellationToken ct = default);
+    Task                       ResetCircuitAsync(string key, CancellationToken ct = default);
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetHumanTasksAsync(string? assignee, CancellationToken ct = default);
+    Task&lt;WorkflowCompatibilityReport&gt; AnalyzeCompatibilityAsync(string workflowId, string fromVersion, string toVersion, CancellationToken ct = default);
+}
+</code></pre>
+
+<hr>
+
+<h2 id="dashboard">Ops Dashboard</h2>
+<p>Package: <code>EF.FlowEngine.Dashboard</code> (component library) + <code>EF.FlowEngine.Dashboard.UI</code> (ASP.NET Core host)</p>
+<p>Blazor Server dashboard built on MudBlazor. Includes a workflow designer, client registry, and instance management UI. Consumes the Admin API via a Refit-generated typed HTTP client. The host app conditionally wires SQL Server or Redis state store, registry, and lock providers based on available connection strings — falling back to in-memory for zero-config development.</p>
+
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code>// Program.cs
+builder.Services.AddFlowEngineDashboard(
+    adminApiBaseUrl: builder.Configuration["FlowEngine:AdminApiBaseUrl"]!
+    // e.g. "https://your-api-host/api/flowengine"
+);
+
+// Blazor Server wiring (add alongside your existing Blazor registration)
+builder.Services.AddServerSideBlazor();
+app.MapBlazorHub();
+app.MapFallbackToPage("/_Host");
+</code></pre>
+
+<h3>Pages</h3>
+<div class="table-wrap"><table>
+  <tr><th>Page</th><th>Route</th><th>Description</th></tr>
+  <tr><td><strong>Instance List</strong></td><td><code>/instances</code></td><td>Filterable/sortable grid — status, workflow, date range, correlation ID, tags. Links to Instance Detail.</td></tr>
+  <tr><td><strong>Instance Detail</strong></td><td><code>/instances/{id}</code></td><td>Full history timeline, node-by-node outcomes, context snapshot, error detail. Retry / Terminate / Resume actions inline.</td></tr>
+  <tr><td><strong>Human Task Inbox</strong></td><td><code>/human-tasks</code></td><td>Pending tasks for the authenticated user or role. Submit responses, reassign, view context snapshot.</td></tr>
+  <tr><td><strong>Workflow Registry</strong></td><td><code>/workflows/registry</code></td><td>All registered definitions with version history and compatibility diff between any two versions.</td></tr>
+  <tr><td><strong>Workflow Designer</strong></td><td><code>/workflows/new</code></td><td>Visual drag-and-drop workflow builder. Design nodes, wire transitions, set properties inline. Export or import JSON. Supports all built-in node types.</td></tr>
+  <tr><td><strong>Run Workflow</strong></td><td><code>/workflows/run</code></td><td>Manually trigger a workflow definition against a selected registry entry with optional input JSON.</td></tr>
+  <tr><td><strong>Circuit Breaker Status</strong></td><td><code>/circuit-breakers</code></td><td>Live circuit state table — key, state (open/closed), trip count, last tripped. Reset action per circuit.</td></tr>
+  <tr><td><strong>Client Registry</strong></td><td><code>/clients</code></td><td>All registered <code>IFlowClient</code> instances with type and source badges. Add HTTP, Service Bus, or SQL query clients at runtime (persisted across restarts). Read-only view for startup-registered clients.</td></tr>
+</table></div>
+
+<div class="callout callout-blue">
+  <strong>Local development:</strong> Use the <code>EF.FlowEngine.Dashboard.AppHost</code> .NET Aspire project to spin up SQL Server and Redis containers and have connection strings injected automatically. See <a href="FlowEngine-Local-Aspire-Test-Harness.html" target="_blank" rel="noopener noreferrer">FlowEngine-Local-Aspire-Test-Harness</a> for setup instructions, the client registry contract, and the path to production.
+</div>
+
+<h3>IFlowEngineAdminClient</h3>
+<p>The dashboard uses a Refit-generated typed client. You can also use it directly in your own code to call the Admin API:</p>
+<pre><span class="lang-tag">csharp</span><code>// Registered by AddFlowEngineDashboard — or register manually:
+builder.Services.AddRefitClient&lt;IFlowEngineAdminClient&gt;()
+    .ConfigureHttpClient(c => c.BaseAddress = new Uri(adminApiBaseUrl));
+</code></pre>
+
+<div class="callout callout-amber">
+  <strong>Authentication:</strong> The dashboard does not configure authentication itself. Mount it behind your existing auth middleware and ensure the user's JWT or cookie includes the <code>FlowEngine.Admin</code> or <code>FlowEngine.HumanTask</code> claim required by the Admin API policies.
+</div>
+
+<hr>
+
+<h2 id="outbox">Transactional Outbox</h2>
+<p>Package: <code>EF.FlowEngine.Outbox.Sql</code></p>
+<p>The transactional outbox pattern guarantees <strong>at-least-once delivery</strong> for messages, integration calls, and agent invocations.</p>
+<blockquote>
+  <strong>Availability:</strong> A SQL-backed transactional outbox is the only production implementation provided.
+  Redis, Cosmos, Azure Table, and File state stores do <strong>not</strong> have a corresponding outbox implementation;
+  if you use those stores without <code>EF.FlowEngine.Outbox.Sql</code>, outbox entries are not persisted and
+  delivery is best-effort only.
+</blockquote>
+
+<h3>How it works</h3>
+<ol>
+  <li>Node executors return outbox entries via <code>NodeResult.PendingOutboxEntries</code>; the engine writes them atomically with the workflow state in the same <code>SaveChangesAsync</code> call when both state store and outbox share the same <code>DbContext</code></li>
+  <li>Alternatively, executors may call <code>IOutboxStore.EnqueueAsync</code> directly — this is best-effort (separate transaction)</li>
+  <li><code>OutboxDrainService</code> (background <code>IHostedService</code>) polls for entries and publishes them to the registered client</li>
+  <li>On successful publish the entry is marked published; on failure it is retried with exponential backoff</li>
+</ol>
+
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
+    .UseStateStoreSql&lt;AppDbContext&gt;()
+    .UseOutboxSql&lt;AppDbContext&gt;();     // EF.FlowEngine.Outbox.Sql
+</code></pre>
+
+<p>Both state store and outbox must share the same <code>DbContext</code> type for transactional enrollment to work.</p>
+
+<h3>OutboxEntry model</h3>
+<div class="table-wrap"><table>
+  <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>EntryId</code></td><td><code>string</code></td><td>Unique entry identifier (ULID)</td></tr>
+  <tr><td><code>ClientRef</code></td><td><code>string</code></td><td>Name of the registered <code>IFlowClient</code> to publish to</td></tr>
+  <tr><td><code>Payload</code></td><td><code>JsonElement</code></td><td>Serialized request payload</td></tr>
+  <tr><td><code>IdempotencyKey</code></td><td><code>string?</code></td><td>Forwarded to the client — provider-side deduplication</td></tr>
+  <tr><td><code>CreatedAt</code></td><td><code>DateTimeOffset</code></td><td>When the entry was enqueued</td></tr>
+</table></div>
+
+<h3>IOutboxStore interface</h3>
+<pre><span class="lang-tag">csharp</span><code>public interface IOutboxStore
+{
+    Task EnqueueAsync(OutboxEntry entry, CancellationToken ct = default);
+    Task&lt;IReadOnlyList&lt;OutboxEntry&gt;&gt; DequeueAsync(int batchSize, CancellationToken ct = default);
+}
+</code></pre>
+
+<h3>Idempotency keys</h3>
+<p>Set <code>idempotencyKey</code> on any node that makes an outbox-enrolled call. The engine resolves the key as a context path or literal and forwards it to the client:</p>
+<pre><span class="lang-tag">json</span><code>{
+  "type": "message",
+  "config": {
+    "clientRef":      "order-events",
+    "subject":        "order.completed",
+    "body":           { "orderId": "$.entity.OrderId" },
+    "idempotencyKey": "$.entity.OrderId + '-order-complete'"
+  }
+}
+
+{
+  "type": "agent",
+  "config": {
+    "clientRef":       "gpt4o",
+    "promptTemplate":  "Classify this order: {{$.context.orderData}}",
+    "idempotencyKey":  "$.entity.OrderId + '-classification'"
+  }
+}
+
+{
+  "type": "integration",
+  "config": {
+    "clientRef":      "payment-api",
+    "integration":    "charge-card",
+    "idempotencyKey": "$.entity.OrderId + '-payment'"
+  }
+}
+</code></pre>
+
+<div class="callout callout-teal">
+  <strong>Validation warning:</strong> <code>WorkflowDefinitionValidator</code> emits a warning when <code>idempotencyKey</code> is absent from an agent/message/integration node. This does not block registration but surfaces in validation output — treat it as an at-least-once delivery risk.
+</div>
+
+<hr>
+
+<h2 id="circuit-breaker">Distributed Circuit Breaker</h2>
+<p>The default <code>InMemoryCircuitBreakerStore</code> is process-local — circuit state is not shared across replicas. For multi-replica deployments, replace it with a distributed backend:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>Package</th><th>Type</th><th>Backing store</th></tr>
+  <tr><td><em>(built-in)</em></td><td><code>InMemoryCircuitBreakerStore</code></td><td>In-process only — single replica</td></tr>
+  <tr><td><code>EF.FlowEngine.CircuitBreaker.Redis</code></td><td><code>RedisCircuitBreakerStore</code></td><td>Redis sorted sets — shared across all replicas</td></tr>
+  <tr><td><code>EF.FlowEngine.CircuitBreaker.Sql</code></td><td><code>SqlCircuitBreakerStore</code></td><td>EF Core SQL table — shared across all replicas</td></tr>
+</table></div>
+
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code>// Redis — requires IConnectionMultiplexer in DI
+builder.Services.AddFlowEngine()
+    .UseStateStoreSql&lt;AppDbContext&gt;()
+    .UseCircuitBreakerRedis();
+
+// SQL (EF Core) — requires IDbContextFactory&lt;TContext&gt; in DI
+builder.Services.AddFlowEngine()
+    .UseStateStoreSql&lt;AppDbContext&gt;()
+    .UseCircuitBreakerSql&lt;AppDbContext&gt;();
+</code></pre>
+
+<h3>ICircuitBreakerStore interface</h3>
+<pre><span class="lang-tag">csharp</span><code>public interface ICircuitBreakerStore
+{
+    Task&lt;bool&gt; IsOpenAsync(string key, CancellationToken ct = default);
+    Task        RecordFailureAsync(string key, CircuitBreakerPolicy policy, CancellationToken ct = default);
+    Task        RecordSuccessAsync(string key, CancellationToken ct = default);
+}
+</code></pre>
+
+<h3>Circuit behavior</h3>
+<div class="table-wrap"><table>
+  <tr><th>Scenario</th><th>Behavior</th></tr>
+  <tr><td>Failures reach <code>FailureThreshold</code> within <code>SamplingWindow</code></td><td>Circuit opens — subsequent nodes skip execution</td></tr>
+  <tr><td>Node has a <code>CircuitOpen</code> edge</td><td>Engine takes that edge — workflow continues via degraded path</td></tr>
+  <tr><td>No <code>CircuitOpen</code> edge</td><td>Instance suspends with a timed wait equal to <code>OpenDuration</code>; sweep service resumes it after cool-down</td></tr>
+  <tr><td><code>RecordSuccessAsync</code> called</td><td>Circuit closes immediately — failures counter reset</td></tr>
+  <tr><td><code>OpenDuration</code> elapses</td><td>Next execution attempt allowed (half-open); success closes, failure re-opens</td></tr>
+</table></div>
+
+<div class="callout callout-amber">
+  <strong>InMemoryCircuitBreakerStore in production:</strong> circuit state is not persisted — a process restart resets all circuits. If you restart a replica while circuits are open, instances may retry a still-degraded service. Use a distributed store for any multi-replica or container-based deployment.
+</div>
+
+<hr>
+
+<h2 id="migration">Migration Tooling</h2>
+
+<h3>CompatibilityAnalyzer</h3>
+<p>Always analyze compatibility before migrating suspended instances to a new workflow version:</p>
+<pre><span class="lang-tag">csharp</span><code>var report = CompatibilityAnalyzer.Analyze(v1Definition, v2Definition);
+
+foreach (var finding in report.Findings)
+{
+    // Severity: Warning | Breaking
+    // Message:  human-readable description
+    Console.WriteLine($"[{finding.Severity}] {finding.Message}");
+}
+
+if (report.Findings.Any(f => f.Severity == FindingSeverity.Breaking))
+{
+    // Do not proceed — suspended instances would be stranded
+    return;
+}
+</code></pre>
+
+<p>Finding categories:</p>
+<div class="table-wrap"><table>
+  <tr><th>Category</th><th>Severity</th><th>Description</th></tr>
+  <tr><td>Removed node</td><td>Breaking</td><td>A node present in <em>from</em> was removed in <em>to</em> — suspended instances at that node would be stranded</td></tr>
+  <tr><td>Retyped node</td><td>Breaking</td><td>A node's <code>type</code> changed — executor mismatch at resume time</td></tr>
+  <tr><td>Missing edge target</td><td>Breaking</td><td>An edge references a <code>nextNodeId</code> that no longer exists in <em>to</em></td></tr>
+  <tr><td>Entry node changed</td><td>Warning</td><td>New instances start at a different node — in-flight instances unaffected but worth reviewing</td></tr>
+  <tr><td>GlobalOnFailureNodeId changed</td><td>Warning</td><td>Failure routing will change after migration</td></tr>
+  <tr><td>OutputSchema removed</td><td>Warning</td><td>A node's output schema was removed — downstream nodes that relied on the enforced shape may receive unexpected values</td></tr>
+  <tr><td>OutputSchema changed</td><td>Warning</td><td>A node's output schema changed — verify downstream consumers still handle the new shape</td></tr>
+  <tr><td>When guard may reference renamed StoreAs key</td><td>Warning</td><td>An edge <code>When</code> expression contains the old key name when the node's <code>storeAs</code> was renamed — heuristic string match; verify the expression manually</td></tr>
+</table></div>
+<p>For the complete finding catalogue (including <code>ContextRequirements</code>, <code>StoreAs</code> rename, <code>CompensationNodeId</code> checks) and the full promotion checklist, see <a href="FlowEngine-Design-Doc.html#compat">FlowEngine Design Doc → CompatibilityAnalyzer</a>.</p>
+
+<h3>Via Admin API</h3>
+<pre><span class="lang-tag">http</span><code>GET /api/flowengine/workflows/{workflowId}/compatibility?from=1.0.0&amp;to=2.0.0
+</code></pre>
+<p>Returns a <code>WorkflowCompatibilityReport</code> JSON object. Safe to call in automated pre-migration pipelines.</p>
+
+<h3>MigrateInstanceAsync with dry-run</h3>
+<pre><span class="lang-tag">csharp</span><code>// Always dry-run first — validates remapping without persisting
+// Adds a "[dry-run]" entry to instance history for audit
+var result = await engine.MigrateInstanceAsync(
+    instanceId:     instanceId,
+    targetVersion:  "2.0.0",
+    nodeIdMap:      new Dictionary&lt;string, string&gt;
+    {
+        ["n-old-approval"] = "n-manager-approval"
+    },
+    dryRun:         true,
+    ct:             ct);
+
+// If dry-run succeeded, apply the real migration
+await engine.MigrateInstanceAsync(
+    instanceId:    instanceId,
+    targetVersion: "2.0.0",
+    nodeIdMap:     new Dictionary&lt;string, string&gt;
+    {
+        ["n-old-approval"] = "n-manager-approval"
+    },
+    ct: ct);
+</code></pre>
+
+<h3>Bulk migration pattern</h3>
+<pre><span class="lang-tag">csharp</span><code>// 1. Analyze compatibility
+var report = CompatibilityAnalyzer.Analyze(v1, v2);
+if (report.Findings.Any(f => f.Severity == FindingSeverity.Breaking)) return;
+
+// 2. Fetch all suspended instances on the old version
+var queryResult = await adminApi.QueryInstancesAsync(new ExecutionQuery
+{
+    WorkflowId = "expense-approval",
+    Version    = "1.0.0",
+    Status     = ExecStatus.Suspended
+});
+
+// 3. Dry-run each instance
+foreach (var inst in queryResult.Items)
+{
+    await engine.MigrateInstanceAsync(inst.InstanceId, "2.0.0", dryRun: true, ct: ct);
+}
+
+// 4. Apply migration to all (dry-runs all passed)
+foreach (var inst in queryResult.Items)
+{
+    await engine.MigrateInstanceAsync(inst.InstanceId, "2.0.0", ct: ct);
+}
+</code></pre>
+
+<hr>
+
+<h2 id="testing">Testing Failure Modes</h2>
+<p>The integration test suite (<code>EF.Test.Integration.FlowEngine/FailureModeTests.cs</code>) covers the following failure scenarios with InMemory stores — no Docker required:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>Test class</th><th>Scenario verified</th></tr>
+  <tr><td><code>CircuitBreakerTripsTests</code></td><td>Circuit opens after <code>FailureThreshold</code> consecutive failures; subsequent runs return <code>CircuitOpen</code> outcome in history</td></tr>
+  <tr><td><code>CircuitBreakerResetTests</code></td><td><code>RecordSuccessAsync</code> closes an open circuit (<code>IsOpenAsync</code> returns false)</td></tr>
+  <tr><td><code>RetryExhaustionTests</code></td><td>Retry exhaustion faults the instance with correct <code>AttemptNumber</code> on the final history record</td></tr>
+  <tr><td><code>IdempotencyKeyForwardingTests</code></td><td>Static <code>IdempotencyKey</code> is forwarded verbatim to <code>IAgentClient.InvokeAsync</code></td></tr>
+  <tr><td><code>FaultingStateStoreTests</code></td><td>State store <code>SaveAsync</code> exception propagates out of the engine (at-least-once guarantee)</td></tr>
+</table></div>
+
+<p>Run with: <code>dotnet test EF.Test.Integration.FlowEngine</code> (no external infrastructure required for these tests).</p>
+
+<h3>Performance benchmarks</h3>
+<p>Project <code>EF.Test.Performance</code> provides BenchmarkDotNet benchmarks (single-instance and concurrent 100/500/1000) for linear and branching workflows against InMemory stores.</p>
+<pre><span class="lang-tag">bash</span><code>cd EF.Test.Performance
+dotnet run -c Release
+</code></pre>
+<div class="callout callout-amber">
+  <strong>Release mode required.</strong> BenchmarkDotNet results are only valid in Release configuration. Do not run benchmarks in Debug mode.
+</div>
+
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(stored);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
+</script>
+
+</body>
+</html>

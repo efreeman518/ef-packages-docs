@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowEngine — Use-Case Coverage</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  /* ── Dark theme (default) ───────────────────────────────────────────────── */
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--text2:#c9d1d9;--muted:#8b949e;
+    --teal:#1D9E75;--amber:#EF9F27;--coral:#D85A30;--blue:#378ADD;
+    --purple:#7F77DD;--green:#3FB950;
+    --code-bg:#161b22;--inline-code-color:#EF9F27;
+    --h1-span-color:#1D9E75;
+    --th-bg:var(--bg3);
+    --tr-hover:rgba(255,255,255,.02);
+    --callout-teal-bg:rgba(29,158,117,.08);--callout-teal-fg:#b8e8d6;
+    --callout-amber-bg:rgba(239,159,39,.08);--callout-amber-fg:#f5d898;
+    --callout-blue-bg:rgba(55,138,221,.08);--callout-blue-fg:#a8ccee;
+      --arch-color:var(--muted);
+      --node-card-bg:var(--bg2);
+      --canvas-top:rgba(29,158,117,.08);
+      --canvas-bottom:rgba(55,138,221,.06);
+      --content-surface:rgba(22,27,34,.96);
+      --content-border:rgba(139,148,158,.28);
+      --content-shadow:0 28px 72px rgba(0,0,0,.32);
+      --content-max:920px;
+  }
+  /* ── Light theme ─────────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;
+    --text:#1f2328;--text2:#36454f;--muted:#656d76;
+    --teal:#1a7f64;--amber:#b45309;--coral:#bc4c00;--blue:#0969da;
+    --purple:#6e40c9;--green:#1a7f37;
+    --code-bg:#f6f8fa;--inline-code-color:#b45309;
+    --h1-span-color:#1a7f64;
+    --th-bg:#eaeef2;
+    --tr-hover:rgba(0,0,0,.02);
+    --callout-teal-bg:rgba(26,127,100,.08);--callout-teal-fg:#1a7f64;
+    --callout-amber-bg:rgba(180,83,9,.08);--callout-amber-fg:#b45309;
+    --callout-blue-bg:rgba(9,105,218,.08);--callout-blue-fg:#0969da;
+      --arch-color:#36454f;
+      --node-card-bg:#ffffff;
+      --canvas-top:rgba(26,127,100,.05);
+      --canvas-bottom:rgba(9,105,218,.04);
+      --content-surface:rgba(255,255,255,.94);
+      --content-border:rgba(208,215,222,.95);
+      --content-shadow:0 24px 56px rgba(31,35,40,.08);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;overflow-x:hidden;}
+    body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;transition:background .2s,color .2s;overflow-x:hidden;padding:0 clamp(12px,2.8vw,32px) 56px;}
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+   .doc-header{width:min(100%,var(--content-max));max-width:var(--content-max);background:var(--bg2);border:1px solid var(--content-border);padding:40px 64px 36px;position:relative;overflow:hidden;margin:16px auto 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header-badge{display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;}
+  .header-back{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:3px;transition:color .15s,border-color .15s;}
+  .header-back:hover{color:var(--text);border-color:var(--muted);}
+  .doc-header h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;}
+  .doc-header h1 span{color:var(--h1-span-color);}
+  .doc-header .tagline{font-size:15px;font-weight:300;color:var(--muted);max-width:640px;line-height:1.6;margin-bottom:0;}
+  .theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;margin-left:auto;}
+  .theme-toggle:hover{background:var(--border);color:var(--text);}
+
+  /* ── Content ─────────────────────────────────────────────────────────────── */
+   .content{width:min(100%,var(--content-max));max-width:var(--content-max);margin:20px auto 0;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  h2{font-size:22px;font-weight:600;color:var(--text);margin:52px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);letter-spacing:-.01em;}
+  h2:first-child{margin-top:0;}
+  h3{font-size:16px;font-weight:600;color:var(--text);margin:28px 0 8px;}
+  h4{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--teal);margin:20px 0 6px;letter-spacing:.02em;}
+  p{margin-bottom:12px;color:var(--text2);}
+  ul,ol{margin:0 0 12px 1.4rem;color:var(--text2);}
+  li{margin-bottom:4px;}
+  li p{margin-bottom:4px;}
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0;}
+  strong{color:var(--text);font-weight:600;}
+  blockquote{border-left:3px solid var(--border);padding:8px 16px;margin:12px 0;color:var(--muted);font-style:italic;}
+  blockquote p{color:var(--muted);}
+
+  /* ── Code ────────────────────────────────────────────────────────────────── */
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--inline-code-color);}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;overflow-x:auto;margin:12px 0 18px;position:relative;}
+  pre code{background:none;border:none;padding:0;color:var(--text);font-size:12.5px;line-height:1.65;}
+  .lang-tag{position:absolute;top:8px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+
+  /* ── Tables ──────────────────────────────────────────────────────────────── */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 18px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{background:var(--th-bg);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:8px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--tr-hover);}
+
+  /* ── Callouts ────────────────────────────────────────────────────────────── */
+  .callout{border-radius:6px;padding:13px 17px;margin:14px 0;border-left:3px solid;font-size:14px;line-height:1.65;}
+  .callout-teal{background:var(--callout-teal-bg);border-color:var(--teal);color:var(--callout-teal-fg);}
+  .callout-amber{background:var(--callout-amber-bg);border-color:var(--amber);color:var(--callout-amber-fg);}
+  .callout-blue{background:var(--callout-blue-bg);border-color:var(--blue);color:var(--callout-blue-fg);}
+  .callout strong{color:inherit;font-weight:600;}
+  .callout code{background:rgba(127,119,221,.1);border-color:var(--border);color:inherit;}
+
+  /* ── Divider ─────────────────────────────────────────────────────────────── */
+  .divider{height:1px;background:var(--border);margin:40px 0;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+   /* ── Responsive breakpoints ─────────────────────────────────────────────── */
+   @media (min-width: 769px) and (max-width: 1023px) {
+      .doc-header{padding:28px 32px 24px;}
+      .doc-header h1{font-size:24px;}
+      .content{padding:32px 28px;border-radius:22px;}
+   }
+
+   @media (min-width: 1024px) and (max-width: 1439px) {
+      .content{padding:40px 36px;}
+   }
+
+   @media (min-width: 1440px) {
+      body{padding:0 clamp(18px,3vw,40px) 64px;}
+   }
+
+   @media (max-width: 768px) {
+      body{padding:0 12px 32px;}
+      .doc-header{padding:24px 20px 20px;margin-top:12px;border-radius:20px;}
+      .doc-header h1{font-size:22px;}
+      .content{margin-top:16px;padding:24px 18px;border-radius:20px;}
+      pre{font-size:12px;padding:14px 16px;}
+   }
+</style>
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+   <div class="header-badge">Example Workflows</div>
+    <a class="header-back" href="FlowEngine-Design-Doc.html">← Tech Doc</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀️</button>
+  </div>
+  <h1><span>Flow</span>Engine — Use-Case Examples</h1>
+   <p class="tagline">Nine representative business workflows illustrating the node and engine surface described in these docs.</p>
+</div>
+<div class="content">
+<p>This document uses nine business workflows to illustrate the FlowEngine<br />
+schema surface across multiple industries. Together they reference all 19<br />
+node types and the main engine behaviors: durable suspension, rework cycles,<br />
+parallel execution, child instances, cross-engine invocation, signal
+accumulation, crash recovery, and saga compensation.</p>
+<hr />
+<h2>Use-case map</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Node type</th>
+<th>UC1</th>
+<th>UC2</th>
+<th>UC3</th>
+<th>UC4</th>
+<th>UC5</th>
+<th>UC6</th>
+<th>UC7</th>
+<th>UC8</th>
+<th>UC9</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filter</code></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td></td>
+</tr>
+<tr>
+<td><code>decision</code></td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>store</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td></td>
+<td>X</td>
+</tr>
+<tr>
+<td><code>compute</code></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>transform</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>integration</code></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td>X</td>
+</tr>
+<tr>
+<td><code>fetch</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>query</code></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td></td>
+</tr>
+<tr>
+<td><code>loop</code></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td></td>
+</tr>
+<tr>
+<td><code>workflow</code></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>parallel</code></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td></td>
+</tr>
+<tr>
+<td><code>human</code></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>wait</code></td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>output</code></td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+<td>X</td>
+</tr>
+<tr>
+<td><code>checkpoint</code></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>timer</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>document</code></td>
+<td></td>
+<td></td>
+<td></td>
+<td>X</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Legend:</strong> <code>X</code> means the node type appears in that example.</p>
+<p>The nine examples together reference all 19 node types.</p>
+<hr />
+<h2>UC1 — Healthcare Prior Authorization</h2>
+<p><strong>Scenario:</strong> Patient needs a specialty medication. Insurance must approve<br />
+before the pharmacy dispenses. Possible outcomes: auto-approved, manually<br />
+approved, denied, or expired after clinical info timeout.</p>
+<p><strong>Rework pattern:</strong> Clinical information can be requested up to 2 times<br />
+before the case is auto-denied.</p>
+<pre><code>Start: { patient, prescription, prescriber, insurancePlan }
+  │
+  ├── filter: patient eligible under plan?
+  ├── filter: medication on formulary?
+  ├── integration: &quot;eligibility-api&quot; → get coverage details
+  ├── filter: auto-approve criteria met? (diagnosis code + formulary tier)
+  │     ├── Match → output: AUTO_APPROVED
+  │     └── NoMatch → continue
+  │
+  ├── human[Internal]: &quot;Medical Director Review&quot;
+  │     ├── &quot;approved&quot;      → integration: &quot;auth-number-api&quot; → output: APPROVED
+  │     ├── &quot;denied&quot;        → output: DENIED
+  │     └── &quot;needs-clinical&quot;→ check rework limit via $.engine.visits
+  │           ├── visits &lt; 2 → wait: &quot;clinical-info.received&quot; (P7D timeout)
+  │           │   └── resume → loop back to human
+  │           └── visits &gt;= 2→ output: DENIED_INSUFFICIENT_INFO
+  │
+  └── wait: &quot;clinical-info.received&quot;
+        ├── Match → (loop back to human[Medical Director])
+        └── Error (timeout) → output: EXPIRED
+</code></pre>
+<p><strong>Patterns shown:</strong></p>
+<p><code>filter</code> targeting <code>$.entity</code> with nested navigation paths<br />
+   (<code>Patient.InsurancePlan.Tier</code>) — FilterBuilder null-safe path handles this</p>
+<p><code>integration</code> with <code>storeAs</code> — <code>eligibility-api</code> stores coverage details,<br />
+   downstream filter reads <code>$.context.coverage.formularyTier</code></p>
+<p><code>filter</code> targeting <code>$.context</code> for auto-approve criteria check</p>
+<p><code>human</code> node Internal channel, with <code>dueIn</code> and <code>escalation</code></p>
+<p><code>wait</code> node with <code>timeout: "P7D"</code> — sweep service handles expiry</p>
+<p>Rework pattern — <code>$.engine.visits.n-medical-review &lt; 2</code> on edge <code>when</code>,<br />
+   backward edge to <code>n-medical-review</code></p>
+<p>Multiple <code>output</code> nodes: AUTO_APPROVED, APPROVED, DENIED, DENIED_INSUFFICIENT_INFO, EXPIRED</p>
+<p><code>integration</code> for auth number generation after approval</p>
+<p><strong>Design note:</strong> The <code>wait</code> for clinical info uses a <code>correlationKeyPath</code><br />
+of <code>$.entity.AuthRequestId</code>. The external EHR system that posts clinical<br />
+data needs to include that ID. This is a system integration concern, not<br />
+a schema concern — the harness pattern covers it.</p>
+<hr />
+<h2>UC2 — Loan Origination</h2>
+<p><strong>Scenario:</strong> Small business loan application. Multi-stage underwriting with<br />
+parallel bureau pulls, risk scoring, committee approval (2-of-3 quorum),<br />
+and adverse action notice generation.</p>
+<pre><code>Start: { application, applicant, business }
+  │
+  ├── parallel: [&quot;credit-bureau&quot;, &quot;fraud-check&quot;, &quot;business-score&quot;]
+  │     joinStrategy: All, errorBehavior: ContinueWithPartial
+  │
+  ├── compute: composite risk score from bureau results
+  ├── compute: debt-to-income ratio
+  ├── store: riskTier = (score &gt; 750 ? &quot;low&quot; : score &gt; 600 ? &quot;medium&quot; : &quot;high&quot;)
+  │           NOTE: decision node + when predicates is cleaner for this
+  │
+  ├── decision: route on riskTier
+  │     ├── &quot;low&quot;  → output: AUTO_APPROVED (with terms)
+  │     ├── &quot;medium&quot;→ human[Internal]: &quot;Underwriter Review&quot; (quorum: 1)
+  │     ├── &quot;high&quot; → human[Internal]: &quot;Credit Committee&quot; (quorum: 2, role: committee)
+  │     └── Default → output: AUTO_DENIED
+  │
+  ├── human[quorum]: credit committee responds
+  │     ├── unanimous &quot;approved&quot; → integration: &quot;loan-booking-api&quot;
+  │     │                        → output: APPROVED
+  │     ├── any &quot;denied&quot;         → output: DENIED_WITH_ADVERSE_ACTION
+  │     └── rework (up to 2x)   → backward edge to decision
+  │
+  └── output nodes: AUTO_APPROVED, APPROVED, DENIED, AUTO_DENIED
+</code></pre>
+<p><strong>Patterns shown:</strong></p>
+<p><code>parallel</code> with <code>joinStrategy: All</code> and <code>errorBehavior: ContinueWithPartial</code><br />
+   — partial bureau result is acceptable, engine proceeds with what it has</p>
+<p><code>compute</code> nodes for score and DTI — Roslyn expression with <code>Context["bureauScore"]</code></p>
+<p><code>decision</code> node — <code>valuePath: "$.context.riskTier"</code> with edge <code>when</code> predicates</p>
+<p><code>human</code> node with <code>quorum: 2</code> and <code>assignedTo: "role:credit-committee"</code><br />
+   — <code>IHumanTaskStore.SubmitResponseAsync</code> tracks quorum, resumes when 2 respond</p>
+<p>Multi-response handling — <code>$.context._humanTaskResponses</code> accumulates all responses when <code>quorum &gt; 1</code>. <code>$.context._humanTaskConsensus</code> is set automatically: <code>"unanimous"</code>, <code>"majority"</code>, <code>"any-denied"</code>, or <code>"split"</code>. Edges use simple string comparison: <code>"$.context._humanTaskConsensus == 'unanimous'"</code>.</p>
+<p>Rework with <code>$.engine.visits.n-underwrite &lt; 2</code> on backward edge</p>
+<p><code>integration</code> for loan booking after approval</p>
+<p>Multiple terminal <code>output</code> nodes</p><hr />
+<h2>UC3 — E-commerce Order Fulfillment</h2>
+<p><strong>Scenario:</strong> Order placed. Check inventory per line item, calculate shipping<br />
+and tax, charge payment, allocate warehouse stock, notify customer.<br />
+Customer can request to wait for backordered items (up to 3 times before<br />
+forced cancellation).</p>
+<pre><code>Start: { order, customer }
+  │
+  ├── loop[Parallel]: over order.LineItems → &quot;check-stock&quot; sub-workflow
+  │     aggregate: { reservedItems: collect, backorderedItems: collect }
+  │
+  ├── query: &quot;crm-db&quot; / Customer / any / filter: loyalty tier
+  ├── filter: any backorderedItems?
+  │     ├── NoMatch → continue
+  │     └── Match → human[External]: customer backorder decision (up to 3x)
+  │           ├── &quot;ship-partial&quot; → continue
+  │           ├── &quot;wait&quot; + visits &lt; 3 → wait: &quot;inventory.restocked&quot; (P14D)
+  │           │   → loop back to loop[check-stock]
+  │           ├── &quot;wait&quot; + visits &gt;= 3 → output: CANCELLED
+  │           └── &quot;cancel&quot; → output: CANCELLED
+  │
+  ├── checkpoint: before payment chain
+  │
+  ├── integration: &quot;shipping-calculator-api&quot;
+  ├── integration: &quot;tax-service-api&quot;
+  ├── compute: orderTotal = subtotal + shipping + tax
+  │
+  ├── integration: &quot;payment-api&quot; (idempotencyKey: orderId + &quot;-charge&quot;)
+  │     ├── Match → continue
+  │     ├── NoMatch (declined) → human[External]: customer update payment
+  │     └── Error → output: PAYMENT_ERROR
+  │
+  ├── loop[Sequential]: over reservedItems → &quot;allocate-stock&quot; sub-workflow
+  │
+  ├── message[FireAndForget]: &quot;order-events&quot; / &quot;order.completed&quot;
+  ├── integration: &quot;notification-api&quot; → send confirmation
+  └── output: FULFILLED
+</code></pre>
+<p><strong>Patterns shown:</strong></p>
+<p><code>loop[Parallel]</code> with <code>aggregate: collect</code> — child instances run concurrently,<br />
+   results collected into <code>$.context.reservedItems</code> and <code>$.context.backorderedItems</code></p>
+<p><code>query</code> node — <code>resultMode: any</code> for loyalty tier (does customer have VIP status?)<br />
+   This exercises the cross-type dataset query: CRM Customer entity queried<br />
+   while processing an Order entity</p>
+<p><code>filter</code> on <code>$.context.backorderedItems</code> — checks <code>length &gt; 0</code></p>
+<p><code>human[External]</code> with <code>channel: External</code>, <code>notification</code> config,<br />
+<code>dueIn: "P3D"</code>, external customer email as assignee</p>
+<p>Rework pattern with <code>$.engine.visits.n-backorder-decision &lt; 3</code> and backward<br />
+   edge to the loop node (re-checks stock after waiting for restock)</p>
+<p><code>wait</code> node for restock signal with <code>timeout: "P14D"</code> — timeout takes<br />
+   Error edge to cancellation output</p>
+<p><code>checkpoint</code> node before payment chain — correctly placed between the<br />
+   expensive loop and the write operations</p>
+<p><code>integration</code> nodes with <code>idempotencyKey</code> on payment (prevents double-charge<br />
+   on crash recovery re-execution)</p>
+<p><code>compute</code> for order total — straightforward Roslyn arithmetic</p>
+<p><code>loop[Sequential]</code> for stock allocation — order matters here</p>
+<p><code>message[FireAndForget]</code> for downstream event notification</p>
+<p><code>integration</code> for customer email notification</p>
+<p>Multiple output nodes: FULFILLED, CANCELLED, PAYMENT_ERROR</p>
+<p><strong>Design note:</strong> The checkpoint placement matters — without it, a crash after the shipping/tax calculations but before payment would re-run those integrations. With the checkpoint, only the payment-forward path needs to be idempotent.</p>
+<hr />
+<h2>UC4 — AI-Assisted Document Review</h2>
+<p><strong>Scenario:</strong> Research lab submits a sample document for review. An AI agent analyses<br />
+the content and, if acceptable, a legal team member provides sign-off. A digital<br />
+signature is then required before the document is marked approved.</p>
+<pre><code>Start: { sampleId, documentId, submittedBy }
+  │
+  ├── fetch: retrieve document from storage API
+  ├── transform: map raw fetch response to standardised document fields
+  ├── agent: &quot;uc-agent-client&quot; → review document content
+  │     ├── Match → store: save AI recommendation
+  │     └── Error → output: AI_REVIEW_ERROR
+  │
+  ├── human[Internal]: legal-team review
+  │     └── Match → wait: &quot;signature.received&quot;
+  │
+  ├── wait: &quot;signature.received&quot; (correlationKey: instanceId)
+  │     └── Match → output: APPROVED
+  └── output: AI_REVIEW_ERROR (error path terminal)
+</code></pre>
+<p><strong>Patterns shown:</strong></p>
+<p><code>fetch</code> — document retrieval via registered <code>IRequestResponseClient</code></p>
+<p><code>transform</code> — maps raw response fields to standardised shape for AI prompt input</p>
+<p><code>agent</code> with Error routing — <code>IAgentClient</code> returns <code>Error</code> outcome; routes<br />
+   directly to error output without creating a human task</p>
+<p><code>store</code> — records AI recommendation in context for human reviewer visibility</p>
+<p><code>human[Internal]</code> with <code>channel: Internal</code> and <code>assignedTo: "legal-team"</code></p>
+<p><code>wait</code> for digital signature — uses <code>instanceId</code> as correlation key;<br />
+   harness calls <code>engine.ResumeAsync("signature.received", instance.InstanceId)</code></p>
+<p>Multiple <code>output</code> nodes — APPROVED, AI_REVIEW_ERROR</p>
+<p><code>document</code> node (when <code>AzuriteContainerFixture</code> is available) — uploads/downloads<br />
+   document content via <code>IDocumentStore</code> backed by Azure Blob Azurite</p>
+<hr />
+<h2>UC5 — Scheduled Batch Processing</h2>
+<p><strong>Scenario:</strong> A scheduled job (timer-triggered) extracts a batch payload from a
+sub-workflow, loops over each item in the batch, processes it, stores the result,
+and sends an ops notification when complete. An empty-batch case runs 0 loop
+iterations and still sends the notification.</p>
+<pre><code>Start: no entity (scheduled invocation)
+  │
+  ├── timer: 2-second delay (sweep service fires)
+  ├── workflow[local]: &quot;uc5-extract&quot; sub-workflow → $.context.batchItems
+  ├── loop[Sequential]: over $.context.batchItems
+  │     sub-workflow: &quot;uc5-item-processor&quot;
+  │       └── store: itemResult
+  │
+  ├── store: batchComplete = true
+  ├── message[FireAndForget]: &quot;Batch Processing Complete&quot; to msg-client
+  └── output: BATCH_DONE { batchStatus }
+</code></pre>
+<p><strong>Node types exercised in UC5:</strong> <code>timer</code>, <code>workflow</code>, <code>loop</code>, <code>store</code>, <code>message</code>, <code>output</code></p>
+<p><strong>Patterns shown:</strong></p>
+<p><code>timer</code> — sweep service resumes the instance after the delay elapses. No harness
+   code required. The scheduled host (Functions/Hangfire/Quartz) calls <code>StartAsync</code>;
+   the timer handles the durable delay before execution continues.</p>
+<p><code>workflow[local]</code> for data extraction — the extract sub-workflow stores its
+   result via <code>storeAs</code>; the parent reads it from <code>$.context.batchItems</code></p>
+<p><code>loop[Sequential]</code> over the extracted array — each item processed in order by
+   a lightweight item-processor sub-workflow</p>
+<p><code>store</code> node — records batch metadata (completion flag) into context</p>
+<p><code>message[FireAndForget]</code> — ops notification after batch completes; parent
+   continues without waiting for consumer acknowledgement</p>
+<p>Empty-batch case — when <code>batchItems</code> is empty the loop runs 0 iterations and
+   the workflow still reaches the <code>output</code> node via the normal path</p>
+<p>Single <code>output</code> node — BATCH_DONE (this workflow has one terminal outcome)</p><hr />
+<h2>UC6 — Regulatory Compliance Check</h2>
+<p><strong>Scenario:</strong> A manufacturing batch is submitted for regulatory compliance review.
+Invalid batches are immediately denied via a <code>filter</code> node. High-risk batches
+call a lab integration for measurements, compute a compliance score, loop through
+individual findings (each in a sub-workflow), then use a <code>fetch</code> node to call a
+legacy ERP API for batch release. Low-risk batches skip the lab and go direct to
+release.</p>
+<pre><code>Start: { batchId, riskLevel }
+  │
+  ├── filter: batchId present?
+  │     ├── NoMatch → output: DENIED_INVALID
+  │     └── Match → continue
+  │
+  ├── decision: route on riskLevel
+  │     ├── &quot;high&quot; → integration: &quot;lab-instrument-api&quot; → store: labResults
+  │     │             compute: complianceScore = f(labResults)
+  │     │             loop[Parallel]: over findings
+  │     │               sub-workflow: &quot;uc6-finding&quot;
+  │     │                 └── fetch: &quot;erp-api&quot; / finding record
+  │     └── other → continue direct
+  │
+  ├── compute: passed = complianceScore &gt;= threshold (or default pass for low-risk)
+  ├── integration: &quot;erp-api&quot; / batch-release
+  └── output: RELEASED { batchId, complianceScore }
+</code></pre>
+<p><strong>Node types exercised in UC6:</strong> <code>filter</code>, <code>decision</code>, <code>integration</code>, <code>compute</code>, <code>loop</code>, <code>fetch</code>, <code>output</code></p>
+<p><strong>Patterns shown:</strong></p>
+<p><code>filter</code> on <code>$.entity</code> — early-exit guard for invalid input; <code>NoMatch</code> routes
+   directly to denial output without touching any external system</p>
+<p><code>decision</code> on riskLevel — branches to the lab path (high-risk) or the
+   direct-release path (low-risk). <code>Unknown</code>/<code>NoMatch</code> (null riskLevel) takes
+   the direct path — safe default rather than failure</p>
+<p><code>integration</code> for lab instrument — typed client call storing raw measurements
+   as <code>$.context.labResults</code></p>
+<p><code>compute</code> for compliance score — Roslyn expression over the lab result fields</p>
+<p><code>loop[Parallel]</code> over findings — each finding processed concurrently by a
+   sub-workflow that calls the ERP via <code>fetch</code></p>
+<p><code>fetch</code> node — legacy ERP API has no typed integration definition; raw HTTP
+   escape hatch. Illustrates when <code>fetch</code> is appropriate over <code>integration</code>.</p>
+<p>Multiple <code>output</code> nodes — RELEASED (happy path), DENIED_INVALID (bad input)</p><hr />
+<h2>UC7 — Product Launch Coordination</h2>
+<p><strong>Scenario:</strong> A new product is readied for market. Metadata is normalised, parallel<br />
+tracks run simultaneously (marketing prep, logistics readiness), a decision<br />
+routes high-confidence products through regulatory approval, and a launch<br />
+announcement is sent once all steps complete.</p>
+<pre><code>Start: { productId, name, sku, confidence }
+  │
+  ├── transform: normalise raw product fields → $.context.normalised
+  ├── parallel: [&quot;uc7-marketing-sub&quot;, &quot;uc7-logistics-sub&quot;]
+  │     joinStrategy: All, errorBehavior: StopAll
+  │
+  ├── decision: route on $.entity.confidence
+  │     ├── Match (non-null confidence) → workflow: &quot;uc7-regulatory-sub&quot;
+  │     └── NoMatch/Unknown (null confidence) → output: BLOCKED
+  │
+  ├── workflow[local]: &quot;uc7-regulatory-sub&quot; (parallel approvals, loops)
+  ├── store: save regulatory outcome
+  ├── compute: derive launch readiness score
+  ├── message[FireAndForget]: &quot;Product Launch Announcement&quot; to order-events
+  └── output: LAUNCHED
+</code></pre>
+<p><strong>Node types exercised in UC7:</strong> <code>transform</code>, <code>parallel</code>, <code>decision</code>, <code>workflow</code>, <code>store</code>, <code>compute</code>, <code>message</code>, <code>timer</code>, <code>output</code></p>
+<p><strong>Patterns shown:</strong></p>
+<p><code>transform</code> — normalises raw entity fields. Stored result available as <code>$.context.normalised</code><br />
+   for downstream nodes without re-reading <code>$.entity</code></p>
+<p><code>parallel</code> with <code>JoinStrategy.All</code> and <code>ErrorBehavior.StopAll</code> — both tracks<br />
+   (marketing + logistics sub-workflows) must complete; one faulting branch stops all</p>
+<p><code>decision</code> — null confidence test using JSONPath resolution; <code>NoMatch</code>/<code>Unknown</code><br />
+   directs cleanly to BLOCKED output; <code>Match</code> (non-null) continues to regulatory</p>
+<p><code>workflow[local]</code> for regulatory sub-workflow — <code>FireAndForget: false</code>; parent suspends<br />
+   until regulatory sub-workflow completes</p>
+<p><code>store</code> / <code>compute</code> — standard context accumulation; compute builds launch score<br />
+   from aggregated parallel branch outputs</p>
+<p><code>message[FireAndForget]</code> — launch announcement published to message bus;<br />
+   parent continues without waiting for consumer</p>
+<p><code>timer</code> — used inside regulatory sub-workflow for a brief compliance delay;<br />
+   exercises the ISO 8601 <code>delay</code> path end-to-end in a UC context</p>
+<p>Multiple <code>output</code> nodes — LAUNCHED (success), BLOCKED (null confidence)</p><hr />
+<h2>UC8 — Scheduled Fleet Service Batch</h2>
+<p><strong>Scenario:</strong> An external scheduler (Azure Functions / Hangfire / Quartz) calls
+<code>StartAsync</code> with no entity. The entry <code>query</code> node uses FilterBuilder over real
+SQL seed data to discover vehicles with <code>Status IN (Warning, Critical)</code>. A
+<code>loop</code> node runs a per-vehicle analysis sub-workflow: an <code>agent</code> node returns
+structured JSON <code>{ severity, recommendedTeam, reason }</code>; downstream <code>filter</code>
+nodes branch to integration (team queue API) + message (manager email) for
+Critical, integration only for Routine, or no-op for NoAction. An ops
+batch-complete message is sent after the loop.</p>
+<pre><code>Start: no entity (scheduler-triggered)
+  │
+  ├── query: &quot;uc-query-client&quot; / Vehicle / all
+  │     filterSet: Status IN [&quot;Warning&quot;, &quot;Critical&quot;]
+  │     storeAs: vehiclesNeedingService
+  │     ├── Match  → loop-vehicles
+  │     └── NoMatch/Error → notify-empty → output: BATCH_EMPTY
+  │
+  ├── loop[Sequential]: over $.context.vehiclesNeedingService
+  │     itemAs: currentVehicle (→ $.params.currentVehicle in sub-workflow)
+  │     sub-workflow: &quot;uc8-vehicle-analysis&quot;
+  │       ├── agent: analyse vehicle → { severity, recommendedTeam, reason }
+  │       │     storeAs: analysis   ($.params.currentVehicle embedded in prompt)
+  │       ├── filter: severity == &quot;Critical&quot;?
+  │       │     └── Match → parallel[All]: enqueue-team + email-manager
+  │       ├── filter: severity == &quot;Routine&quot;?
+  │       │     └── Match → integration: POST /service-teams/queue
+  │       └── output: { vehicleId, severity, routing }
+  │
+  ├── message[FireAndForget]: &quot;Fleet Batch Complete&quot; to msg-client
+  └── output: BATCH_DONE { batchStatus }
+</code></pre>
+<p><strong>Node types exercised in UC8:</strong> <code>query</code>, <code>loop</code>, <code>agent</code>, <code>filter</code>, <code>parallel</code>, <code>integration</code>, <code>message</code>, <code>output</code></p>
+<p><strong>Patterns shown:</strong></p>
+<p><code>query</code> node with FilterBuilder over real SQL — <code>resultMode: All</code> returns a flat
+   JSON array; no entity input required (scheduled invocation). The <code>in</code> operator
+   with array <code>testValue</code> survives JSON round-trip correctly (scalar <code>eq</code> does not
+   when <code>TestValue</code> is deserialized as <code>JsonElement</code>).</p>
+<p><code>loop</code> passes each item as <code>@params</code> to the child workflow (accessible as
+   <code>$.params.currentVehicle</code>, NOT <code>$.context.currentVehicle</code>). This is the
+   critical path distinction for loop-scoped sub-workflows.</p>
+<p><code>agent</code> node with per-item-varying response — <code>promptTemplate</code> embeds
+   <code>{{$.params.currentVehicle}}</code> which the executor resolves via
+   <code>InterpolateTemplate</code> before passing to the <code>IAgentClient</code>. The stub's
+   <code>ResponseFactory</code> reads the resolved prompt to determine severity from the
+   embedded vehicle JSON.</p>
+<p><code>filter</code> nodes on agent output — <code>target: "$.context.analysis"</code> checks the
+   <code>severity</code> string returned by the agent. Each branch is a separate filter
+   node (Critical → parallel, Routine → single integration, NoAction → skip).</p>
+<p><code>parallel[All]</code> for Critical vehicles — <code>enqueue-team</code> (integration POST) and
+   <code>email-manager</code> (message) run concurrently; both must complete before the
+   sub-workflow's output node is reached.</p>
+<p><code>message</code> for manager email — subject <code>"Critical Vehicle Service Required"</code>;
+   testable via <code>MessageSpy.SentMessages</code> in the test harness.</p>
+<p>Empty result-set branch — when the query returns 0 vehicles, <code>NoMatch</code> routes
+   to a <code>notify-empty</code> message node and then to a terminal output. No per-vehicle
+   traffic is produced.</p>
+<p>NoAction branch — when the agent returns <code>severity: "NoAction"</code> the sub-workflow
+   skips both integration and message nodes and falls through to the output directly.</p>
+<p><strong>Design note:</strong> Scheduling is out-of-scope for the engine. Production hosts
+   (Azure Functions timer trigger, Hangfire, Quartz) own the cron trigger and call
+   <code>StartAsync</code> directly. The <code>query</code> node performs the discovery that a scheduled
+   batch job would normally do in application code — keeping the working-set logic
+   declarative and version-controlled alongside the rest of the workflow.</p>
+<h2>UC9 — Inventory-Payment-Shipping Saga</h2>
+<p><strong>Scenario:</strong> An order flows through three sequential integration steps —
+reserve inventory, charge payment, ship order. Each forward step declares a
+compensation node. If any step fails, the engine runs compensation nodes in
+reverse order (refund-payment, then release-inventory) and routes to a
+<code>GlobalOnFailureNodeId</code> terminal output rather than faulting the instance.</p>
+<pre><code>Start: { orderId, customerId, items }
+  │
+  ├── integration: POST /uc9/reserve
+  │     compensationNode: release-inventory
+  │     ├── Match → charge-payment
+  │     └── Error → [compensation chain]
+  │
+  ├── integration: POST /uc9/charge
+  │     compensationNode: refund-payment
+  │     ├── Match → ship-order
+  │     └── Error → [compensation chain]
+  │
+  ├── integration: POST /uc9/ship
+  │     (no compensator — idempotent / read-only-ish)
+  │     ├── Match → saga-success (output: result=shipped)
+  │     └── Error → [compensation chain]
+  │
+  Compensation chain (runs in reverse on failure):
+  ├── store: refund-payment      → paymentRefunded=true
+  ├── store: release-inventory   → inventoryReleased=true
+  └── GlobalOnFailureNodeId → saga-failed (output: result=saga-compensated)
+</code></pre>
+<p><strong>Node types exercised in UC9:</strong> <code>integration</code>, <code>store</code>, <code>output</code></p>
+<p><strong>Patterns shown:</strong></p>
+<p><code>EnableCompensation: true</code> — activates the saga compensation engine. Without
+   this flag a failing node faults the instance with no rollback (tested separately
+   as the opt-out variant).</p>
+<p><code>compensationNode</code> per forward step — each integration node declares the
+   rollback node to execute if it (or any later step) fails. The engine walks the
+   executed-node stack in reverse and runs only the compensation nodes whose
+   forward step completed with <code>Match</code>.</p>
+<p><code>GlobalOnFailureNodeId: "saga-failed"</code> — after compensation completes the
+   engine routes to this terminal output node, so the instance <em>Completes</em> rather
+   than <em>Faults</em>. The compensation path is fully auditable in
+   <code>ExecutionInstance.History</code>.</p>
+<p><code>store</code> nodes as compensation actions — lightweight context writes represent
+   the rollback side-effects. In production these would be integration calls to
+   undo the forward action (refund charge, release reservation).</p>
+<p>Partial compensation — when payment fails (step 2), only the inventory
+   compensation runs; charge-payment never completed so its compensator is
+   skipped. The engine tracks completed nodes, not declared nodes.</p>
+<p>Compensation opt-out — <code>EnableCompensation: false</code> (default): no rollback,
+   no <code>GlobalOnFailureNodeId</code>; a failing step leaves the instance <code>Faulted</code>.</p>
+<hr />
+<h3>Summary — node types represented in these examples</h3>
+<p>All 19 node types appear in at least one concrete real-world scenario.<br />
+These examples show how the schema can represent multi-party, multi-system<br />
+workflows with rework, parallelism, long-running async steps, and saga compensation.</p>
+<h3>Engine behaviors referenced by use case</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Behavior</th>
+<th>Referenced in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Suspend + resume via external webhook</td>
+<td>UC1, UC3, UC4</td>
+</tr>
+<tr>
+<td>Suspend + resume via Service Bus signal</td>
+<td>UC6</td>
+</tr>
+<tr>
+<td>Crash recovery (checkpoint before write chain)</td>
+<td>UC3</td>
+</tr>
+<tr>
+<td>Rework pattern with <code>$.engine.visits</code> limit</td>
+<td>UC1, UC2, UC3</td>
+</tr>
+<tr>
+<td>Parallel execution with join strategies</td>
+<td>UC2, UC6</td>
+</tr>
+<tr>
+<td>Parallel output aggregation (<code>collect</code>, <code>first</code>, <code>sourcePath</code>)</td>
+<td>UC2, UC6</td>
+</tr>
+<tr>
+<td>Child instance signalling (loop, parallel, workflow)</td>
+<td>UC3, UC6</td>
+</tr>
+<tr>
+<td>Cross-engine workflow invocation</td>
+<td>UC6</td>
+</tr>
+<tr>
+<td>Quorum-based human tasks</td>
+<td>UC2</td>
+</tr>
+<tr>
+<td>External channel human tasks</td>
+<td>UC3</td>
+</tr>
+<tr>
+<td>Signal accumulation (MinSignalCount &gt; 1)</td>
+<td>UC1</td>
+</tr>
+<tr>
+<td>Scheduled batch — query-driven discovery (no input entity)</td>
+<td>UC8</td>
+</tr>
+<tr>
+<td>Loop item available as <code>$.params.x</code> in child workflow</td>
+<td>UC8</td>
+</tr>
+<tr>
+<td>Agent <code>ResponseFactory</code> varying response per loop iteration</td>
+<td>UC8</td>
+</tr>
+<tr>
+<td>Saga compensation (reverse rollback + <code>GlobalOnFailureNodeId</code>)</td>
+<td>UC9</td>
+</tr>
+</tbody>
+</table></div>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('theme');
+  if (stored) html.setAttribute('data-theme', stored);
+  toggle.textContent = html.getAttribute('data-theme') === 'light' ? '🌙' : '☀️';
+  toggle.addEventListener('click', () => {
+    const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    toggle.textContent = next === 'light' ? '🌙' : '☀️';
+  });
+})();
+</script>
+
+</body>
+</html>

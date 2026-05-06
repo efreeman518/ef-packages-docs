@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EF.FilterBuilder — Technical Design Document</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0d1117;
+    --bg2:      #161b22;
+    --bg3:      #21262d;
+    --border:   #30363d;
+    --text:     #e6edf3;
+    --muted:    #8b949e;
+    --purple:   #7F77DD;
+    --purple-l: #EEEDFE;
+    --teal:     #1D9E75;
+    --teal-l:   #E1F5EE;
+    --amber:    #EF9F27;
+    --amber-l:  #FAEEDA;
+    --coral:    #D85A30;
+    --coral-l:  #FAECE7;
+    --blue:     #378ADD;
+    --blue-l:   #E6F1FB;
+    --gray:     #888780;
+    --code-bg:  #161b22;
+    --accent:   #7F77DD;
+    --canvas-top: rgba(127,119,221,.08);
+    --canvas-bottom: rgba(29,158,117,.06);
+    --content-surface: rgba(22,27,34,.96);
+    --content-border: rgba(139,148,158,.28);
+    --content-shadow: 0 28px 72px rgba(0,0,0,.32);
+    --layout-gap: clamp(20px,2.4vw,32px);
+    --sidebar-width: 228px;
+    --content-max: 880px;
+    --layout-max: calc(var(--sidebar-width) + var(--content-max) + var(--layout-gap));
+    --link: #7cc9ff;
+    --link-visited: #a9bbff;
+    --link-hover: #b9e2ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%), radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%), var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+    overflow-x: hidden;
+  }
+  body.nav-open { overflow: hidden; }
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+  .doc-header {
+    width: min(100%, var(--layout-max));
+    background: var(--bg2);
+    border: 1px solid var(--content-border);
+    padding: 52px 64px 44px;
+    position: relative;
+    overflow: hidden;
+    margin: 16px auto 0;
+    border-radius: 24px;
+    box-shadow: 0 18px 44px rgba(0,0,0,.18);
+  }
+  .doc-header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 340px; height: 340px;
+    background: radial-gradient(circle, rgba(127,119,221,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .doc-header .badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--purple);
+    border: 1px solid rgba(127,119,221,.35);
+    background: rgba(127,119,221,.08);
+    padding: 3px 10px;
+    border-radius: 4px;
+  }
+  .doc-header h1 {
+    font-size: 38px;
+    font-weight: 300;
+    letter-spacing: -.02em;
+    color: var(--text);
+    margin: 0;
+  }
+  .doc-header h1 strong { font-weight: 600; color: #fff; }
+  .doc-header .subtitle {
+    font-size: 15px;
+    color: var(--muted);
+    font-weight: 300;
+    max-width: 560px;
+  }
+  .meta-row {
+    display: flex;
+    gap: 32px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .meta-item { font-size: 12px; color: var(--muted); }
+  .meta-item strong { color: var(--text); font-weight: 600; display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 2px; }
+
+  /* ── Toggle & hamburger ─────────────────────────────────────────────────── */
+  .theme-toggle,.hamburger {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, color .15s;
+    flex-shrink: 0;
+  }
+  .theme-toggle {
+    margin-left: auto;
+    padding: 0;
+    line-height: 1;
+  }
+  .theme-toggle:hover,.hamburger:hover { background: var(--border); color: var(--text); }
+  .hamburger { display: none; }
+
+  /* ── Layout ──────────────────────────────────────────────────────────────── */
+  .layout { display: grid; grid-template-columns: minmax(210px,var(--sidebar-width)) minmax(0,var(--content-max)); justify-content: center; align-items: flex-start; gap: var(--layout-gap); width: min(100%, var(--layout-max)); max-width: none; min-height: 100vh; padding: 18px clamp(16px,2.6vw,36px) 56px; margin: 0 auto; }
+
+  .sidebar {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--content-border);
+    padding: 28px 0;
+    position: sticky;
+    top: 18px;
+    height: calc(100vh - 36px);
+    overflow-y: auto;
+    border-radius: 20px;
+    box-shadow: 0 18px 44px rgba(0,0,0,.18);
+  }
+  .sidebar-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 20px;
+    margin-bottom: 8px;
+    margin-top: 20px;
+  }
+  .sidebar-label:first-child { margin-top: 0; }
+  .sidebar-top-link {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: rgba(29,158,117,.12);
+    border: 1px solid rgba(29,158,117,.28);
+    border-radius: 999px;
+    color: var(--teal);
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    line-height: 1;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .sidebar-top-link:hover { background: rgba(29,158,117,.2); color: var(--text); border-color: rgba(29,158,117,.4); }
+  .sidebar a {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 5px 20px;
+    border-left: 2px solid transparent;
+    transition: all .15s;
+  }
+  .sidebar a:hover { color: var(--text); border-color: var(--border); }
+  .sidebar a.active { color: var(--purple); border-color: var(--purple); background: rgba(127,119,221,.06); }
+
+  .content {
+    flex: 1;
+    width: 100%;
+    padding: clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);
+    max-width: var(--content-max);
+    margin: 0;
+    background-color: var(--content-surface);
+    background-image: linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);
+    border: 1px solid var(--content-border);
+    border-radius: 24px;
+    box-shadow: var(--content-shadow);
+  }
+
+  /* ── Sections ────────────────────────────────────────────────────────────── */
+  section { margin-bottom: 64px; }
+  section + section { border-top: 1px solid var(--border); padding-top: 56px; }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .sec-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--purple);
+    background: rgba(127,119,221,.1);
+    border: 1px solid rgba(127,119,221,.25);
+    border-radius: 3px;
+    padding: 2px 7px;
+    font-weight: 600;
+    letter-spacing: .06em;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 28px 0 10px;
+  }
+  h4 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--amber);
+    margin: 20px 0 8px;
+    font-weight: 600;
+  }
+  p { color: #c9d1d9; margin-bottom: 14px; }
+  p:last-child { margin-bottom: 0; }
+
+  .content a {
+    color: var(--link);
+    text-decoration-color: rgba(124,201,255,.45);
+    text-underline-offset: 2px;
+    transition: color .15s, text-decoration-color .15s;
+  }
+  .content a:visited { color: var(--link-visited); }
+  .content a:hover { color: var(--link-hover); text-decoration-color: currentColor; }
+
+  /* ── Callout boxes ───────────────────────────────────────────────────────── */
+  .callout {
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    font-size: 14px;
+    border-left: 3px solid;
+  }
+  .callout.info  { background: rgba(55,138,221,.08); border-color: var(--blue);   color: #b0ccec; }
+  .callout.warn  { background: rgba(239,159,39,.08);  border-color: var(--amber);  color: #e8c98a; }
+  .callout.tip   { background: rgba(29,158,117,.08);  border-color: var(--teal);   color: #8fd4bc; }
+  .callout strong { color: #fff; }
+
+  /* ── Code ────────────────────────────────────────────────────────────────── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    overflow-x: auto;
+    margin: 16px 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  code { font-family: 'IBM Plex Mono', monospace; font-size: .9em; }
+  p code, li code {
+    background: rgba(255,255,255,.07);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: #d2a8ff;
+  }
+
+  /* Syntax highlight-ish via spans */
+  .kw  { color: #ff7b72; }   /* keyword */
+  .ty  { color: #79c0ff; }   /* type */
+  .st  { color: #a5d6ff; }   /* string */
+  .co  { color: #8b949e; font-style: italic; } /* comment */
+  .nu  { color: #f2cc60; }   /* number */
+  .me  { color: #d2a8ff; }   /* method */
+  .pr  { color: #ffa657; }   /* property */
+
+  /* ── Table ───────────────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13.5px; }
+  th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 9px 14px; border-bottom: 1px solid rgba(48,54,61,.6); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: .85em; }
+
+  /* ── Diagram wrapper ─────────────────────────────────────────────────────── */
+  .diagram-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 16px 18px;
+    margin: 24px 0;
+  }
+  .diagram-caption {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 12px;
+    letter-spacing: .06em;
+  }
+
+  /* ── Feature tags ────────────────────────────────────────────────────────── */
+  .tag {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-right: 4px;
+  }
+  .tag.purple { background: rgba(127,119,221,.15); color: #ada8f4; border: 1px solid rgba(127,119,221,.3); }
+  .tag.teal   { background: rgba(29,158,117,.15);  color: #5ecfac; border: 1px solid rgba(29,158,117,.3); }
+  .tag.amber  { background: rgba(239,159,39,.15);  color: #f5c06b; border: 1px solid rgba(239,159,39,.3); }
+  .tag.coral  { background: rgba(216,90,48,.15);   color: #f09070; border: 1px solid rgba(216,90,48,.3); }
+
+  ul, ol { padding-left: 22px; color: #c9d1d9; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+
+  .divider { height: 1px; background: var(--border); margin: 32px 0; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+  /* ── Scroll behaviour ────────────────────────────────────────────────────── */
+  html { scroll-behavior: smooth; }
+
+  /* ── Light mode overrides ───────────────────────────────────────────────── */
+  body.light {
+    --bg:      #f6f8fa;
+    --bg2:     #ffffff;
+    --bg3:     #f0f2f4;
+    --border:  #d0d7de;
+    --text:    #1f2328;
+    --muted:   #656d76;
+    --code-bg: #f6f8fa;
+    --canvas-top: rgba(110,64,201,.05);
+    --canvas-bottom: rgba(26,127,100,.04);
+    --content-surface: rgba(255,255,255,.94);
+    --content-border: rgba(208,215,222,.95);
+    --content-shadow: 0 24px 56px rgba(31,35,40,.08);
+    --link: #0550ae;
+    --link-visited: #6639ba;
+    --link-hover: #0969da;
+  }
+  body.light p, body.light li { color: #444c56; }
+  body.light h2 { color: #1f2328; }
+  body.light p code, body.light li code {
+    background: rgba(0,0,0,.05);
+    border-color: var(--border);
+    color: #6e40c9;
+  }
+  body.light .kw  { color: #cf222e; }
+  body.light .ty  { color: #0550ae; }
+  body.light .st  { color: #0a3069; }
+  body.light .co  { color: #6e7781; }
+  body.light .nu  { color: #953800; }
+  body.light .me  { color: #6e40c9; }
+  body.light .pr  { color: #953800; }
+  body.light .callout.info  { background: rgba(55,138,221,.07);  color: #0550ae; }
+  body.light .callout.warn  { background: rgba(239,159,39,.09);  color: #7d4e00; }
+  body.light .callout.tip   { background: rgba(29,158,117,.07);  color: #116329; }
+  body.light .callout strong { color: #1f2328; }
+
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 198;
+  }
+
+  @media (min-width: 769px) and (max-width: 1023px) {
+    .doc-header { padding: 40px 32px 32px; margin: 12px auto 0; }
+    .doc-header h1 { font-size: 30px; }
+    .layout { grid-template-columns: minmax(190px,220px) minmax(0,1fr); gap: 16px; max-width: none; padding: 16px 20px 40px; }
+    .content { padding: 40px 28px; border-radius: 22px; }
+  }
+
+  @media (min-width: 1024px) and (max-width: 1439px) {
+    .layout { padding: 18px 24px 48px; }
+    .content { padding: 44px 36px; }
+  }
+
+  @media (min-width: 1440px) {
+    .layout { padding: 24px 32px 64px; }
+  }
+
+  /* ── Mobile breakpoint ──────────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .hamburger { display: flex; }
+
+    .layout { display: block; padding: 0 0 32px; }
+
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 100vh;
+      z-index: 199;
+      transform: translateX(-100%);
+      transition: transform .25s ease;
+      width: 240px;
+      border-radius: 0 20px 20px 0;
+      border-left: none;
+      box-shadow: 0 20px 48px rgba(0,0,0,.35);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.open { display: block; }
+
+    .content {
+      width: auto;
+      max-width: none;
+      margin: 16px 12px 0;
+      padding: 64px 18px 28px;
+      border-radius: 20px;
+    }
+    .doc-header {
+      padding: 52px 20px 36px;
+      margin: 12px 12px 0;
+      border-radius: 20px;
+    }
+    .doc-header h1 { font-size: 26px; }
+
+    .theme-toggle { right: 16px; }
+
+    /* Horizontal-scroll wrapper for wide tables and code blocks on mobile */
+    pre, .table-scroll { overflow-x: auto; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="header-top">
+    <div class="badge">Technical Design Document</div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀</button>
+  </div>
+  <div class="title-row">
+    <button class="hamburger" id="hamburger" aria-label="Open navigation">&#9776;</button>
+    <h1><strong>EF.FilterBuilder</strong></h1>
+  </div>
+  <p class="subtitle">A declarative, serializable filter expression engine for typed .NET collections and LINQ data sources.</p>
+  <div class="meta-row">
+    <div class="meta-item"><strong>Platform</strong>C# 14 / .NET 10</div>
+    <div class="meta-item"><strong>Targets</strong>IQueryable&lt;T&gt;, IEnumerable&lt;T&gt;</div>
+    <div class="meta-item"><strong>Author</strong>Eben Freeman</div>
+    <div class="meta-item"><strong>Status</strong>Patent Pending</div>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="overlay"></div>
+
+<div class="layout">
+<nav class="sidebar">
+  <div class="sidebar-label">Overview</div>
+  <a href="#docs">Supporting docs</a>
+  <a href="#overview" class="active">What is it?</a>
+  <a href="#architecture">Architecture</a>
+  <div class="sidebar-label">Data Model</div>
+  <a href="#datamodel">Filter &amp; FilterSet</a>
+  <a href="#filtertype">FilterType enum</a>
+  <div class="sidebar-label">Core Features</div>
+  <a href="#nullsafe">Null-safe paths</a>
+  <a href="#collections">Collection scope</a>
+  <a href="#filtertype">Dynamic RHS</a>
+  <a href="#compiler">Type-param compiler</a>
+  <a href="#example-gen">Example generation</a>
+  <a href="#priority">First-match eval</a>
+  <div class="sidebar-label">Usage</div>
+  <a href="#basic">Basic filtering</a>
+  <a href="#deep-paths">Deep paths</a>
+  <a href="#collections-usage">Collections</a>
+  <a href="#dynamic">Dynamic values</a>
+  <a href="#priority">Priority rules</a>
+  <div class="sidebar-label">Operators</div>
+  <a href="#op-membership">In / Nin</a>
+  <a href="#op-null">IsNull / IsNotNull</a>
+  <a href="#op-date">Date components</a>
+  <a href="#op-length">String length</a>
+  <a href="#op-string-flags">Case &amp; Normalize</a>
+  <div class="sidebar-label">Advanced RHS</div>
+  <a href="#multiresult">Multi-result query</a>
+  <div class="sidebar-label">Branching</div>
+  <a href="#branch">Branch (if/else)</a>
+  <a href="#switch">Switch (multi-case)</a>
+  <a href="#branch-nested">Nested branching</a>
+  <div class="sidebar-label">Patterns</div>
+  <a href="#pat-geo">Geo-distance</a>
+  <a href="#pat-pagination">Pagination &amp; sort</a>
+  <a href="#pat-softdelete">Soft-delete</a>
+  <a href="#pat-caching">Caching expressions</a>
+  <a href="#pat-storage">Storing in DB</a>
+  <a href="#pat-multitenancy">Multi-tenancy</a>
+  <a href="#pat-aspnet">ASP.NET Core</a>
+  <a href="#pat-testing">Testing</a>
+</nav>
+
+<main class="content">
+
+<section id="docs">
+  <div class="callout info">
+    <strong>Supporting Documentation</strong>
+    <ul style="margin:.5rem 0 0 1.2rem;padding:0;list-style:disc;">
+      <li><a href="EF-FilterBuilder-UnitTestSamples.html" target="_blank" rel="noopener noreferrer">EF-FilterBuilder-UnitTestSamples</a> — FilterBuilder unit test samples</li>
+      <li><a href="SKILL-EF.FilterBuilder.md" target="_blank" rel="noopener noreferrer">SKILL-EF.FilterBuilder.md</a> — FilterBuilder skill file for workflow authors and AI agents</li>
+      <li><a href="FlowEngine-Design-Doc.html" target="_blank" rel="noopener noreferrer">FlowEngine-Design-Doc</a> — FlowEngine technical design document</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ── 1. Overview ─────────────────────────────────────────────────────────── -->
+<section id="overview">
+  <h2><span class="sec-num">01</span> What is EF.FilterBuilder?</h2>
+
+  <p>EF.FilterBuilder is a runtime predicate expression engine. You define filter logic as plain serializable data — a <code>FilterSet</code> object that can be stored as JSON — and the library compiles it into a strongly-typed <code>Expression&lt;Func&lt;T, bool&gt;&gt;</code> at runtime. That expression can be passed directly to <code>IQueryable&lt;T&gt;.Where()</code> for server-side SQL execution, or evaluated in-memory against any <code>IEnumerable&lt;T&gt;</code>.</p>
+
+  <p>The key insight is that filter <em>definitions</em> live in data, not code. Adding a new filter rule, changing a comparison value, or reprioritizing rules requires zero code changes and zero redeployment.</p>
+
+  <div class="callout tip">
+    <strong>Primary use cases:</strong> user-configurable search/filter UIs, rule engines driven from a database, multi-tenant filter logic that differs per tenant, A/B testing of filtering strategies, and any scenario where filtering requirements change faster than deployment cycles.
+  </div>
+
+  <h3>Key capabilities at a glance</h3>
+  <table>
+    <thead><tr><th>Feature</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag purple">Core</span> Null-safe path decomposition</td><td>Dot-delimited (or any delimiter) property paths are split and null-checked automatically at every navigation level.</td></tr>
+      <tr><td><span class="tag purple">Core</span> Collection scope disambiguation</td><td>Whether a collection filter means "same element must match all conditions" vs "any element can match each condition" is determined by structure alone — no extra flag needed.</td></tr>
+      <tr><td><span class="tag teal">Advanced</span> Dynamic RHS resolution</td><td>Comparison values can be literals, named runtime params, live dataset queries, or JSONPath expressions — all resolved at expression-build time.</td></tr>
+      <tr><td><span class="tag teal">Advanced</span> Runtime type-parameterized compiler</td><td>The compiler accepts <code>Type</code> at runtime; no compile-time generic is required at any recursive level.</td></tr>
+      <tr><td><span class="tag amber">Utility</span> Example-based FilterSet generation</td><td>Pass a typed example object; the library generates a matching FilterSet automatically.</td></tr>
+      <tr><td><span class="tag amber">Utility</span> First-match priority evaluation</td><td>Evaluate an ordered list of FilterSets and return the first one whose predicate any item satisfies.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 2. Architecture ──────────────────────────────────────────────────────── -->
+<section id="architecture">
+  <h2><span class="sec-num">02</span> Architecture</h2>
+
+  <p>The pipeline has four stages: a serializable definition flows into the compiler, which emits a typed expression tree, which is handed to a query target.</p>
+
+  <div class="diagram-wrap">
+    <svg width="100%" viewBox="0 0 740 420" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <!-- FilterSet terminus -->
+      <rect x="260" y="20" width="220" height="44" rx="22" fill="#1D9E75" fill-opacity=".18" stroke="#1D9E75" stroke-width="1"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#5ecfac" x="370" y="47" text-anchor="middle">FilterSet definition</text>
+
+      <line x1="370" y1="64" x2="370" y2="100" stroke="#5ecfac" stroke-width="1.5" marker-end="url(#a1)"/>
+
+      <!-- Compiler dashed box -->
+      <rect x="40" y="104" width="660" height="130" rx="10" fill="#7F77DD" fill-opacity=".06" stroke="#7F77DD" stroke-width="1" stroke-dasharray="6 4"/>
+      <text font-family="IBM Plex Mono" font-size="11" fill="#ada8f4" x="60" y="122">FilterExpressionBuilder  /  FilterBuilder&lt;T&gt;</text>
+
+      <!-- Three inner boxes -->
+      <rect x="56"  y="134" width="186" height="84" rx="7" fill="#534AB7" fill-opacity=".25" stroke="#7F77DD" stroke-width=".8"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#c5c2f8" x="149" y="162" text-anchor="middle">Null-safe paths</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#9d99e8" x="149" y="181" text-anchor="middle">Recursive split +</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#9d99e8" x="149" y="196" text-anchor="middle">null-guard injection</text>
+
+      <rect x="277" y="134" width="186" height="84" rx="7" fill="#0F6E56" fill-opacity=".35" stroke="#1D9E75" stroke-width=".8"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#5ecfac" x="370" y="162" text-anchor="middle">Collection scope</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#3db896" x="370" y="181" text-anchor="middle">IEnumerable detect +</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#3db896" x="370" y="196" text-anchor="middle">Any() dispatch</text>
+
+      <rect x="498" y="134" width="186" height="84" rx="7" fill="#854F0B" fill-opacity=".3" stroke="#EF9F27" stroke-width=".8"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#f5c06b" x="591" y="162" text-anchor="middle">Dynamic RHS</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#d4a84e" x="591" y="181" text-anchor="middle">Literal / Param /</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#d4a84e" x="591" y="196" text-anchor="middle">FilterExpr / JSON</text>
+
+      <!-- Output box -->
+      <line x1="370" y1="234" x2="370" y2="266" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a1)"/>
+      <rect x="240" y="268" width="260" height="44" rx="7" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+      <text font-family="IBM Plex Mono" font-size="12" font-weight="600" fill="#e6edf3" x="370" y="295" text-anchor="middle">Expression&lt;Func&lt;T, bool&gt;&gt;</text>
+
+      <!-- Fork -->
+      <line x1="370" y1="312" x2="370" y2="335" stroke="#8b949e" stroke-width="1.5"/>
+      <line x1="170" y1="335" x2="570" y2="335" stroke="#8b949e" stroke-width="1.5"/>
+      <line x1="170" y1="335" x2="170" y2="356" stroke="#378ADD" stroke-width="1.5" marker-end="url(#a1)"/>
+      <line x1="570" y1="335" x2="570" y2="356" stroke="#378ADD" stroke-width="1.5" marker-end="url(#a1)"/>
+
+      <!-- IQueryable -->
+      <rect x="46"  y="358" width="248" height="44" rx="7" fill="#185FA5" fill-opacity=".25" stroke="#378ADD" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#79b8f7" x="170" y="381" text-anchor="middle">IQueryable&lt;T&gt;</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#5897d0" x="170" y="396" text-anchor="middle">EF Core → SQL translation</text>
+
+      <!-- IEnumerable -->
+      <rect x="446" y="358" width="248" height="44" rx="7" fill="#185FA5" fill-opacity=".25" stroke="#378ADD" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#79b8f7" x="570" y="381" text-anchor="middle">IEnumerable&lt;T&gt;</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#5897d0" x="570" y="396" text-anchor="middle">In-memory evaluation</text>
+    </svg>
+    <div class="diagram-caption">FIG 1 — System architecture pipeline</div>
+  </div>
+
+  <p>The public entry point is <code>FilterBuilder&lt;T&gt;</code>, a thin generic wrapper that delegates to the non-generic <code>FilterExpressionBuilder</code> static class. All recursive work — path decomposition, collection detection, RHS resolution — happens in the non-generic core so that runtime types propagate cleanly without <code>MakeGenericMethod</code> overhead.</p>
+</section>
+
+<!-- ── 3. Data Model ────────────────────────────────────────────────────────── -->
+<section id="datamodel">
+  <h2><span class="sec-num">03</span> Data Model</h2>
+
+  <p>Everything hinges on two classes: <code>Filter</code> (a leaf condition) and <code>FilterSet</code> (a logical grouping). Both are fully serializable.</p>
+
+  <div class="diagram-wrap">
+    <svg width="100%" viewBox="0 0 740 360" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <!-- Layout:
+           FilterSet:  x=20  w=255 → right=275
+           gap centre:          x=330  (gap 275..390 = 115pt wide)
+           Filter:     x=390 w=245 → right=635  cx=512
+           FilterType: x=390 y=294 w=245
+      -->
+
+      <!-- FilterSet box -->
+      <rect x="20" y="20" width="255" height="250" rx="8" fill="#534AB7" fill-opacity=".15" stroke="#7F77DD" stroke-width="1"/>
+      <rect x="20" y="20" width="255" height="36" rx="8" fill="#534AB7" fill-opacity=".4"/>
+      <rect x="20" y="44" width="255" height="12" fill="#534AB7" fill-opacity=".4"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#c5c2f8" x="147" y="44" text-anchor="middle">FilterSet</text>
+      <line x1="20" y1="56" x2="275" y2="56" stroke="#7F77DD" stroke-width=".6"/>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#ada8f4" x="36" y="82">Operator</text>      <text font-family="IBM Plex Mono" font-size="11.5" fill="#7F77DD"  x="263" y="82"  text-anchor="end">AND | OR</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#ada8f4" x="36" y="110">Filters[ ]</text>   <text font-family="IBM Plex Mono" font-size="11.5" fill="#5ecfac" x="263" y="110" text-anchor="end">Filter</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#ada8f4" x="36" y="138">FilterSets[ ]</text> <text font-family="IBM Plex Mono" font-size="11.5" fill="#c5c2f8" x="263" y="138" text-anchor="end">FilterSet ↻</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#ada8f4" x="36" y="166">Sequence</text>      <text font-family="IBM Plex Mono" font-size="11.5" fill="#7F77DD"  x="263" y="166" text-anchor="end">int</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#ada8f4" x="36" y="194">Name?</text>         <text font-family="IBM Plex Mono" font-size="11.5" fill="#7F77DD"  x="263" y="194" text-anchor="end">string</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#ada8f4" x="36" y="222">ReferenceValue?</text><text font-family="IBM Plex Mono" font-size="11.5" fill="#7F77DD"  x="263" y="222" text-anchor="end">string</text>
+
+      <!-- Filter box -->
+      <rect x="390" y="20" width="245" height="250" rx="8" fill="#0F6E56" fill-opacity=".18" stroke="#1D9E75" stroke-width="1"/>
+      <rect x="390" y="20" width="245" height="36" rx="8" fill="#0F6E56" fill-opacity=".5"/>
+      <rect x="390" y="44" width="245" height="12" fill="#0F6E56" fill-opacity=".5"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#5ecfac" x="512" y="44" text-anchor="middle">Filter</text>
+      <line x1="390" y1="56" x2="635" y2="56" stroke="#1D9E75" stroke-width=".6"/>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#8fd4bc" x="406" y="82">PropertyPath</text>  <text font-family="IBM Plex Mono" font-size="11.5" fill="#1D9E75" x="623" y="82"  text-anchor="end">string</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#8fd4bc" x="406" y="110">Delimiter?</text>   <text font-family="IBM Plex Mono" font-size="11.5" fill="#1D9E75" x="623" y="110" text-anchor="end">string</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#8fd4bc" x="406" y="138">Operation</text>    <text font-family="IBM Plex Mono" font-size="11.5" fill="#1D9E75" x="623" y="138" text-anchor="end">string</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#8fd4bc" x="406" y="166">FilterType</text>   <text font-family="IBM Plex Mono" font-size="11.5" fill="#f5c06b" x="623" y="166" text-anchor="end">FilterType</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#8fd4bc" x="406" y="194">TestValue?</text>   <text font-family="IBM Plex Mono" font-size="11.5" fill="#1D9E75" x="623" y="194" text-anchor="end">object</text>
+      <text font-family="IBM Plex Mono" font-size="11.5" fill="#8fd4bc" x="406" y="222">FilterSet?</text>   <text font-family="IBM Plex Mono" font-size="11.5" fill="#c5c2f8" x="623" y="222" text-anchor="end">FilterSet</text>
+
+      <!-- Filters[] arrow  (FilterSet Filters[] row y=110 → Filter left edge x=390) -->
+      <line x1="275" y1="110" x2="390" y2="110" stroke="#5ecfac" stroke-width="1.4" marker-end="url(#a2)"/>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#5ecfac" x="332" y="104" text-anchor="middle">Filters[ ]</text>
+
+      <!-- FilterSet? L-bend  (Filter row y=222 → left through gap x=330 → up to FS mid y=145 → arrow left into FS right=275) -->
+      <!-- Horizontal: Filter left (390) → gap centre (330) at y=222 -->
+      <line x1="390" y1="222" x2="330" y2="222" stroke="#ada8f4" stroke-width="1.2"/>
+      <!-- Vertical: y=222 up to y=145 at x=330 — entirely inside the 115pt gap, clear of both boxes -->
+      <line x1="330" y1="222" x2="330" y2="145" stroke="#ada8f4" stroke-width="1.2"/>
+      <!-- Horizontal with arrowhead: x=330 → FilterSet right (275) at y=145 -->
+      <line x1="330" y1="145" x2="276" y2="145" stroke="#ada8f4" stroke-width="1.2" marker-end="url(#a2)"/>
+      <!-- Label on the vertical segment, offset right into the gap so it reads cleanly -->
+      <text font-family="IBM Plex Mono" font-size="10" fill="#ada8f4" x="325" y="140" text-anchor="middle">FilterSet?</text>
+
+      <!-- FilterType enum box (below Filter) -->
+      <rect x="390" y="294" width="245" height="66" rx="8" fill="#854F0B" fill-opacity=".2" stroke="#EF9F27" stroke-width=".8"/>
+      <text font-family="IBM Plex Mono" font-size="12" font-weight="600" fill="#f5c06b" x="512" y="313" text-anchor="middle">FilterType (enum)</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#d4a84e" x="406" y="328">Default  ·  TestValueParam</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#d4a84e" x="406" y="344">FilterExpression  ·  Json</text>
+      <!-- Arrow: Filter bottom centre (512, 270) → FilterType top (512, 292) -->
+      <line x1="512" y1="270" x2="512" y2="292" stroke="#EF9F27" stroke-width="1.2" marker-end="url(#a2)"/>
+    </svg>
+    <div class="diagram-caption">FIG 2 — Filter &amp; FilterSet data structure relationships</div>
+  </div>
+
+  <h3>Filter properties reference</h3>
+  <table>
+    <thead><tr><th>Property</th><th>Type</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>PropertyPath</code></td><td><code>string</code></td><td>Dot-delimited (or custom delimiter) path to the target property. e.g. <code>"Customer.Address.City"</code></td></tr>
+      <tr><td><code>Delimiter</code></td><td><code>string?</code></td><td>Override the path separator. Defaults to <code>"."</code>. Can be any string: <code>"/"</code>, <code>"->"</code>, <code>"::"</code>.</td></tr>
+      <tr><td><code>Operation</code></td><td><code>string</code></td><td><code>eq ne gt ge lt le bw bn ew en cn nc</code></td></tr>
+      <tr><td><code>FilterType</code></td><td><code>FilterType</code></td><td>Controls how <code>TestValue</code> is resolved at expression-build time.</td></tr>
+      <tr><td><code>TestValue</code></td><td><code>object?</code></td><td>The right-hand side value (when <code>FilterType = Default</code>).</td></tr>
+      <tr><td><code>FilterSet</code></td><td><code>FilterSet?</code></td><td>Child grouping — controls collection scope when property is <code>IEnumerable</code>.</td></tr>
+      <tr><td><code>Query</code></td><td><code>string?</code></td><td>Property name (FilterExpression) or JSONPath expression (Json).</td></tr>
+      <tr><td><code>TestValueExpression</code></td><td><code>string?</code></td><td>Math expression applied to resolved value before building constant. e.g. <code>"Math.Abs(TestValue - 90)"</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 4. FilterType ─────────────────────────────────────────────────────────── -->
+<section id="filtertype">
+  <h2><span class="sec-num">04</span> FilterType — Dynamic RHS Resolution</h2>
+
+  <p>The <code>FilterType</code> enum controls where the right-hand side comparison value comes from. All four strategies resolve to the same <code>testValue</code> object before the expression constant is built.</p>
+
+  <div class="diagram-wrap">
+    <svg width="100%" viewBox="0 0 740 440" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <!-- Diamond -->
+      <polygon points="370,30 490,78 370,126 250,78" fill="#854F0B" fill-opacity=".2" stroke="#EF9F27" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#f5c06b" x="370" y="82" text-anchor="middle">Which FilterType?</text>
+
+      <!-- T-bar -->
+      <line x1="370" y1="126" x2="370" y2="158" stroke="#8b949e" stroke-width="1.5"/>
+      <line x1="80" y1="158" x2="660" y2="158" stroke="#8b949e" stroke-width="1.5"/>
+      <line x1="80"  y1="158" x2="80"  y2="178" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a3)"/>
+      <line x1="250" y1="158" x2="250" y2="178" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a3)"/>
+      <line x1="490" y1="158" x2="490" y2="178" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a3)"/>
+      <line x1="660" y1="158" x2="660" y2="178" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a3)"/>
+
+      <!-- Branch labels -->
+      <text font-family="IBM Plex Mono" font-size="10" fill="#8b949e" x="80"  y="174" text-anchor="middle">Default</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#8b949e" x="250" y="174" text-anchor="middle">Param</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#8b949e" x="490" y="174" text-anchor="middle">FilterExpr</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#8b949e" x="660" y="174" text-anchor="middle">Json</text>
+
+      <!-- Four strategy boxes -->
+      <rect x="20"  y="180" width="120" height="70" rx="7" fill="#534AB7" fill-opacity=".2" stroke="#7F77DD" stroke-width=".8"/>
+      <text font-family="IBM Plex Sans" font-size="12" font-weight="600" fill="#c5c2f8" x="80" y="204" text-anchor="middle">Literal</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#9d99e8" x="80" y="222" text-anchor="middle">TestValue</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#9d99e8" x="80" y="238" text-anchor="middle">direct</text>
+
+      <rect x="190" y="180" width="120" height="70" rx="7" fill="#534AB7" fill-opacity=".2" stroke="#7F77DD" stroke-width=".8"/>
+      <text font-family="IBM Plex Sans" font-size="12" font-weight="600" fill="#c5c2f8" x="250" y="204" text-anchor="middle">Param lookup</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#9d99e8" x="250" y="222" text-anchor="middle">params1</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#9d99e8" x="250" y="238" text-anchor="middle">[ParamKey]</text>
+
+      <rect x="430" y="180" width="120" height="70" rx="7" fill="#854F0B" fill-opacity=".25" stroke="#EF9F27" stroke-width=".8"/>
+      <text font-family="IBM Plex Sans" font-size="12" font-weight="600" fill="#f5c06b" x="490" y="204" text-anchor="middle">Dataset query</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#d4a84e" x="490" y="222" text-anchor="middle">Compile child</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#d4a84e" x="490" y="238" text-anchor="middle">FilterSet → First</text>
+
+      <rect x="600" y="180" width="120" height="70" rx="7" fill="#854F0B" fill-opacity=".25" stroke="#EF9F27" stroke-width=".8"/>
+      <text font-family="IBM Plex Sans" font-size="12" font-weight="600" fill="#f5c06b" x="660" y="204" text-anchor="middle">JSONPath</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#d4a84e" x="660" y="222" text-anchor="middle">JsonDocument</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#d4a84e" x="660" y="238" text-anchor="middle">+ Query expr</text>
+
+      <!-- Merge bar -->
+      <line x1="80"  y1="250" x2="80"  y2="278" stroke="#8b949e" stroke-width="1.2"/>
+      <line x1="250" y1="250" x2="250" y2="278" stroke="#8b949e" stroke-width="1.2"/>
+      <line x1="490" y1="250" x2="490" y2="278" stroke="#8b949e" stroke-width="1.2"/>
+      <line x1="660" y1="250" x2="660" y2="278" stroke="#8b949e" stroke-width="1.2"/>
+      <line x1="80" y1="278" x2="660" y2="278" stroke="#8b949e" stroke-width="1.5"/>
+      <line x1="370" y1="278" x2="370" y2="300" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a3)"/>
+
+      <!-- testValue resolved -->
+      <rect x="250" y="302" width="240" height="38" rx="7" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+      <text font-family="IBM Plex Mono" font-size="12" font-weight="600" fill="#e6edf3" x="370" y="326" text-anchor="middle">testValue resolved</text>
+
+      <!-- TestValueExpression diamond -->
+      <line x1="370" y1="340" x2="370" y2="360" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a3)"/>
+      <polygon points="370,362 468,390 370,418 272,390" fill="#0F6E56" fill-opacity=".2" stroke="#1D9E75" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="12" font-weight="600" fill="#5ecfac" x="370" y="394" text-anchor="middle">TestValueExpression?</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#5ecfac" x="472" y="388">optional math</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#5ecfac" x="472" y="402">transform applied</text>
+      <line x1="468" y1="390" x2="510" y2="390" stroke="#1D9E75" stroke-width="1.2" marker-end="url(#a3)"/>
+    </svg>
+    <div class="diagram-caption">FIG 5 — Dynamic RHS value resolution pipeline</div>
+  </div>
+
+  <table>
+    <thead><tr><th>FilterType</th><th>Source</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td><code>Default</code></td><td><code>Filter.TestValue</code></td><td>Static comparison values known at filter-authoring time.</td></tr>
+      <tr><td><code>TestValueParam</code></td><td><code>params1[ParamKey]</code></td><td>Value varies per request — passed in at query execution time.</td></tr>
+      <tr><td><code>TestValueFilterExpression</code></td><td>Nested FilterSet query against a typed dataset</td><td>Value is derived from another collection at expression-build time. E.g. "match orders whose value equals the current price of SKU X".</td></tr>
+      <tr><td><code>TestValueJson</code></td><td>JSONPath against a <code>JsonDocument</code></td><td>Value lives in JSON config or sensor payload — extracted via JSONPath at expression-build time.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── 5. Null-safe paths ───────────────────────────────────────────────────── -->
+<section id="nullsafe">
+  <h2><span class="sec-num">05</span> Null-safe Path Decomposition</h2>
+
+  <p>When <code>PropertyPath</code> contains a delimiter, the compiler splits it into segments and builds a chain of <code>MemberExpression</code> nodes. At each step it asks: is this property nullable? If yes — and null checks are enabled — it wraps the accumulated expression in:</p>
+
+<pre><span class="co">// Conceptually, for each navigation step:</span>
+Expression.<span class="me">Condition</span>(
+    Expression.<span class="me">Equal</span>(navigationProp, Expression.<span class="me">Constant</span>(<span class="kw">null</span>)),
+    Expression.<span class="me">Constant</span>(<span class="kw">false</span>),   <span class="co">// short-circuit: return false if null</span>
+    accumulatedChildExpression
+)</pre>
+
+  <p>This repeats independently at every recursive decomposition level, so a path like <code>"A.B.C.Name"</code> gets null-guarded at A, B, and C — not just the top.</p>
+
+  <div class="callout info">
+    <strong>What triggers a null-guard?</strong> Either (a) the resolved <code>TestValue</code> is null (navigation-level node, not a leaf comparison), or (b) the operator is a string-method operator (<code>bw, cn, ew</code>, etc.) whose invocation on null would throw.
+  </div>
+
+  <p>Null-check injection fires automatically with no developer annotation. The configurable <code>Delimiter</code> property means paths can use any separator — <code>"/"</code>, <code>"->"</code>, <code>"::"</code> — and per-filter overrides allow different filters in the same FilterSet to use different delimiters.</p>
+</section>
+
+<!-- ── 6. Collection scope ─────────────────────────────────────────────────── -->
+<section id="collections">
+  <h2><span class="sec-num">06</span> Collection Scope Disambiguation</h2>
+
+  <p>When path decomposition hits a property that is <code>IEnumerable</code> (and not <code>string</code>), two different semantics are possible. The choice is determined entirely by <strong>structure</strong>, not by any flag or operator.</p>
+
+  <div class="diagram-wrap">
+    <svg width="100%" viewBox="0 0 740 360" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+      <!-- Collection boundary detection -->
+      <rect x="220" y="20" width="300" height="52" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#e6edf3" x="370" y="44" text-anchor="middle">Collection boundary detected</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#8b949e" x="370" y="62" text-anchor="middle">typeof(IEnumerable).IsAssignableFrom(propType) &amp;&amp; propType != typeof(string)</text>
+
+      <!-- Diamond -->
+      <line x1="370" y1="72" x2="370" y2="100" stroke="#8b949e" stroke-width="1.5" marker-end="url(#a4)"/>
+      <polygon points="370,102 470,136 370,170 270,136" fill="#854F0B" fill-opacity=".2" stroke="#EF9F27" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="12" font-weight="600" fill="#f5c06b" x="370" y="140" text-anchor="middle">Child FilterSet present?</text>
+
+      <!-- Yes → left = same-object -->
+      <line x1="270" y1="136" x2="130" y2="136" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#a4)"/>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#1D9E75" x="200" y="130">Yes</text>
+      <rect x="20" y="160" width="220" height="140" rx="8" fill="#0F6E56" fill-opacity=".18" stroke="#1D9E75" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#5ecfac" x="130" y="186" text-anchor="middle">Same-object scope</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#8fd4bc" x="130" y="208" text-anchor="middle">Any(e =&gt;</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#8fd4bc" x="130" y="224" text-anchor="middle">  e.Prop1 == val1</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#8fd4bc" x="130" y="240" text-anchor="middle">  &amp;&amp; e.Prop2 == val2</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#8fd4bc" x="130" y="256" text-anchor="middle">)</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#3db896" x="130" y="284" text-anchor="middle">Same element satisfies all.</text>
+
+      <!-- No → right = any-object -->
+      <line x1="470" y1="136" x2="610" y2="136" stroke="#D85A30" stroke-width="1.5" marker-end="url(#a4)"/>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#D85A30" x="540" y="130">No</text>
+      <rect x="500" y="160" width="220" height="140" rx="8" fill="#993C1D" fill-opacity=".18" stroke="#D85A30" stroke-width="1"/>
+      <text font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#f09070" x="610" y="186" text-anchor="middle">Any-object scope</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#e0a090" x="610" y="208" text-anchor="middle">Any(e =&gt; e.Prop1 == val1)</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#e0a090" x="610" y="224" text-anchor="middle">&amp;&amp;</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#e0a090" x="610" y="240" text-anchor="middle">Any(e =&gt; e.Prop2 == val2)</text>
+      <text font-family="IBM Plex Sans" font-size="11" fill="#c07060" x="610" y="284" text-anchor="middle">Different elements can match.</text>
+
+      <!-- bottom labels -->
+      <text font-family="IBM Plex Mono" font-size="10" fill="#1D9E75" x="130" y="318" text-anchor="middle">Filter has child FilterSet</text>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#D85A30" x="610" y="318" text-anchor="middle">Filter has no child FilterSet</text>
+    </svg>
+    <div class="diagram-caption">FIG 4 — Collection scope disambiguation by structure</div>
+  </div>
+
+  <p>This distinction matters a lot. Given a collection of <code>Tag</code> objects with <code>Key</code> and <code>Value</code> properties: <em>same-object scope</em> means "find an item that has a Tag where Key='color' AND Value='red' on the same Tag object." Any-object scope means "find an item that has a Tag with Key='color' AND separately has a Tag with Value='red' — which could be two different Tag objects."</p>
+</section>
+
+<!-- ── 7. Compiler ─────────────────────────────────────────────────────────── -->
+<section id="compiler">
+  <h2><span class="sec-num">07</span> Runtime Type-Parameterized Compiler</h2>
+
+  <p>The non-generic core compiler, <code>FilterExpressionBuilder</code>, accepts <code>Type entityType</code> as a runtime parameter. This means:</p>
+
+  <ul>
+    <li>No compile-time generic constraint at the compiler entry point or any recursive call</li>
+    <li>Collection element types are extracted via <code>GetGenericArguments()[0]</code> and passed through recursion — no <code>MakeGenericMethod</code></li>
+    <li>The output <code>LambdaExpression</code> is typed at runtime via <code>typeof(Func&lt;,&gt;).MakeGenericType(entityType, typeof(bool))</code></li>
+    <li>Dataset element types for <code>TestValueFilterExpression</code> strategy flow the same way — the same compiler handles primary and secondary dataset compilation uniformly</li>
+  </ul>
+
+  <p>The public <code>FilterBuilder&lt;T&gt;</code> class is a thin generic wrapper that casts the output for call-site type safety. All heavy lifting is in the non-generic core.</p>
+
+<pre><span class="co">// Public API — type-safe wrapper</span>
+<span class="kw">public static class</span> <span class="ty">FilterBuilder</span>&lt;<span class="ty">T</span>&gt;
+{
+    <span class="kw">public static</span> <span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">T</span>, <span class="kw">bool</span>&gt;&gt; <span class="me">ProcessFilterSet</span>(
+        <span class="ty">FilterSet</span> filterset,
+        <span class="kw">bool</span> enableNullChecks = <span class="kw">true</span>,
+        <span class="ty">Dictionary</span>&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;? params1 = <span class="kw">null</span>)
+    {
+        <span class="co">// Delegates to non-generic core, casts result</span>
+        <span class="kw">var</span> lambda = <span class="ty">FilterExpressionBuilder</span>.<span class="me">ProcessFilterSet</span>(
+            <span class="kw">typeof</span>(<span class="ty">T</span>), filterset, enableNullChecks, params1 ?? []);
+        <span class="kw">return</span> (<span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">T</span>, <span class="kw">bool</span>&gt;&gt;)lambda;
+    }
+}</pre>
+</section>
+
+<!-- ── 8. Usage ─────────────────────────────────────────────────────────────── -->
+<section id="basic">
+  <h2><span class="sec-num">08</span> Usage — Basic Filtering</h2>
+
+  <p>The simplest case: filter a list of objects on a flat property.</p>
+
+<pre><span class="co">// Define a filter — this can come from JSON, a database, anywhere</span>
+<span class="kw">var</span> filterSet = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span> =
+    [
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Status"</span>,  <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="st">"Active"</span> },
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Score"</span>,   <span class="pr">Operation</span> = <span class="st">"ge"</span>, <span class="pr">TestValue</span> = <span class="nu">80</span> },
+    ]
+};
+
+<span class="co">// Apply to IQueryable — EF Core translates to SQL</span>
+<span class="ty">IQueryable</span>&lt;<span class="ty">User</span>&gt; results = dbContext.Users.<span class="me">ApplyFilters</span>(filterSet);
+
+<span class="co">// Or apply to an in-memory list</span>
+<span class="ty">List</span>&lt;<span class="ty">User</span>&gt; results = users.<span class="me">AsQueryable</span>().<span class="me">ApplyFilters</span>(filterSet).<span class="me">ToList</span>();
+
+<span class="co">// Or build the expression yourself and use it directly</span>
+<span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">User</span>, <span class="kw">bool</span>&gt;&gt; predicate =
+    <span class="ty">FilterBuilder</span>&lt;<span class="ty">User</span>&gt;.<span class="me">ProcessFilterSet</span>(filterSet);
+<span class="ty">List</span>&lt;<span class="ty">User</span>&gt; results = users.<span class="me">Where</span>(predicate.<span class="me">Compile</span>()).<span class="me">ToList</span>();</pre>
+
+  <h4>Supported operators</h4>
+  <table>
+    <thead><tr><th>Code</th><th>Meaning</th><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>eq</code></td><td>Equal</td><td><code>ne</code></td><td>Not equal</td></tr>
+      <tr><td><code>gt</code></td><td>Greater than</td><td><code>ge</code></td><td>Greater than or equal</td></tr>
+      <tr><td><code>lt</code></td><td>Less than</td><td><code>le</code></td><td>Less than or equal</td></tr>
+      <tr><td><code>bw</code></td><td>Begins with</td><td><code>bn</code></td><td>Does not begin with</td></tr>
+      <tr><td><code>ew</code></td><td>Ends with</td><td><code>en</code></td><td>Does not end with</td></tr>
+      <tr><td><code>cn</code></td><td>Contains</td><td><code>nc</code></td><td>Does not contain</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="deep-paths">
+  <h2><span class="sec-num">09</span> Usage — Deep Navigation Paths</h2>
+
+  <p>Navigation paths are automatically null-safe. Use any delimiter.</p>
+
+<pre><span class="co">// Dot notation (default) — null-checked at Customer, Address, and City</span>
+<span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">Filter</span>
+{
+    <span class="pr">PropertyPath</span> = <span class="st">"Customer.Address.City"</span>,
+    <span class="pr">Operation</span>    = <span class="st">"eq"</span>,
+    <span class="pr">TestValue</span>    = <span class="st">"Richmond"</span>
+};
+
+<span class="co">// Arrow delimiter — useful when property names might contain dots</span>
+<span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">Filter</span>
+{
+    <span class="pr">PropertyPath</span> = <span class="st">"Customer->Address->City"</span>,
+    <span class="pr">Delimiter</span>    = <span class="st">"->"</span>,
+    <span class="pr">Operation</span>    = <span class="st">"cn"</span>,
+    <span class="pr">TestValue</span>    = <span class="st">"Rich"</span>
+};
+
+<span class="co">// Mixed delimiters in one FilterSet — each Filter is independent</span>
+<span class="kw">var</span> filterSet = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span>  =
+    [
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"A/B/C"</span>,   <span class="pr">Delimiter</span> = <span class="st">"/"</span>,  <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="nu">1</span> },
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"X::Y::Z"</span>, <span class="pr">Delimiter</span> = <span class="st">"::"</span>, <span class="pr">Operation</span> = <span class="st">"gt"</span>, <span class="pr">TestValue</span> = <span class="nu">0</span> },
+    ]
+};</pre>
+</section>
+
+<section id="collections-usage">
+  <h2><span class="sec-num">10</span> Usage — Collection Filtering</h2>
+
+  <p>Given an <code>Order</code> with a <code>List&lt;Tag&gt; Tags</code> property, where <code>Tag</code> has <code>Key</code> and <code>Value</code> strings:</p>
+
+<pre><span class="co">// ── Same-object scope ──────────────────────────────────────────────────────
+// "Find orders that have a Tag where BOTH Key='color' AND Value='red'
+//  on the SAME Tag object."
+// Uses child FilterSet → compiled as a single Any(tag => tag.Key == "color" && tag.Value == "red")</span>
+
+<span class="kw">var</span> sameObject = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span>  =
+    [
+        <span class="kw">new</span> <span class="ty">Filter</span>
+        {
+            <span class="pr">PropertyPath</span> = <span class="st">"Tags"</span>,
+            <span class="pr">Operation</span>   = <span class="st">"eq"</span>,
+            <span class="pr">FilterSet</span>   = <span class="kw">new</span> <span class="ty">FilterSet</span>   <span class="co">// ← child FilterSet = same-object scope</span>
+            {
+                <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+                <span class="pr">Filters</span>  =
+                [
+                    <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Key"</span>,   <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="st">"color"</span> },
+                    <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Value"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="st">"red"</span>   },
+                ]
+            }
+        }
+    ]
+};
+
+<span class="co">// ── Any-object scope ───────────────────────────────────────────────────────
+// "Find orders that have a Tag with Key='color' (any tag)
+//  AND separately have a Tag with Value='red' (possibly a different tag)."
+// No child FilterSet → each Filter gets its own Any()</span>
+
+<span class="kw">var</span> anyObject = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span>  =
+    [
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Tags.Key"</span>,   <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="st">"color"</span> },
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Tags.Value"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="st">"red"</span>   },
+    ]
+};</pre>
+
+  <div class="callout warn">
+    <strong>The difference is entirely structural.</strong> If the child <code>FilterSet</code> is present on the <code>Tags</code> filter, you get correlated same-object semantics. If it's absent and you use dot-notation paths like <code>"Tags.Key"</code>, you get independent any-object semantics. No flag, no operator change.
+  </div>
+</section>
+
+<section id="dynamic">
+  <h2><span class="sec-num">11</span> Usage — Dynamic RHS Values</h2>
+
+<pre><span class="co">// ── Runtime parameter ──────────────────────────────────────────────────────
+// Comparison value is supplied at query time, not baked into the filter definition.</span>
+<span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+        <span class="pr">PropertyPath</span> = <span class="st">"Price"</span>, <span class="pr">Operation</span> = <span class="st">"le"</span>,
+        <span class="pr">FilterType</span>   = <span class="ty">FilterType</span>.TestValueParam,
+        <span class="pr">ParamKey</span>     = <span class="st">"maxPrice"</span>
+    }]
+};
+
+<span class="kw">var</span> results = dbContext.Products.<span class="me">ApplyFilters</span>(filter, params1: <span class="kw">new</span>()
+{
+    [<span class="st">"maxPrice"</span>] = <span class="nu">49.99m</span>
+});
+
+<span class="co">// ── Dataset FilterSet query (cross-type value resolution) ──────────────────
+// The right-hand side value comes from querying a DIFFERENT dataset
+// using a nested FilterSet compiled and executed at expression-build time.</span>
+<span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+        <span class="pr">PropertyPath</span> = <span class="st">"Price"</span>, <span class="pr">Operation</span> = <span class="st">"le"</span>,
+        <span class="pr">FilterType</span>   = <span class="ty">FilterType</span>.TestValueFilterExpression,
+        <span class="pr">ParamKey</span>     = <span class="st">"pricingRules"</span>,   <span class="co">// key to the List&lt;PricingRule&gt; dataset</span>
+        <span class="pr">Query</span>        = <span class="st">"MaxPrice"</span>,        <span class="co">// property to extract from matched element</span>
+        <span class="pr">FilterSet</span>    = <span class="kw">new</span> <span class="ty">FilterSet</span>       <span class="co">// query to run against pricingRules</span>
+        {
+            <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+            <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+                <span class="pr">PropertyPath</span> = <span class="st">"Category"</span>,
+                <span class="pr">Operation</span>   = <span class="st">"eq"</span>,
+                <span class="pr">TestValue</span>   = <span class="st">"Electronics"</span>
+            }]
+        }
+    }]
+};
+
+<span class="kw">var</span> results = products.<span class="me">ApplyFilters</span>(filter, params1: <span class="kw">new</span>()
+{
+    [<span class="st">"pricingRules"</span>] = pricingRulesList   <span class="co">// List&lt;PricingRule&gt; — different type entirely</span>
+});</pre>
+</section>
+
+<section id="priority">
+  <h2><span class="sec-num">12</span> Usage — First-Match Priority Rules</h2>
+
+  <p>The <code>FindFirstMatch</code> method evaluates a list of FilterSets in ascending <code>Sequence</code> order and returns the first one whose predicate any collection item satisfies. This is useful for tiered rule engines: VIP pricing, customer segment assignment, routing logic, etc.</p>
+
+<pre><span class="kw">var</span> rules = <span class="kw">new</span> <span class="ty">List</span>&lt;<span class="ty">FilterSet</span>&gt;
+{
+    <span class="kw">new</span> <span class="ty">FilterSet</span>
+    {
+        <span class="pr">Sequence</span> = <span class="nu">1</span>, <span class="pr">Name</span> = <span class="st">"VIP"</span>, <span class="pr">ReferenceValue</span> = <span class="st">"tier-vip"</span>,
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+            <span class="pr">PropertyPath</span> = <span class="st">"TotalSpend"</span>, <span class="pr">Operation</span> = <span class="st">"ge"</span>, <span class="pr">TestValue</span> = <span class="nu">10000m</span>
+        }]
+    },
+    <span class="kw">new</span> <span class="ty">FilterSet</span>
+    {
+        <span class="pr">Sequence</span> = <span class="nu">2</span>, <span class="pr">Name</span> = <span class="st">"Gold"</span>, <span class="pr">ReferenceValue</span> = <span class="st">"tier-gold"</span>,
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+            <span class="pr">PropertyPath</span> = <span class="st">"TotalSpend"</span>, <span class="pr">Operation</span> = <span class="st">"ge"</span>, <span class="pr">TestValue</span> = <span class="nu">2500m</span>
+        }]
+    },
+    <span class="kw">new</span> <span class="ty">FilterSet</span>
+    {
+        <span class="pr">Sequence</span> = <span class="nu">3</span>, <span class="pr">Name</span> = <span class="st">"Standard"</span>, <span class="pr">ReferenceValue</span> = <span class="st">"tier-standard"</span>,
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+            <span class="pr">PropertyPath</span> = <span class="st">"TotalSpend"</span>, <span class="pr">Operation</span> = <span class="st">"ge"</span>, <span class="pr">TestValue</span> = <span class="nu">0m</span>
+        }]
+    },
+};
+
+<span class="co">// Rules are sorted by Sequence regardless of list order.
+// The FIRST rule whose predicate matches any customer wins.</span>
+<span class="ty">FilterSet</span>? matched = <span class="ty">FilterBuilder</span>&lt;<span class="ty">Customer</span>&gt;.<span class="me">FindFirstMatch</span>(customers, rules);
+
+<span class="kw">if</span> (matched <span class="kw">is not null</span>)
+{
+    Console.<span class="me">WriteLine</span>($<span class="st">"Tier: {matched.Name}, Code: {matched.ReferenceValue}"</span>);
+    <span class="co">// → "Tier: VIP, Code: tier-vip"  (if any customer has TotalSpend >= 10000)</span>
+}
+
+<span class="co">// To reprioritize: update Sequence values in the database.
+// No code change, no redeployment.</span></pre>
+
+  <span id="example-gen" style="display:block;height:0;overflow:hidden;margin-top:-24px;padding-top:24px;"></span>
+  <h3>Example-based FilterSet generation</h3>
+  <p>Pass a typed example object to generate a matching FilterSet automatically. Useful for search-by-example UIs.</p>
+
+<pre><span class="kw">var</span> example = <span class="kw">new</span> <span class="ty">Product</span> { Category = <span class="st">"Electronics"</span>, IsActive = <span class="kw">true</span> };
+
+<span class="co">// Generates: WHERE Category = 'Electronics' AND IsActive = true
+// (all non-default properties become Filter conditions)</span>
+<span class="kw">var</span> filterSet = <span class="ty">FilterBuilder</span>&lt;<span class="ty">Product</span>&gt;.<span class="me">BuildFilterSetItem</span>(example);
+<span class="kw">var</span> results = products.<span class="me">ApplyFilters</span>(filterSet).</pre>
+
+  <div class="callout tip">
+    <strong>Default values are excluded automatically.</strong> <code>null</code> reference types, <code>0</code> integers, <code>false</code> booleans, and other type defaults are skipped — only properties you've explicitly set on the example become filter conditions.
+  </div>
+</section>
+
+
+<section id="op-membership">
+  <h2><span class="sec-num">17</span> In / Nin — List Membership</h2>
+  <p>Test whether a property value is (or is not) a member of a provided list. <code>TestValue</code> accepts any array type or JSON array. EF Core translates to SQL <code>IN (...)</code>.</p>
+<pre><span class="co">// Status must be one of the provided values</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Status"</span>, <span class="pr">Operation</span> = <span class="st">"in"</span>,
+             <span class="pr">TestValue</span> = <span class="kw">new</span>[] { <span class="st">"Active"</span>, <span class="st">"Pending"</span>, <span class="st">"Review"</span> } }
+
+<span class="co">// Exclude specific values</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Status"</span>, <span class="pr">Operation</span> = <span class="st">"nin"</span>,
+             <span class="pr">TestValue</span> = <span class="kw">new</span>[] { <span class="st">"Deleted"</span>, <span class="st">"Archived"</span> } }
+
+<span class="co">// Works with integers, GUIDs, or any comparable type</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"CategoryId"</span>, <span class="pr">Operation</span> = <span class="st">"in"</span>,
+             <span class="pr">TestValue</span> = <span class="kw">new</span>[] { <span class="nu">1</span>, <span class="nu">4</span>, <span class="nu">7</span>, <span class="nu">12</span> } }</pre>
+  <div class="callout info"><strong>JSON:</strong> <code>"testValue": ["Active","Pending","Review"]</code> — a standard JSON array. Round-trips through serialization without any special handling.</div>
+</section>
+
+<section id="op-null">
+  <h2><span class="sec-num">18</span> IsNull / IsNotNull</h2>
+  <p>Explicit null checks. No <code>TestValue</code> required. EF Core translates to <code>IS NULL</code> / <code>IS NOT NULL</code>. For non-nullable value types the compiler returns a compile-time constant — no runtime check is generated.</p>
+<pre><span class="co">// Soft-delete: exclude records with a DeletedAt timestamp</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"DeletedAt"</span>,        <span class="pr">Operation</span> = <span class="st">"isnull"</span>    }
+
+<span class="co">// Only records that have a linked address navigation property</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Customer.Address"</span>, <span class="pr">Operation</span> = <span class="st">"isnotnull"</span> }
+
+<span class="co">// Combine with other conditions</span>
+<span class="kw">new</span> <span class="ty">FilterSet</span> {
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span>  = [
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"DeletedAt"</span>, <span class="pr">Operation</span> = <span class="st">"isnull"</span>    },
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Status"</span>,    <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="st">"Active"</span> },
+    ]
+}</pre>
+</section>
+
+<section id="op-date">
+  <h2><span class="sec-num">19</span> Date/Time Component Operators</h2>
+  <p>Filter on a single component of a <code>DateTime</code> or <code>DateTimeOffset</code> property. EF Core translates each to the native SQL date function (<code>YEAR()</code>, <code>MONTH()</code>, <code>DATEPART()</code> etc.).</p>
+  <table>
+    <thead><tr><th>Operator</th><th>Meaning</th><th>TestValue</th></tr></thead>
+    <tbody>
+      <tr><td><code>year-eq</code></td><td>Year equals</td><td><code>2024</code></td></tr>
+      <tr><td><code>month-eq</code></td><td>Month equals (1–12)</td><td><code>3</code></td></tr>
+      <tr><td><code>day-eq</code></td><td>Day of month (1–31)</td><td><code>15</code></td></tr>
+      <tr><td><code>hour-eq</code></td><td>Hour (0–23)</td><td><code>9</code></td></tr>
+      <tr><td><code>dow-eq</code></td><td>Day of week</td><td><code>"Monday"</code> or <code>1</code></td></tr>
+    </tbody>
+  </table>
+<pre><span class="co">// Orders placed in March of any year</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"CreatedAt"</span>, <span class="pr">Operation</span> = <span class="st">"month-eq"</span>, <span class="pr">TestValue</span> = <span class="nu">3</span> }
+
+<span class="co">// Records from 2024</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Timestamp"</span>, <span class="pr">Operation</span> = <span class="st">"year-eq"</span>,  <span class="pr">TestValue</span> = <span class="nu">2024</span> }
+
+<span class="co">// Events on Mondays — name or integer both accepted</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"EventDate"</span>, <span class="pr">Operation</span> = <span class="st">"dow-eq"</span>,   <span class="pr">TestValue</span> = <span class="st">"Monday"</span> }</pre>
+  <div class="callout tip">Nullable <code>DateTime?</code> properties are automatically null-guarded — a null value evaluates to <code>false</code> rather than throwing.</div>
+</section>
+
+<section id="op-length">
+  <h2><span class="sec-num">20</span> String Length Operators</h2>
+  <p>Filter based on the character length of a string property. EF Core translates <code>string.Length</code> to <code>LEN()</code> on SQL Server and <code>LENGTH()</code> on Postgres/SQLite/MySQL. Null strings evaluate to <code>false</code> for all length operators.</p>
+<pre><span class="co">// Non-empty description (null-safe)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Description"</span>, <span class="pr">Operation</span> = <span class="st">"len-gt"</span>, <span class="pr">TestValue</span> = <span class="nu">0</span>   }
+
+<span class="co">// Postal code is exactly 5 characters</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"PostalCode"</span>,  <span class="pr">Operation</span> = <span class="st">"len-eq"</span>, <span class="pr">TestValue</span> = <span class="nu">5</span>   }
+
+<span class="co">// Name within column limit</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Name"</span>,        <span class="pr">Operation</span> = <span class="st">"len-le"</span>, <span class="pr">TestValue</span> = <span class="nu">100</span> }</pre>
+  <p>Available: <code>len-eq</code>, <code>len-ne</code>, <code>len-gt</code>, <code>len-ge</code>, <code>len-lt</code>, <code>len-le</code>.</p>
+</section>
+
+<section id="op-string-flags">
+  <h2><span class="sec-num">21</span> CaseSensitive &amp; Normalize Flags</h2>
+  <p>Two boolean flags on <code>Filter</code> control how string values are prepared before comparison.</p>
+  <h3>CaseSensitive (default: true)</h3>
+  <p>When <code>false</code>, both the property value and <code>TestValue</code> are lowercased before comparison — portable across all databases regardless of collation.</p>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Email"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>,
+             <span class="pr">TestValue</span> = <span class="st">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="ffaaacbaadbfbaa7beb2afb3bad1bcb0b2">[email&#160;protected]</a>"</span>, <span class="pr">CaseSensitive</span> = <span class="kw">false</span> }
+
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Name"</span>,  <span class="pr">Operation</span> = <span class="st">"cn"</span>,
+             <span class="pr">TestValue</span> = <span class="st">"freeman"</span>,         <span class="pr">CaseSensitive</span> = <span class="kw">false</span> }</pre>
+  <h3>Normalize (default: false)</h3>
+  <p>When <code>true</code>, leading and trailing whitespace is trimmed from both sides before comparison. When combined with <code>CaseSensitive = false</code>, trim is applied first then lowercase — so <code>"  Freeman  "</code> correctly matches <code>"freeman"</code>.</p>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Email"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>,
+             <span class="pr">TestValue</span>    = <span class="st">"<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="473234223507223f262a372b226924282a">[email&#160;protected]</a>"</span>,
+             <span class="pr">Normalize</span>    = <span class="kw">true</span>,
+             <span class="pr">CaseSensitive</span> = <span class="kw">false</span> }
+
+<span class="co">// Ensure field is non-blank after trimming</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Name"</span>, <span class="pr">Operation</span> = <span class="st">"len-gt"</span>,
+             <span class="pr">TestValue</span> = <span class="nu">0</span>, <span class="pr">Normalize</span> = <span class="kw">true</span> }</pre>
+  <div class="callout info"><code>CaseSensitive</code> defaults to <code>true</code> and <code>Normalize</code> defaults to <code>false</code>. Both fields are optional in serialized JSON.</div>
+</section>
+
+<!-- ── Multi-result ──────────────────────────────────────────────────────────── -->
+<section id="multiresult">
+  <h2><span class="sec-num">13</span> Multi-Result Dataset Query</h2>
+  <p><code>FilterType.TestValueFilterExpressionMulti</code> extends the cross-type dataset query strategy from single-match scalar extraction to collecting <strong>all</strong> matching elements and building a typed array for <code>in</code> / <code>nin</code> membership testing. EF Core translates the output to <code>WHERE col IN (...)</code>.</p>
+  <div class="callout tip"><strong>IQueryable compatible.</strong> The array is built at expression-build time; EF Core receives a standard <code>Enumerable.Contains</code> expression and generates <code>IN (...)</code> SQL. The condition dataset in <code>params1</code> must be a pre-materialized <code>List&lt;T&gt;</code> — never an <code>IQueryable&lt;T&gt;</code>.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> {
+    <span class="pr">PropertyPath</span> = <span class="st">"CategoryId"</span>,
+    <span class="pr">Operation</span>    = <span class="st">"in"</span>,          <span class="co">// must be "in" or "nin"</span>
+    <span class="pr">FilterType</span>   = <span class="ty">FilterType</span>.TestValueFilterExpressionMulti,
+    <span class="pr">ParamKey</span>     = <span class="st">"promotions"</span>,   <span class="co">// pre-materialized List&lt;Promotion&gt;</span>
+    <span class="pr">Query</span>        = <span class="st">"CategoryId"</span>,   <span class="co">// property extracted from each match</span>
+    <span class="pr">FilterSet</span>    = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+            <span class="pr">PropertyPath</span> = <span class="st">"IsActive"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="kw">true</span>
+        }]
+    }
+}
+
+<span class="co">// Build time: run FilterSet against promotions → collect ALL matches
+//             → extract CategoryId from each → int[] { 1, 4, 7 }
+// EF Core SQL: WHERE CategoryId IN (1, 4, 7)</span>
+
+<span class="kw">var</span> results = dbContext.Products.<span class="me">ApplyFilters</span>(filter, params1: <span class="kw">new</span>()
+{
+    [<span class="st">"promotions"</span>] = promotionList   <span class="co">// List&lt;Promotion&gt; — must be pre-materialized</span>
+});</pre>
+  <div class="callout warn"><strong>Large result sets:</strong> The array is a snapshot built at expression-build time. If the dataset query matches thousands of records the <code>IN (...)</code> clause grows proportionally — SQL query plan generation degrades above ~1,000 values. Pre-filter the dataset in <code>params1</code> if needed. Do not cache the compiled expression if the underlying dataset changes between calls.</div>
+</section>
+
+<!-- ── Branch ────────────────────────────────────────────────────────────────── -->
+<section id="branch">
+  <h2><span class="sec-num">14</span> Build-Time Branching — Branch (if/else)</h2>
+  <p><code>FilterSetType.Branch</code> evaluates a <code>ConditionFilterSet</code> against a dataset in <code>params1</code> at expression-build time and compiles either <code>BranchIfMatch</code> or <code>BranchIfNoMatch</code>. EF Core receives a completely flat <code>Expression&lt;Func&lt;T,bool&gt;&gt;</code> — no runtime conditional logic appears in the generated SQL.</p>
+  <div class="callout tip"><strong>IQueryable compatible.</strong> Branch selection happens before the expression tree is built. The selected branch compiles to a normal WHERE predicate. The condition dataset must be a pre-materialized <code>List&lt;T&gt;</code> in <code>params1</code>.</div>
+<pre><span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">FilterSetType</span>      = <span class="ty">FilterSetType</span>.Branch,
+    <span class="pr">ConditionParamKey</span>  = <span class="st">"vipList"</span>,         <span class="co">// pre-materialized List&lt;VipRecord&gt;</span>
+    <span class="pr">ConditionFilterSet</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> {    <span class="co">// does customer appear in vipList?</span>
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+            <span class="pr">PropertyPath</span> = <span class="st">"CustomerId"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>,
+            <span class="pr">FilterType</span>   = <span class="ty">FilterType</span>.TestValueParam, <span class="pr">ParamKey</span> = <span class="st">"customerId"</span>
+        }]
+    },
+    <span class="pr">BranchIfMatch</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> {         <span class="co">// compiled when VIP found</span>
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [
+            <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"IsVipEligible"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="kw">true</span> },
+            <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Stock"</span>,         <span class="pr">Operation</span> = <span class="st">"gt"</span>, <span class="pr">TestValue</span> = <span class="nu">0</span>    },
+        ]
+    },
+    <span class="pr">BranchIfNoMatch</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> {      <span class="co">// compiled when not VIP</span>
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"IsPublic"</span>,
+                                    <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="kw">true</span> } ]
+    }
+};
+
+<span class="co">// EF Core SQL (VIP path): WHERE IsVipEligible = 1 AND Stock > 0
+// EF Core SQL (standard):  WHERE IsPublic = 1
+// Branch decided at build time — SQL has no conditional logic</span>
+
+<span class="kw">var</span> results = dbContext.Products.<span class="me">ApplyFilters</span>(filter, params1: <span class="kw">new</span>()
+{
+    [<span class="st">"vipList"</span>]    = vipList,
+    [<span class="st">"customerId"</span>] = currentCustomerId
+});</pre>
+  <div class="callout info"><code>BranchIfNoMatch = null</code> produces <code>Expression.Constant(true)</code> — the predicate matches every entity. Use when "no filter" is the correct result when the condition is not met.</div>
+</section>
+
+<!-- ── Switch ────────────────────────────────────────────────────────────────── -->
+<section id="switch">
+  <h2><span class="sec-num">15</span> Build-Time Branching — Switch (multi-case)</h2>
+  <p><code>FilterSetType.Switch</code> evaluates a <code>ConditionFilterSet</code>, extracts <code>SwitchValueProperty</code> from the first match, and compiles the first <code>SwitchCase</code> whose <code>WhenValue</code> matches. If no case matches, <code>SwitchDefault</code> is compiled. Case comparison is case-insensitive.</p>
+  <div class="callout tip"><strong>IQueryable compatible.</strong> Same guarantee as Branch — the selected case compiles to a flat predicate. Condition dataset must be pre-materialized.</div>
+<pre><span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">FilterSetType</span>       = <span class="ty">FilterSetType</span>.Switch,
+    <span class="pr">ConditionParamKey</span>   = <span class="st">"tierRules"</span>,        <span class="co">// pre-materialized List&lt;TierRule&gt;</span>
+    <span class="pr">ConditionFilterSet</span>  = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> {
+            <span class="pr">PropertyPath</span> = <span class="st">"CustomerId"</span>, <span class="pr">Operation</span> = <span class="st">"eq"</span>,
+            <span class="pr">FilterType</span>   = <span class="ty">FilterType</span>.TestValueParam, <span class="pr">ParamKey</span> = <span class="st">"customerId"</span>
+        }]
+    },
+    <span class="pr">SwitchValueProperty</span> = <span class="st">"TierName"</span>,         <span class="co">// extract from first match</span>
+    <span class="pr">SwitchCases</span>         =
+    [
+        <span class="kw">new</span> <span class="ty">FilterSetCase</span> { <span class="pr">WhenValue</span> = <span class="st">"VIP"</span>,
+            <span class="pr">Then</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> { <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND, <span class="pr">Filters</span> = [
+                <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"IsVipEligible"</span>,
+                             <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="kw">true</span> }] } },
+        <span class="kw">new</span> <span class="ty">FilterSetCase</span> { <span class="pr">WhenValue</span> = <span class="st">"Gold"</span>,
+            <span class="pr">Then</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> { <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND, <span class="pr">Filters</span> = [
+                <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"MinimumOrderValue"</span>,
+                             <span class="pr">Operation</span> = <span class="st">"le"</span>, <span class="pr">TestValue</span> = <span class="nu">500m</span> }] } },
+        <span class="kw">new</span> <span class="ty">FilterSetCase</span> { <span class="pr">WhenValue</span> = <span class="st">"Standard"</span>,
+            <span class="pr">Then</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> { <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND, <span class="pr">Filters</span> = [
+                <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"IsPublic"</span>,
+                             <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="kw">true</span> }] } },
+    ],
+    <span class="pr">SwitchDefault</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> {             <span class="co">// no tier found — show nothing</span>
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Id"</span>,
+                                    <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="ty">Guid</span>.Empty } ]
+    }
+};</pre>
+  <div class="callout info"><code>SwitchDefault = null</code> produces <code>Expression.Constant(true)</code> when no case matches — use when "no filter" is correct for an unrecognised value.</div>
+</section>
+
+<!-- ── Nested branching ──────────────────────────────────────────────────────── -->
+<section id="branch-nested">
+  <h2><span class="sec-num">16</span> Build-Time Branching — Nested</h2>
+  <p>Branch and Switch FilterSets may be nested arbitrarily. A <code>BranchIfMatch</code> can be a <code>Switch</code>; a <code>SwitchCase.Then</code> can be another <code>Branch</code>. The compiler recurses through the same entry point — no depth limit. The final compiled output is always a single flat predicate.</p>
+<pre><span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    <span class="pr">FilterSetType</span>      = <span class="ty">FilterSetType</span>.Branch,
+    <span class="pr">ConditionParamKey</span>  = <span class="st">"featureFlags"</span>,
+    <span class="pr">ConditionFilterSet</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> { <span class="co">/* is tiered pricing enabled? */</span> },
+    <span class="pr">BranchIfMatch</span>      = <span class="kw">new</span> <span class="ty">FilterSet</span>    <span class="co">// tiered pricing on → use Switch</span>
+    {
+        <span class="pr">FilterSetType</span>       = <span class="ty">FilterSetType</span>.Switch,
+        <span class="pr">ConditionParamKey</span>   = <span class="st">"tierRules"</span>,
+        <span class="pr">ConditionFilterSet</span>  = <span class="kw">new</span> <span class="ty">FilterSet</span> { <span class="co">/* find customer tier */</span> },
+        <span class="pr">SwitchValueProperty</span> = <span class="st">"TierName"</span>,
+        <span class="pr">SwitchCases</span>         = [ <span class="co">/* VIP, Gold, Standard cases */</span> ]
+    },
+    <span class="pr">BranchIfNoMatch</span> = <span class="kw">new</span> <span class="ty">FilterSet</span> {     <span class="co">// tiered pricing off → flat filter</span>
+        <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+        <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"IsPublic"</span>,
+                                    <span class="pr">Operation</span> = <span class="st">"eq"</span>, <span class="pr">TestValue</span> = <span class="kw">true</span> } ]
+    }
+};
+<span class="co">// Result: a single flat Expression&lt;Func&lt;T,bool&gt;&gt; — EF Core generates normal SQL</span></pre>
+  <div class="callout warn"><strong>Condition datasets must always be pre-materialized.</strong> Pass <code>List&lt;T&gt;</code> in <code>params1</code>. Never pass <code>IQueryable&lt;T&gt;</code> as a condition dataset — it bypasses EF Core query translation and iterates all rows into memory.</div>
+</section>
+
+
+<section id="pat-geo">
+  <h2><span class="sec-num">26</span> Pattern — Geo-Distance Filtering</h2>
+  <p>FilterBuilder does not include a spatial operator because a Haversine predicate cannot be translated to SQL without a spatial database extension, and the same FilterSet should execute identically on both targets. The correct approach is to compose predicates externally:</p>
+<pre><span class="co">// FilterBuilder handles all serializable data-driven conditions</span>
+<span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">Property</span>, <span class="kw">bool</span>&gt;&gt; dataFilter =
+    <span class="ty">FilterBuilder</span>&lt;<span class="ty">Property</span>&gt;.<span class="me">ProcessFilterSet</span>(filterSet);
+
+<span class="co">// Spatial predicate lives in typed code — developer controls translation strategy</span>
+<span class="kw">double</span> targetLat = <span class="nu">37.540</span>, targetLng = <span class="nu">-77.434</span>, radiusKm = <span class="nu">32.2</span>;
+
+<span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">Property</span>, <span class="kw">bool</span>&gt;&gt; geoFilter =
+    p => <span class="ty">GeoHelper</span>.<span class="me">DistanceKm</span>(p.Latitude, p.Longitude, targetLat, targetLng) &lt;= radiusKm;
+
+<span class="co">// Compose with LinqKit</span>
+<span class="kw">var</span> combined = dataFilter.<span class="me">And</span>(geoFilter);
+<span class="kw">var</span> results  = dbContext.Properties.<span class="me">AsExpandable</span>().<span class="me">Where</span>(combined).<span class="me">ToList</span>();</pre>
+  <p>For SQL Server or PostgreSQL/PostGIS with NetTopologySuite, use a <code>Point</code>-typed property — EF Core translates <code>.Distance()</code> to the native spatial SQL function automatically.</p>
+<pre><span class="kw">var</span> target = <span class="kw">new</span> <span class="ty">Point</span>(targetLng, targetLat) { SRID = <span class="nu">4326</span> };
+
+<span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">Property</span>, <span class="kw">bool</span>&gt;&gt; geoFilter =
+    p => p.Location != <span class="kw">null</span> &amp;&amp; p.Location.<span class="me">Distance</span>(target) &lt;= radiusMetres;</pre>
+</section>
+
+<section id="pat-pagination">
+  <h2><span class="sec-num">27</span> Pattern — Pagination &amp; Sorting</h2>
+  <p><code>ApplyFilters</code> returns <code>IQueryable&lt;T&gt;</code>, so chaining with <code>OrderBy</code> and paging is natural. Reuse the same filter expression for the count query to avoid round-tripping the full dataset.</p>
+<pre><span class="kw">var</span> page = <span class="nu">2</span>; <span class="kw">var</span> size = <span class="nu">25</span>;
+
+<span class="kw">var</span> filtered = dbContext.Orders.<span class="me">ApplyFilters</span>(filterSet, params1: runtimeParams);
+
+<span class="kw">var</span> results = <span class="kw">await</span> filtered
+    .<span class="me">OrderByDescending</span>(o => o.CreatedAt)
+    .<span class="me">Skip</span>((page - <span class="nu">1</span>) * size)
+    .<span class="me">Take</span>(size)
+    .<span class="me">ToListAsync</span>();
+
+<span class="kw">var</span> total = <span class="kw">await</span> filtered.<span class="me">CountAsync</span>();</pre>
+</section>
+
+<section id="pat-softdelete">
+  <h2><span class="sec-num">28</span> Pattern — Soft-Delete &amp; Global Base Filters</h2>
+  <p>Apply a mandatory base filter before or alongside the user-supplied FilterSet. The new <code>isnull</code> operator makes this serializable:</p>
+<pre><span class="co">// Option A — chain .Where() before ApplyFilters</span>
+<span class="kw">var</span> results = dbContext.Orders
+    .<span class="me">Where</span>(o => o.DeletedAt == <span class="kw">null</span>)
+    .<span class="me">ApplyFilters</span>(userFilterSet);
+
+<span class="co">// Option B — compose as a nested FilterSet (fully serializable)</span>
+<span class="kw">var</span> notDeleted = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+    <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND,
+    <span class="pr">Filters</span>  = [ <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"DeletedAt"</span>, <span class="pr">Operation</span> = <span class="st">"isnull"</span> } ]
+};
+<span class="kw">var</span> combined = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+    <span class="pr">Operator</span>   = <span class="ty">Operator</span>.AND,
+    <span class="pr">FilterSets</span> = [ notDeleted, userFilterSet ]
+};
+<span class="kw">var</span> results = dbContext.Orders.<span class="me">ApplyFilters</span>(combined);</pre>
+</section>
+
+<section id="pat-caching">
+  <h2><span class="sec-num">29</span> Pattern — Caching Compiled Expressions</h2>
+  <p>For high-throughput in-memory evaluation, compile the predicate once and cache it by the serialized FilterSet. For <code>IQueryable</code>, cache the <code>Expression&lt;Func&lt;T,bool&gt;&gt;</code> itself — never compile it to a delegate or EF Core cannot translate to SQL.</p>
+<pre><span class="co">// In-memory cache — cache the compiled delegate</span>
+<span class="kw">private static readonly</span> <span class="ty">ConcurrentDictionary</span>&lt;<span class="kw">string</span>, <span class="ty">Func</span>&lt;<span class="ty">Order</span>, <span class="kw">bool</span>&gt;&gt; _cache = <span class="kw">new</span>();
+
+<span class="kw">public</span> <span class="ty">IEnumerable</span>&lt;<span class="ty">Order</span>&gt; <span class="me">Filter</span>(<span class="ty">IEnumerable</span>&lt;<span class="ty">Order</span>&gt; orders, <span class="ty">FilterSet</span> fs)
+{
+    <span class="kw">var</span> key  = <span class="ty">JsonSerializer</span>.<span class="me">Serialize</span>(fs);
+    <span class="kw">var</span> pred = _cache.<span class="me">GetOrAdd</span>(key, _ => <span class="ty">FilterBuilder</span>&lt;<span class="ty">Order</span>&gt;
+                                            .<span class="me">ProcessFilterSet</span>(fs).<span class="me">Compile</span>());
+    <span class="kw">return</span> orders.<span class="me">Where</span>(pred);
+}
+
+<span class="co">// IQueryable cache — cache the expression tree</span>
+<span class="kw">private static readonly</span> <span class="ty">ConcurrentDictionary</span>&lt;<span class="kw">string</span>, <span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">Order</span>, <span class="kw">bool</span>&gt;&gt;&gt; _exprCache = <span class="kw">new</span>();
+
+<span class="kw">public</span> <span class="ty">IQueryable</span>&lt;<span class="ty">Order</span>&gt; <span class="me">Query</span>(<span class="ty">IQueryable</span>&lt;<span class="ty">Order</span>&gt; source, <span class="ty">FilterSet</span> fs)
+{
+    <span class="kw">var</span> key  = <span class="ty">JsonSerializer</span>.<span class="me">Serialize</span>(fs);
+    <span class="kw">var</span> expr = _exprCache.<span class="me">GetOrAdd</span>(key, _ => <span class="ty">FilterBuilder</span>&lt;<span class="ty">Order</span>&gt;.<span class="me">ProcessFilterSet</span>(fs));
+    <span class="kw">return</span> source.<span class="me">Where</span>(expr);
+}</pre>
+</section>
+
+<section id="pat-storage">
+  <h2><span class="sec-num">26</span> Pattern — Storing FilterSets in a Database</h2>
+  <p>Store serialized FilterSets in a JSON column. EF Core maps this cleanly with a <code>[NotMapped]</code> computed property for deserialization.</p>
+<pre><span class="kw">public class</span> <span class="ty">FilterRule</span>
+{
+    <span class="kw">public int</span>    <span class="pr">Id</span>            { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> <span class="pr">TenantId</span>      { <span class="kw">get</span>; <span class="kw">set</span>; } = <span class="st">""</span>;
+    <span class="kw">public int</span>    <span class="pr">Sequence</span>      { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> <span class="pr">FilterSetJson</span> { <span class="kw">get</span>; <span class="kw">set</span>; } = <span class="st">"{}"</span>; <span class="co">// nvarchar(max)</span>
+
+    [<span class="ty">NotMapped</span>]
+    <span class="kw">public</span> <span class="ty">FilterSet</span> <span class="pr">FilterSet</span>
+    {
+        <span class="kw">get</span> => <span class="ty">JsonSerializer</span>.<span class="me">Deserialize</span>&lt;<span class="ty">FilterSet</span>&gt;(FilterSetJson)!;
+        <span class="kw">set</span> => FilterSetJson = <span class="ty">JsonSerializer</span>.<span class="me">Serialize</span>(value);
+    }
+}
+
+<span class="co">// Retrieve and apply</span>
+<span class="kw">var</span> rules = <span class="kw">await</span> db.FilterRules
+    .<span class="me">Where</span>(r => r.TenantId == tenantId)
+    .<span class="me">OrderBy</span>(r => r.Sequence)
+    .<span class="me">AsNoTracking</span>().<span class="me">ToListAsync</span>();
+
+<span class="ty">FilterSet</span>? matched = <span class="ty">FilterBuilder</span>&lt;<span class="ty">Customer</span>&gt;
+    .<span class="me">FindFirstMatch</span>(customers, rules.<span class="me">Select</span>(r => r.FilterSet).<span class="me">ToList</span>());</pre>
+  <div class="callout tip">On PostgreSQL, use <code>.HasColumnType("jsonb")</code> on the <code>FilterSetJson</code> property for native JSON indexing and querying.</div>
+</section>
+
+<section id="pat-multitenancy">
+  <h2><span class="sec-num">27</span> Pattern — Multi-Tenancy</h2>
+  <p>Per-tenant filter definitions retrieved at request time, cached in memory, and applied to a scoped <code>DbContext</code>. This is one of FilterBuilder's primary production use cases.</p>
+<pre><span class="kw">public class</span> <span class="ty">FilterService</span>(<span class="ty">AppDbContext</span> db)
+{
+    <span class="kw">private readonly</span> <span class="ty">ConcurrentDictionary</span>&lt;<span class="kw">string</span>, <span class="ty">List</span>&lt;<span class="ty">FilterSet</span>&gt;&gt; _cache = <span class="kw">new</span>();
+
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">FilterSet</span>&gt; <span class="me">GetRules</span>(<span class="kw">string</span> tenantId) =>
+        _cache.<span class="me">GetOrAdd</span>(tenantId, _ => db.FilterRules
+            .<span class="me">Where</span>(r => r.TenantId == tenantId)
+            .<span class="me">OrderBy</span>(r => r.Sequence).<span class="me">AsNoTracking</span>().<span class="me">ToList</span>()
+            .<span class="me">Select</span>(r => r.FilterSet).<span class="me">ToList</span>());
+
+    <span class="kw">public</span> <span class="ty">IQueryable</span>&lt;<span class="ty">T</span>&gt; <span class="me">Apply</span>&lt;<span class="ty">T</span>&gt;(
+        <span class="ty">IQueryable</span>&lt;<span class="ty">T</span>&gt; source, <span class="kw">string</span> tenantId, <span class="ty">FilterSet</span>? extra = <span class="kw">null</span>)
+    {
+        <span class="kw">var</span> rules = <span class="me">GetRules</span>(tenantId);
+        <span class="kw">var</span> combined = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+            <span class="pr">Operator</span>   = <span class="ty">Operator</span>.AND,
+            <span class="pr">FilterSets</span> = extra <span class="kw">is null</span> ? rules : [..<span class="ty">rules</span>, extra]
+        };
+        <span class="kw">return</span> source.<span class="me">ApplyFilters</span>(combined);
+    }
+}</pre>
+</section>
+
+<section id="pat-aspnet">
+  <h2><span class="sec-num">28</span> Pattern — ASP.NET Core Integration</h2>
+  <p>Receive a FilterSet as a JSON request body in a minimal API endpoint. <code>System.Text.Json</code> deserializes the FilterSet directly — no custom converter needed.</p>
+<pre>app.<span class="me">MapPost</span>(<span class="st">"/api/orders/search"</span>, <span class="kw">async</span> (
+    [<span class="ty">FromBody</span>] <span class="ty">FilterSearchRequest</span> req,
+    [<span class="ty">FromServices</span>] <span class="ty">AppDbContext</span> db,
+    <span class="ty">CancellationToken</span> ct) =>
+{
+    <span class="kw">var</span> filtered = db.Orders.<span class="me">ApplyFilters</span>(req.Filter, params1: req.Params);
+
+    <span class="kw">var</span> items = <span class="kw">await</span> filtered
+        .<span class="me">Skip</span>((req.Page - <span class="nu">1</span>) * req.PageSize).<span class="me">Take</span>(req.PageSize)
+        .<span class="me">ToListAsync</span>(ct);
+
+    <span class="kw">var</span> total = <span class="kw">await</span> filtered.<span class="me">CountAsync</span>(ct);
+
+    <span class="kw">return</span> <span class="ty">Results</span>.<span class="me">Ok</span>(<span class="kw">new</span> { items, total, page = req.Page });
+});
+
+<span class="kw">public record</span> <span class="ty">FilterSearchRequest</span>(
+    <span class="ty">FilterSet</span>?                    <span class="pr">Filter</span>,
+    <span class="ty">Dictionary</span>&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;? <span class="pr">Params</span>,
+    <span class="kw">int</span> <span class="pr">Page</span>     = <span class="nu">1</span>,
+    <span class="kw">int</span> <span class="pr">PageSize</span> = <span class="nu">25</span>);</pre>
+</section>
+
+<section id="pat-testing">
+  <h2><span class="sec-num">29</span> Pattern — Testing FilterSets</h2>
+  <p>Unit test filter logic using in-memory evaluation against a fixed dataset. A helper that runs the same FilterSet against both <code>IQueryable</code> and <code>IEnumerable</code> targets catches translation regressions early.</p>
+<pre><span class="kw">private static readonly</span> <span class="ty">List</span>&lt;<span class="ty">Customer</span>&gt; _data =
+[
+    <span class="kw">new</span>() { Id = <span class="nu">1</span>, Status = <span class="st">"Active"</span>,   Score = <span class="nu">90</span>, Name = <span class="st">"Freeman, E"</span> },
+    <span class="kw">new</span>() { Id = <span class="nu">2</span>, Status = <span class="st">"Inactive"</span>, Score = <span class="nu">45</span>, Name = <span class="st">"Smith, J"</span>   },
+    <span class="kw">new</span>() { Id = <span class="nu">3</span>, Status = <span class="st">"Active"</span>,   Score = <span class="nu">60</span>, Name = <span class="st">"Jones, A"</span>   },
+];
+
+[<span class="ty">Fact</span>]
+<span class="kw">public void</span> <span class="me">In_ReturnsOnlyMatchingStatuses</span>()
+{
+    <span class="kw">var</span> fs = <span class="kw">new</span> <span class="ty">FilterSet</span> { <span class="pr">Operator</span> = <span class="ty">Operator</span>.AND, <span class="pr">Filters</span> = [
+        <span class="kw">new</span> <span class="ty">Filter</span> { <span class="pr">PropertyPath</span> = <span class="st">"Status"</span>, <span class="pr">Operation</span> = <span class="st">"in"</span>,
+                     <span class="pr">TestValue</span> = <span class="kw">new</span>[] { <span class="st">"Active"</span> } }
+    ]};
+    <span class="kw">var</span> result = _data.<span class="me">AsQueryable</span>().<span class="me">ApplyFilters</span>(fs).<span class="me">ToList</span>();
+    <span class="ty">Assert</span>.<span class="me">Equal</span>(<span class="nu">2</span>, result.Count);
+}
+
+<span class="co">// Helper: verify IQueryable and IEnumerable produce identical results</span>
+<span class="kw">private static void</span> <span class="me">AssertConsistent</span>&lt;<span class="ty">T</span>&gt;(
+    <span class="ty">IQueryable</span>&lt;<span class="ty">T</span>&gt; queryable, <span class="ty">List</span>&lt;<span class="ty">T</span>&gt; list, <span class="ty">FilterSet</span> fs)
+{
+    <span class="kw">var</span> fromQ = queryable.<span class="me">ApplyFilters</span>(fs).<span class="me">ToList</span>();
+    <span class="kw">var</span> fromL = list.<span class="me">AsQueryable</span>().<span class="me">ApplyFilters</span>(fs).<span class="me">ToList</span>();
+    <span class="ty">Assert</span>.<span class="me">Equal</span>(fromQ.Count, fromL.Count);
+}</pre>
+</section>
+
+</main>
+</div>
+
+<script>
+  /* ── Theme toggle ── */
+  const btn = document.getElementById('themeToggle');
+  const apply = t => {
+    document.body.classList.toggle('light', t === 'light');
+    btn.textContent = t === 'dark' ? '🌙' : '☀️';
+  };
+  apply(localStorage.getItem('ef-theme') || 'dark');
+  btn.addEventListener('click', () => {
+    const t = document.body.classList.contains('light') ? 'dark' : 'light';
+    localStorage.setItem('ef-theme', t); apply(t);
+  });
+
+  /* ── Mobile nav ── */
+  const ham = document.getElementById('hamburger');
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('overlay');
+  const openSidebar = () => { sidebar.classList.add('open'); overlay.classList.add('open'); document.body.classList.add('nav-open'); };
+  const closeSidebar = () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); document.body.classList.remove('nav-open'); };
+  ham.addEventListener('click', () => {
+    if (sidebar.classList.contains('open')) closeSidebar();
+    else openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+  sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', closeSidebar));
+
+  const topLabel = document.querySelector('.sidebar .sidebar-label');
+  if (topLabel && !topLabel.querySelector('.sidebar-top-link')) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sidebar-top-link';
+    btn.setAttribute('aria-label', 'Scroll to top of document');
+    btn.title = 'Scroll to top';
+    btn.textContent = '↑';
+    btn.addEventListener('click', () => {
+      sidebar.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (window.innerWidth <= 768) closeSidebar();
+    });
+    topLabel.appendChild(btn);
+  }
+
+  /* ── Active link highlight ── */
+  const links = document.querySelectorAll('.sidebar a');
+  const sections = document.querySelectorAll('section, span[id]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+        if (match) match.classList.add('active');
+      }
+    });
+  }, { rootMargin: '0px 0px -60% 0px' });
+  sections.forEach(s => obs.observe(s));
+</script>-e 
+</body>
+</html>

@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowEngine — Node Author Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  /* ── Dark theme (default) ───────────────────────────────────────────────── */
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--text2:#c9d1d9;--muted:#8b949e;
+    --teal:#1D9E75;--amber:#EF9F27;--coral:#D85A30;--blue:#378ADD;
+    --purple:#7F77DD;--green:#3FB950;
+    --code-bg:#161b22;--inline-code-color:#EF9F27;
+    --h1-span-color:#1D9E75;
+    --th-bg:var(--bg3);
+    --tr-hover:rgba(255,255,255,.02);
+    --callout-teal-bg:rgba(29,158,117,.08);--callout-teal-fg:#b8e8d6;
+    --callout-amber-bg:rgba(239,159,39,.08);--callout-amber-fg:#f5d898;
+    --callout-blue-bg:rgba(55,138,221,.08);--callout-blue-fg:#a8ccee;
+        --arch-color:var(--muted);
+        --node-card-bg:var(--bg2);
+        --canvas-top:rgba(29,158,117,.08);
+        --canvas-bottom:rgba(55,138,221,.06);
+        --content-surface:rgba(22,27,34,.96);
+        --content-border:rgba(139,148,158,.28);
+        --content-shadow:0 28px 72px rgba(0,0,0,.32);
+        --content-max:920px;
+  }
+  /* ── Light theme ─────────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;
+    --text:#1f2328;--text2:#36454f;--muted:#656d76;
+    --teal:#1a7f64;--amber:#b45309;--coral:#bc4c00;--blue:#0969da;
+    --purple:#6e40c9;--green:#1a7f37;
+    --code-bg:#f6f8fa;--inline-code-color:#b45309;
+    --h1-span-color:#1a7f64;
+    --th-bg:#eaeef2;
+    --tr-hover:rgba(0,0,0,.02);
+    --callout-teal-bg:rgba(26,127,100,.08);--callout-teal-fg:#1a7f64;
+    --callout-amber-bg:rgba(180,83,9,.08);--callout-amber-fg:#b45309;
+    --callout-blue-bg:rgba(9,105,218,.08);--callout-blue-fg:#0969da;
+        --arch-color:#36454f;
+        --node-card-bg:#ffffff;
+        --canvas-top:rgba(26,127,100,.05);
+        --canvas-bottom:rgba(9,105,218,.04);
+        --content-surface:rgba(255,255,255,.94);
+        --content-border:rgba(208,215,222,.95);
+        --content-shadow:0 24px 56px rgba(31,35,40,.08);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;overflow-x:hidden;}
+    body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;transition:background .2s,color .2s;overflow-x:hidden;padding:0 clamp(12px,2.8vw,32px) 56px;}
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+    .doc-header{width:min(100%,var(--content-max));max-width:var(--content-max);background:var(--bg2);border:1px solid var(--content-border);padding:40px 64px 36px;position:relative;overflow:hidden;margin:16px auto 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header-badge{display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;}
+  .header-back{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:3px;transition:color .15s,border-color .15s;}
+  .header-back:hover{color:var(--text);border-color:var(--muted);}
+  .doc-header h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;}
+  .doc-header h1 span{color:var(--h1-span-color);}
+  .doc-header .tagline{font-size:15px;font-weight:300;color:var(--muted);max-width:640px;line-height:1.6;margin-bottom:0;}
+  .theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;margin-left:auto;}
+  .theme-toggle:hover{background:var(--border);color:var(--text);}
+
+  /* ── Content ─────────────────────────────────────────────────────────────── */
+    .content{width:min(100%,var(--content-max));max-width:var(--content-max);margin:20px auto 0;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  h2{font-size:22px;font-weight:600;color:var(--text);margin:52px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);letter-spacing:-.01em;}
+  h2:first-child{margin-top:0;}
+  h3{font-size:16px;font-weight:600;color:var(--text);margin:28px 0 8px;}
+  h4{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--teal);margin:20px 0 6px;letter-spacing:.02em;}
+  p{margin-bottom:12px;color:var(--text2);}
+  ul,ol{margin:0 0 12px 1.4rem;color:var(--text2);}
+  li{margin-bottom:4px;}
+  li p{margin-bottom:4px;}
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0;}
+  strong{color:var(--text);font-weight:600;}
+  blockquote{border-left:3px solid var(--border);padding:8px 16px;margin:12px 0;color:var(--muted);font-style:italic;}
+  blockquote p{color:var(--muted);}
+
+  /* ── Code ────────────────────────────────────────────────────────────────── */
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--inline-code-color);}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;overflow-x:auto;margin:12px 0 18px;position:relative;}
+  pre code{background:none;border:none;padding:0;color:var(--text);font-size:12.5px;line-height:1.65;}
+  .lang-tag{position:absolute;top:8px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+
+  /* ── Tables ──────────────────────────────────────────────────────────────── */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 18px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{background:var(--th-bg);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:8px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--tr-hover);}
+
+  /* ── Callouts ────────────────────────────────────────────────────────────── */
+  .callout{border-radius:6px;padding:13px 17px;margin:14px 0;border-left:3px solid;font-size:14px;line-height:1.65;}
+  .callout-teal{background:var(--callout-teal-bg);border-color:var(--teal);color:var(--callout-teal-fg);}
+  .callout-amber{background:var(--callout-amber-bg);border-color:var(--amber);color:var(--callout-amber-fg);}
+  .callout-blue{background:var(--callout-blue-bg);border-color:var(--blue);color:var(--callout-blue-fg);}
+  .callout strong{color:inherit;font-weight:600;}
+  .callout code{background:rgba(127,119,221,.1);border-color:var(--border);color:inherit;}
+
+  /* ── Divider ─────────────────────────────────────────────────────────────── */
+  .divider{height:1px;background:var(--border);margin:40px 0;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+    /* ── Responsive breakpoints ─────────────────────────────────────────────── */
+    @media (min-width: 769px) and (max-width: 1023px) {
+        .doc-header{padding:28px 32px 24px;}
+        .doc-header h1{font-size:24px;}
+        .content{padding:32px 28px;border-radius:22px;}
+    }
+
+    @media (min-width: 1024px) and (max-width: 1439px) {
+        .content{padding:40px 36px;}
+    }
+
+    @media (min-width: 1440px) {
+        body{padding:0 clamp(18px,3vw,40px) 64px;}
+    }
+
+    @media (max-width: 768px) {
+        body{padding:0 12px 32px;}
+        .doc-header{padding:24px 20px 20px;margin-top:12px;border-radius:20px;}
+        .doc-header h1{font-size:22px;}
+        .content{margin-top:16px;padding:24px 18px;border-radius:20px;}
+        pre{font-size:12px;padding:14px 16px;}
+    }
+</style>
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Node Author Guide</div>
+    <a class="header-back" href="FlowEngine-Design-Doc.html">← Tech Doc</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀️</button>
+  </div>
+  <h1><span>Flow</span>Engine — Node Executor Implementation Guide</h1>
+  <p class="tagline">How to implement a custom INodeExecutor: quick-start, config patterns, context access, and registration.</p>
+</div>
+<div class="content">
+<p>How to implement a custom <code>INodeExecutor</code> for FlowEngine.</p>
+<p><strong>Read first:</strong><br />
+- <code>FlowEngine-CoreSchema.md</code> §18 — <code>INodeExecutor</code>, <code>NodeResult</code>, <code>IExecutionContext</code> contracts<br />
+- <code>FlowEngine-WorkflowDefinition.md</code> §4 — how node config classes are defined</p>
+<hr />
+<h2>Quick start — minimal executor</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">using System.Text.Json;
+using EF.FlowEngine.Abstractions;
+using EF.FlowEngine.Definition;
+using EF.FlowEngine.Model;
+
+public sealed class MyCustomNodeExecutor : INodeExecutor
+{
+    // Must match the &quot;type&quot; field in workflow JSON
+    public string NodeType =&gt; &quot;my-custom&quot;;
+
+    public async Task&lt;NodeResult&gt; ExecuteAsync(
+        NodeDefinition    node,
+        ExecutionInstance instance,
+        IExecutionContext  ctx,
+        CancellationToken ct)
+    {
+        // 1. Deserialize config
+        var config = node.Config.Deserialize&lt;MyCustomNodeConfig&gt;()
+            ?? throw new InvalidOperationException(&quot;Missing config&quot;);
+
+        // 2. Read from context
+        var entityId = ctx.ResolveAs&lt;string&gt;(&quot;$.entity.Id&quot;);
+        var someValue = ctx.ResolveAs&lt;int&gt;(&quot;$.context.someValue&quot;);
+
+        // 3. Do work
+        var result = entityId + &quot;-&quot; + someValue;
+
+        // 4. Return outcome (store result via storeAs if configured)
+        return new NodeResult
+        {
+            Outcome = DecisionOutcome.Match,
+            Output  = new JsonContextValue
+                { Value = JsonSerializer.SerializeToElement(result) }
+        };
+    }
+}
+
+// Config class — one per node type
+public sealed class MyCustomNodeConfig
+{
+    public string  SomeField   { get; init; }
+    public string? OptionalRef { get; init; }
+    public int     ThresholdMs { get; init; } = 5000;
+}
+</code></pre>
+<p>Register at startup:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">services.AddFlowEngine()
+    .AddNodeExecutor&lt;MyCustomNodeExecutor&gt;();
+</code></pre>
+<p>Workflow JSON:</p>
+<pre><span class="lang-tag">json</span><code class="language-json">{
+  &quot;id&quot;: &quot;n-my-node&quot;,
+  &quot;type&quot;: &quot;my-custom&quot;,
+  &quot;intent&quot;: &quot;Does the custom thing&quot;,
+  &quot;storeAs&quot;: &quot;customResult&quot;,
+  &quot;config&quot;: {
+    &quot;someField&quot;: &quot;$.entity.Name&quot;,
+    &quot;thresholdMs&quot;: 3000
+  },
+  &quot;edges&quot;: [
+    { &quot;label&quot;: &quot;OK&quot;,    &quot;on&quot;: [&quot;Match&quot;],   &quot;nextNodeId&quot;: &quot;n-next&quot;  },
+    { &quot;label&quot;: &quot;Error&quot;, &quot;on&quot;: [&quot;Error&quot;],   &quot;nextNodeId&quot;: &quot;n-error&quot; }
+  ]
+}
+</code></pre>
+<hr />
+<h2>The five rules every executor must follow</h2>
+<h3>Rule 1 — Be idempotent</h3>
+<p>The engine re-executes nodes on crash recovery. If the server crashes after<br />
+your node runs but before the next <code>SaveAsync</code>, your node re-runs with the<br />
+same inputs. Your executor must produce the same effect regardless of how<br />
+many times it is called.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Node category</th>
+<th>Idempotency approach</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pure computation (filter, compute, transform, store)</td>
+<td>Naturally idempotent — no action needed</td>
+</tr>
+<tr>
+<td>Read operations (GET, query, agent with same prompt)</td>
+<td>Naturally idempotent</td>
+</tr>
+<tr>
+<td>Write operations via <code>integration</code> (POST/PUT/DELETE)</td>
+<td>Use <code>IdempotencyKey</code> field; your <code>IRequestResponseClient</code> deduplicates</td>
+</tr>
+<tr>
+<td>Write operations via <code>fetch</code> with <code>clientRef</code></td>
+<td>Same as integration — use <code>IdempotencyKey</code></td>
+</tr>
+<tr>
+<td>Write operations via <code>fetch</code> without <code>clientRef</code> (raw HttpClient)</td>
+<td>Implement deduplication in the executor directly — no client registry to help</td>
+</tr>
+<tr>
+<td>Message publish</td>
+<td>Use message deduplication on the broker, or <code>IdempotencyKey</code></td>
+</tr>
+<tr>
+<td>Record creation (human task, child workflow spawn)</td>
+<td>Check if record already exists by <code>(InstanceId, NodeId)</code> before creating</td>
+</tr>
+<tr>
+<td>timer</td>
+<td>Naturally idempotent — re-execution rebuilds the WaitDescriptor from the same Delay expression. TimeoutAt may shift slightly after a crash but the delay restarts, which is acceptable.</td>
+</tr>
+<tr>
+<td>checkpoint</td>
+<td>The only node that triggers a mid-loop save; always returns <code>Match</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Pattern for write-idempotent custom nodes:</strong></p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Bad — creates a duplicate payment on re-execution
+await _paymentClient.ChargeAsync(amount, orderId);
+
+// Good — client deduplicates on idempotency key
+var idempotencyKey = $&quot;{instance.InstanceId}-{node.Id}&quot;;
+await _paymentClient.ChargeAsync(amount, orderId, idempotencyKey);
+</code></pre>
+<h3>Rule 2 — Use NodeResult correctly</h3>
+<p><code>NodeResult</code> carries everything the engine needs to continue:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Successful, synchronous result
+return new NodeResult { Outcome = DecisionOutcome.Match, Output = myValue };
+
+// Failure — engine evaluates retry policy, then emits Error outcome
+return new NodeResult
+{
+    Outcome = DecisionOutcome.Error,
+    Error   = new ExecutionError
+    {
+        Code       = &quot;MY_NODE_FAILED&quot;,
+        Message    = &quot;The thing failed because: &quot; + ex.Message,
+        NodeId     = node.Id,
+        Detail     = ex.ToString(),
+        OccurredAt = DateTimeOffset.UtcNow
+    }
+};
+
+// Suspend — node is waiting for an external signal
+// Engine saves state, releases lock, and resumes when signal arrives
+return new NodeResult
+{
+    Outcome     = DecisionOutcome.Match,   // always Match for suspension
+    PendingWait = new WaitDescriptor
+    {
+        EventName      = &quot;my-event.arrived&quot;,
+        CorrelationKey = ctx.ResolveAs&lt;string&gt;(&quot;$.entity.Id&quot;)!,
+        TimeoutAt      = DateTimeOffset.UtcNow.AddDays(7),
+        MinSignalCount = 1
+    }
+};
+
+// Force mid-loop checkpoint save (only for checkpoint node type)
+return new NodeResult
+{
+    Outcome         = DecisionOutcome.Match,
+    ForceCheckpoint = true
+};
+
+// HTTP executors — log HTTP status in execution history; used by RetryPolicy
+return new NodeResult
+{
+    Outcome        = DecisionOutcome.NoMatch,
+    HttpStatusCode = 404
+};
+</code></pre>
+<h3>Rule 3 — Use IExecutionContext, not ExecutionInstance directly</h3>
+<p><code>IExecutionContext</code> is the safe API for nodes. It handles namespace routing,<br />
+null safety, and read-only enforcement on <code>$.engine.*</code>.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Good — use ctx
+var orderId    = ctx.ResolveAs&lt;string&gt;(&quot;$.entity.OrderId&quot;);
+var riskScore  = ctx.ResolveAs&lt;int&gt;(&quot;$.context.riskScore&quot;);
+var visitCount = ctx.GetVisitCount(&quot;n-review&quot;);
+ctx.Store(&quot;myResult&quot;, new JsonContextValue { Value = ... });
+
+// Bad — bypass ctx and touch instance directly
+var orderId = instance.Context.Entity; // bypasses type safety + null handling
+
+// Forbidden — write to $.engine.*
+ctx.Store(&quot;engine.visits.myNode&quot;, ...); // throws InvalidOperationException
+</code></pre>
+<h3>Rule 4 — Never throw unhandled exceptions</h3>
+<p>Wrap your executor body in try/catch. Unhandled exceptions fault the entire<br />
+instance — the engine has no way to distinguish a transient error from a<br />
+permanent one unless you signal it via <code>NodeResult</code>.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;NodeResult&gt; ExecuteAsync(...)
+{
+    try
+    {
+        // ... your logic
+        return new NodeResult { Outcome = DecisionOutcome.Match, ... };
+    }
+    catch (OperationCanceledException)
+    {
+        throw; // let cancellation propagate — engine handles it
+    }
+    catch (MyTransientException ex)
+    {
+        // Return Error — retry policy fires, then edge evaluation
+        return new NodeResult
+        {
+            Outcome = DecisionOutcome.Error,
+            Error   = new ExecutionError
+            {
+                Code = &quot;MY_TRANSIENT_ERROR&quot;, Message = ex.Message,
+                NodeId = node.Id, OccurredAt = DateTimeOffset.UtcNow
+            }
+        };
+    }
+    catch (Exception ex)
+    {
+        ctx.Logger.LogError(ex, &quot;Unexpected error in {NodeType} {NodeId}&quot;,
+            NodeType, node.Id);
+        return new NodeResult
+        {
+            Outcome = DecisionOutcome.Error,
+            Error   = new ExecutionError
+            {
+                Code = &quot;UNEXPECTED_ERROR&quot;, Message = ex.Message,
+                NodeId = node.Id, Detail = ex.ToString(),
+                OccurredAt = DateTimeOffset.UtcNow
+            }
+        };
+    }
+}
+</code></pre>
+<h3>Rule 5 — Emit telemetry</h3>
+<p>Call <code>IFlowEngineTelemetry.Emit()</code> for significant events so your node<br />
+appears in observability pipelines:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Inject via constructor
+private readonly IFlowEngineTelemetry _telemetry;
+
+// In ExecuteAsync:
+_telemetry.Emit(&quot;flow.node.my-custom.called&quot;, new()
+{
+    [&quot;instanceId&quot;] = instance.InstanceId,
+    [&quot;nodeId&quot;]     = node.Id,
+    [&quot;entityId&quot;]   = ctx.ResolveAs&lt;string&gt;(&quot;$.entity.Id&quot;)
+});
+</code></pre>
+<hr />
+<h2>Suspension pattern — async wait nodes</h2>
+<p>Nodes that need to suspend (wait for external signal) follow this pattern.<br />
+The <code>timer</code> node is a special case of this — it suspends with a synthetic<br />
+event name that only the sweep service triggers (no external harness needed).</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// wait node — suspends until external ResumeAsync call
+return new NodeResult
+{
+    Outcome     = DecisionOutcome.Match,
+    PendingWait = new WaitDescriptor
+    {
+        EventName        = config.EventName,       // external signal name
+        CorrelationKey   = resolvedCorrelationKey,
+        TimeoutAt        = resolvedTimeout,        // null = wait forever
+        OnTimeoutNodeId  = config.OnTimeoutNodeId, // null = instance → TimedOut status
+        MinSignalCount   = config.MinSignalCount   // default 1; increase for N-of-M approval
+    }
+};
+
+// timer node — suspends until sweep detects TimeoutAt elapsed
+// Synthetic event name ensures only the sweep triggers this
+return new NodeResult
+{
+    Outcome     = DecisionOutcome.Match,
+    PendingWait = new WaitDescriptor
+    {
+        EventName      = $&quot;timer.{instance.InstanceId}.{node.Id}&quot;,
+        CorrelationKey = instance.InstanceId,
+        TimeoutAt      = await _calendar.ResolveAsync(config.Delay, DateTimeOffset.UtcNow, ct),
+        MinSignalCount = 1
+    }
+};
+</code></pre>
+<p><strong>WaitDescriptor fields:</strong></p>
+<div class="table-wrap"><table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>EventName</code></td><td><code>string</code></td><td>Logical event name matched against the <code>eventName</code> parameter of <code>ResumeAsync</code></td></tr>
+<tr><td><code>CorrelationKey</code></td><td><code>string</code></td><td>Scopes the wait within the event type; typically the entity ID or an external reference</td></tr>
+<tr><td><code>TimeoutAt</code></td><td><code>DateTimeOffset?</code></td><td>Optional deadline evaluated by the sweep service; <code>null</code> = wait forever</td></tr>
+<tr><td><code>OnTimeoutNodeId</code></td><td><code>string?</code></td><td>Node to jump to when timeout fires; <code>null</code> = transition instance to <code>TimedOut</code> status</td></tr>
+<tr><td><code>MinSignalCount</code></td><td><code>int</code></td><td>Minimum signal count before resuming; enables N-of-M approvals (default: 1)</td></tr>
+<tr><td><code>ReceivedSignals</code></td><td><code>List&lt;JsonElement&gt;</code></td><td>Accumulated signal payloads written by the engine on each <code>ResumeAsync</code> call; readable by the node after resume</td></tr>
+</tbody>
+</table></div>
+<p><strong>Key distinction — what happens on sweep resume:</strong><br />
+- <code>wait</code> node + <code>TimeoutAt</code> elapsed → sweep resumes with <code>Error</code> outcome<br />
+- <code>timer</code> node + <code>TimeoutAt</code> elapsed → sweep resumes with <code>Match</code> outcome</p>
+<p>The sweep service checks <code>currentNode.Type</code> to determine which outcome to use.<br />
+Your custom suspension nodes should follow the <code>wait</code> convention (Error on timeout)<br />
+unless you explicitly need the timer convention (Match on elapsed).</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;NodeResult&gt; ExecuteAsync(...)
+{
+    var config = node.Config.Deserialize&lt;MyWaitNodeConfig&gt;()!;
+
+    // 1. Do whatever triggers the external work
+    await _externalService.StartAsync(ctx.ResolveAs&lt;string&gt;(&quot;$.entity.Id&quot;)!, ct);
+
+    // 2. Build the wait descriptor — engine saves this and suspends
+    var correlationKey = config.CorrelationKeyExpression != null
+        ? await WhenEvaluator.EvaluateAsStringAsync(config.CorrelationKeyExpression, ctx, ct)
+        : ctx.ResolveAs&lt;string&gt;(config.CorrelationKeyPath!)!;
+
+    return new NodeResult
+    {
+        Outcome     = DecisionOutcome.Match,
+        PendingWait = new WaitDescriptor
+        {
+            EventName      = config.EventName,
+            CorrelationKey = correlationKey,
+            TimeoutAt      = config.Timeout != null
+                ? await ctx.ResolveDateTimeAsync(config.Timeout, ct)
+                : null,
+            MinSignalCount = config.MinSignalCount
+        }
+    };
+    // The engine saves state, releases the lock, and returns.
+    // When ResumeAsync(eventName, correlationKey) is called, the engine
+    // re-enters the loop. Your node is NOT re-executed — the engine
+    // reads NodeResult.PendingWait == null on the resumed instance
+    // (the engine cleared it) and evaluates edges normally.
+}
+</code></pre>
+<p><strong>What happens on resume:</strong> The engine detects <code>PendingWait != null</code> after<br />
+your node returns, saves the instance as <code>Suspended</code>, and stops. When<br />
+<code>ResumeAsync</code> is called, the engine loads the instance (now with<br />
+<code>PendingWait = null</code> cleared by the engine) and advances to edge evaluation<br />
+— your node does NOT run again.</p>
+<hr />
+<h2>Human task pattern</h2>
+<p>Nodes that create human tasks must handle crash-recovery idempotency<br />
+(never create a duplicate task):</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;NodeResult&gt; ExecuteAsync(...)
+{
+    // Check for existing task first — handles crash + re-execution
+    var existing = (await _taskStore.GetByInstanceAsync(instance.InstanceId, ct))
+        .FirstOrDefault(t =&gt; t.NodeId == node.Id);
+
+    if (existing != null)
+    {
+        // Task already exists — check if it's done
+        if (existing.Status == HumanTaskStatus.Completed
+            &amp;&amp; existing.Responses.Count &gt;= existing.Quorum)
+        {
+            // Quorum reached — write response and return Match
+            WriteResponseToContext(existing, instance);
+            return new NodeResult { Outcome = DecisionOutcome.Match };
+        }
+        // Still waiting — re-suspend
+        return new NodeResult
+        {
+            Outcome     = DecisionOutcome.Match,
+            PendingWait = BuildWaitDescriptor(existing, instance)
+        };
+    }
+
+    // Create new task
+    var task = new HumanTask { TaskId = Guid.NewGuid().ToString(&quot;N&quot;), ... };
+    await _taskStore.SaveAsync(task, ct);
+
+    return new NodeResult
+    {
+        Outcome     = DecisionOutcome.Match,
+        PendingWait = BuildWaitDescriptor(task, instance),
+        HumanTaskId = task.TaskId
+    };
+}
+</code></pre>
+<hr />
+<h2>Emitting different DecisionOutcome values</h2>
+<p>Your executor controls the outcome. The engine uses it to select which edge(s)<br />
+to evaluate:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Match — condition met, operation succeeded
+return new NodeResult { Outcome = DecisionOutcome.Match };
+
+// NoMatch — condition explicitly not met (e.g. query returned 0 results)
+return new NodeResult { Outcome = DecisionOutcome.NoMatch };
+
+// Unknown — couldn't determine (e.g. required context key was null)
+if (ctx.Resolve(&quot;$.context.someRequired&quot;) == null)
+    return new NodeResult { Outcome = DecisionOutcome.Unknown };
+
+// Error — something failed
+return new NodeResult { Outcome = DecisionOutcome.Error, Error = ... };
+
+// Note: Default is emitted by the EDGE EVALUATOR, not the node executor,
+// when no other edge matches. Your executor never returns Default.
+
+// Note: CircuitOpen is emitted by the ENGINE when a CircuitBreakerPolicy is configured
+// and its failure threshold has been reached. Your executor is never called when this
+// happens. Add an edge with On: ["CircuitOpen"] to route to a fallback node;
+// if no such edge exists, the engine suspends the instance until the circuit cools down.
+</code></pre>
+<hr />
+<h2>Accessing external clients</h2>
+<p>Use <code>IClientRegistry</code> (via <code>ctx.Services</code>) to resolve named clients:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// In constructor — inject IClientRegistry
+private readonly IClientRegistry _clients;
+
+// In ExecuteAsync
+var config = node.Config.Deserialize&lt;MyNodeConfig&gt;()!;
+var client = _clients.GetAs&lt;IRequestResponseClient&gt;(config.ClientRef)
+    ?? throw new InvalidOperationException(
+        $&quot;Client '{config.ClientRef}' not registered or not IRequestResponseClient. &quot; +
+        $&quot;Register via builder.AddClient().&quot;);
+
+var response = await client.ExecuteAsync(new ClientRequest
+{
+    Method = &quot;POST&quot;,
+    Url    = config.Url,
+    Body   = JsonSerializer.SerializeToElement(requestBody)
+}, ct);
+</code></pre>
+<hr />
+<h2>IExecutionContext — full API reference</h2>
+<p>All members available to a node executor via the <code>ctx</code> parameter:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Member</th><th>Type</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>Instance</code></td><td><code>ExecutionInstance</code></td><td>The live workflow instance (read-only; do not mutate directly)</td></tr>
+<tr><td><code>Services</code></td><td><code>IServiceProvider</code></td><td>Host DI container; use to resolve injected services not available via constructor</td></tr>
+<tr><td><code>Logger</code></td><td><code>ILogger</code></td><td>Logger scoped to the engine execution for node-level diagnostics</td></tr>
+<tr><td><code>TotalVisitCount</code></td><td><code>int</code></td><td>Total node visits across all nodes in this instance (cycle guard budget)</td></tr>
+<tr><td><code>Resolve(path)</code></td><td><code>ContextValue?</code></td><td>Resolve a JSONPath from workflow context; returns <code>null</code> if path unresolvable</td></tr>
+<tr><td><code>ResolveAs&lt;T&gt;(path)</code></td><td><code>T?</code></td><td>Resolve and deserialize to <code>T</code>; returns <code>null</code> on miss or type mismatch</td></tr>
+<tr><td><code>Store(key, value)</code></td><td><code>void</code></td><td>Write to <code>$.context.{key}</code> for downstream nodes; key must not start with <code>engine.</code></td></tr>
+<tr><td><code>GetVisitCount(nodeId)</code></td><td><code>int</code></td><td>Visit count for a specific node — useful for loop termination guards</td></tr>
+<tr><td><code>GetCredentialAsync(ref, ct)</code></td><td><code>Task&lt;Credential?&gt;</code></td><td>Retrieve a named credential from the configured <code>ICredentialStore</code></td></tr>
+<tr><td><code>GetDocumentAsync(doc, ct)</code></td><td><code>Task&lt;Stream&gt;</code></td><td>Open a stream for a <code>DocumentContextValue</code> via <code>IDocumentStore</code></td></tr>
+<tr><td><code>ResolveDateTimeAsync(expr, ct)</code></td><td><code>Task&lt;DateTimeOffset&gt;</code></td><td>Evaluate an ISO 8601 duration or calendar expression to an absolute timestamp via <code>ICalendarProvider</code></td></tr>
+</tbody>
+</table></div>
+<hr />
+<h2>Custom node config best practices</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class MyNodeConfig
+{
+    // Reference external clients by name — never embed connection strings
+    public string  ClientRef     { get; init; }
+
+    // Reference credentials by name — never embed secrets
+    public string? CredentialRef { get; init; }
+
+    // JSONPath expressions for input values — resolved at execution time
+    public string  InputPath     { get; init; }
+
+    // Timeout — always provide a sensible default
+    public int TimeoutMs { get; init; } = 10_000;
+
+    // Never: connection strings, API keys, base URLs
+    // Always: clientRef + IClientRegistry lookup
+}
+</code></pre>
+<p><strong><code>fetch</code> node exception:</strong> <code>FetchNodeConfig.ClientRef</code> is optional. When set, the fetch executor routes through the registered <code>IRequestResponseClient</code>. When absent, it falls back to a raw <code>HttpClient</code> constructed directly from the <code>Url</code>. This is the only node config where a <code>clientRef</code> is not required — all other async node types (<code>integration</code>, <code>query</code>, <code>agent</code>, <code>message</code>, <code>workflow</code> cross-engine) require one. Use the <code>clientRef</code> form for production; the raw form is for one-off calls to legacy or non-registerable endpoints.</p>
+<hr />
+<h2>Testing a custom executor</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">[Fact]
+public async Task MyNode_Match_WhenConditionMet()
+{
+    // Arrange
+    var ctx = TestExecutionContext.Create()
+        .WithEntity(new JsonContextValue
+            { Value = JsonSerializer.SerializeToElement(new { Id = &quot;E1&quot;, Name = &quot;Test&quot; }) })
+        .Build();
+
+    var node = new NodeDefinition
+    {
+        Id     = &quot;n-test&quot;,
+        Type   = &quot;my-custom&quot;,
+        Config = JsonSerializer.SerializeToElement(new MyCustomNodeConfig
+        {
+            SomeField = &quot;$.entity.Name&quot;
+        })
+    };
+
+    var executor = new MyCustomNodeExecutor();
+
+    // Act
+    var result = await executor.ExecuteAsync(node, ctx.Instance, ctx, default);
+
+    // Assert
+    Assert.Equal(DecisionOutcome.Match, result.Outcome);
+    Assert.NotNull(result.Output);
+}
+
+[Fact]
+public async Task MyNode_IsIdempotent_OnReexecution()
+{
+    // Run the same executor twice with the same inputs
+    // Assert the second run produces the same output
+    // and does not create duplicate records / side effects
+}</code></pre>
+<p>For suspend/resume testing, use <code>FileExecutionStateStore</code> + <code>InMemoryLockProvider</code><br />
+(the zero-infrastructure dev stack) and call <code>engine.ResumeAsync()</code> manually<br />
+to simulate signal arrival.</p>
+<hr />
+<h2>Registration and DI</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Simple stateless executor
+services.AddFlowEngine()
+    .AddNodeExecutor&lt;MyCustomNodeExecutor&gt;();
+
+// Executor with dependencies
+services.AddFlowEngine()
+    .AddNodeExecutor&lt;MyCustomNodeExecutor&gt;();
+services.AddSingleton&lt;IMyDependency, MyDependencyImpl&gt;();
+// MyCustomNodeExecutor receives IMyDependency via constructor injection
+
+// Multiple custom executors
+services.AddFlowEngine()
+    .AddNodeExecutor&lt;MyCustomNodeExecutor&gt;()
+    .AddNodeExecutor&lt;MyOtherNodeExecutor&gt;()
+    .AddNodeExecutor&lt;MyThirdNodeExecutor&gt;();
+</code></pre>
+<p>All built-in executors (filter, compute, human, wait, etc.) are registered the<br />
+same way — there is no distinction between built-in and custom node types at<br />
+the engine level. The only requirement is that <code>NodeType</code> matches the <code>"type"</code><br />
+field in the workflow JSON.</p>
+<hr />
+<h2>Roslyn expression security</h2>
+<p>The <code>compute</code> node and edge <code>when</code> predicates execute C# expressions at runtime via Roslyn scripting. This is a <strong>trusted-authors-only</strong> feature. The following applies to any deployment using these node types:</p>
+<p><strong>Trust model:</strong> Workflow authors are trusted. Expressions run in the same process as the engine, with full access to the .NET BCL. There is no sandbox — an expression can call <code>File.Delete</code>, open sockets, or access environment variables. This is by design for performance and expressiveness.</p>
+<p><strong>Implications for multi-tenant or externally-authored workflows:</strong><br />
+- If workflow definitions can be created by untrusted parties (e.g. end users of a SaaS product), <code>compute</code> nodes and <code>when</code> predicates represent a code injection vector.<br />
+- In those scenarios, either disable <code>compute</code>/<code>when</code> support for untrusted definitions, or run the engine in a sandboxed process (separate container, gVisor, etc.) with restricted filesystem and network access.<br />
+- You can enforce this at the registry level: reject definitions containing <code>compute</code> nodes or non-trivial <code>when</code> predicates during <code>SaveAsync</code> validation.</p>
+<p><strong>Expression compilation caching:</strong> Roslyn compiles each unique expression on first use and caches the result. Expressions are keyed by their string content — two nodes with identical expressions share one compiled delegate. The cache is bounded to <code>FlowEngineOptions.ScriptCacheSize</code> entries (default 1000). When that limit is reached, the oldest 10% of entries are evicted to make room — so the cache does not grow unboundedly, but high-churn deployments (many distinct expression strings across workflow versions) will pay recompilation cost on evicted entries. For such deployments, raise <code>ScriptCacheSize</code> or monitor recompile frequency via <code>IFlowEngineTelemetry</code>.</p>
+<p><strong>Allowed assemblies:</strong> By default, Roslyn scripting has access to <code>mscorlib</code>, <code>System.Core</code>, <code>System.Linq</code>, and the assemblies loaded into the current AppDomain. If your engine process loads application assemblies, those are accessible too. Restrict the reference list in <code>ComputeNodeExecutor</code>'s script options if your threat model requires it.</p>
+<hr />
+<h2>FlowEngine.Testing — unit and integration test helpers</h2>
+<h3>Package</h3>
+<pre><code>dotnet add package EF.FlowEngine.Testing
+</code></pre>
+<h3>TestExecutionContext — unit-test a single node executor</h3>
+<p>Construct a context with arbitrary entity, params, and pre-seeded context values.<br />
+No state store or lock provider required.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">var ctx = TestExecutionContext.Create()
+    .WithEntity(new JsonContextValue { Value = JsonSerializer.SerializeToElement(order) })
+    .WithParam(&quot;approvalThreshold&quot;, 500)
+    .WithContext(&quot;managerEmail&quot;, &quot;alice@example.com&quot;)
+    .Build();
+
+var executor = new FilterNodeExecutor();
+var node     = WorkflowTestBuilder.FilterNode(&quot;$.entity&quot;,
+    new FilterSet { /* ... */ });
+
+var result = await executor.ExecuteAsync(node, ctx.Instance, ctx, CancellationToken.None);
+
+Assert.Equal(DecisionOutcome.Match, result.Outcome);
+</code></pre>
+<p><strong><code>TestExecutionContext</code> API:</strong></p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class TestExecutionContext
+{
+    public static TestExecutionContextBuilder Create();
+
+    // The ExecutionInstance wired to this context.
+    // Pre-populated with a random InstanceId, workflowId = &quot;test&quot;, status = Running.
+    public ExecutionInstance Instance { get; }
+
+    // Read back context values written by the executor via storeAs.
+    public T? GetStored&lt;T&gt;(string key);
+}
+
+public sealed class TestExecutionContextBuilder
+{
+    public TestExecutionContextBuilder WithEntity(ContextValue entity);
+    public TestExecutionContextBuilder WithParam(string key, object value);
+    public TestExecutionContextBuilder WithContext(string key, object value);
+    public TestExecutionContextBuilder WithVisitCount(string nodeId, int count);
+    public TestExecutionContext Build();
+}
+</code></pre>
+<h3>WorkflowTestBuilder — build NodeDefinition fixtures inline</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// filter node
+var node = WorkflowTestBuilder.FilterNode(
+    target: &quot;$.entity&quot;,
+    filterSet: new FilterSet { ... });
+
+// human node
+var node = WorkflowTestBuilder.HumanNode(config: new HumanNodeConfig {
+    Title      = &quot;Approve {{$.entity.Id}}&quot;,
+    AssignedTo = &quot;role:managers&quot;,
+    DueIn      = &quot;P2D&quot;
+});
+
+// any node from raw JSON config
+var node = WorkflowTestBuilder.Node(&quot;integration&quot;, &quot;&quot;&quot;
+    { &quot;clientRef&quot;: &quot;payment-api&quot;, &quot;idempotencyKey&quot;: &quot;$.entity.OrderId&quot; }
+&quot;&quot;&quot;);
+</code></pre>
+<h3>InMemoryExecutionStateStore — zero-infrastructure integration tests</h3>
+<p>Provides a fully functional <code>IExecutionStateStore</code> backed by a <code>ConcurrentDictionary</code>. Drop-in replacement for <code>SqlExecutionStateStore</code> in tests. Combine with <code>InMemoryLockProvider</code> for a complete zero-infrastructure engine stack.</p>
+<p><strong>Custom state store implementations</strong> must correctly implement <code>EnqueueChildSignalAsync</code> and <code>DequeueChildSignalsAsync</code>. These methods support a two-path child signal delivery mechanism: the engine first tries to resume the parent immediately on child completion (fast path), and only enqueues a durable signal if the parent's lock is held by another server. A state store that omits or stubs these methods will silently drop signals under lock contention. See <a href="FlowEngine-Design-Doc.html#api">FlowEngine Design Doc → IExecutionStateStore</a> for the full contract.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Integration test: run a full workflow end-to-end
+var services = new ServiceCollection();
+services.AddFlowEngine()
+    .UseStateStore&lt;InMemoryExecutionStateStore&gt;()
+    .UseLockProvider&lt;InMemoryLockProvider&gt;()
+    .UseWorkflowRegistry&lt;InMemoryWorkflowRegistry&gt;()
+    .AddNodeExecutor&lt;FilterNodeExecutor&gt;()
+    .AddNodeExecutor&lt;HumanNodeExecutor&gt;()
+    .AddNodeExecutor&lt;OutputNodeExecutor&gt;();
+    // ... register all needed executors
+
+var provider = services.BuildServiceProvider();
+var engine   = provider.GetRequiredService&lt;FlowEngine&gt;();
+var registry = provider.GetRequiredService&lt;IWorkflowRegistry&gt;();
+
+await registry.SaveAsync(MyWorkflows.ExpenseApproval, ct);
+var instance = await engine.StartAsync(new StartRequest { WorkflowId = &quot;expense-approval&quot;, Entity = entityValue });
+
+Assert.Equal(ExecStatus.Suspended, instance.Status);   // waiting at human node
+
+// Simulate human task response
+var taskStore = provider.GetRequiredService&lt;IHumanTaskStore&gt;();
+var task      = await taskStore.GetByInstanceAsync(instance.InstanceId, ct);
+await taskStore.SubmitResponseAsync(task.TaskId,
+    JsonSerializer.SerializeToElement(new { decision = &quot;approved&quot; }), ct);
+
+instance = await engine.ResumeByInstanceIdAsync(instance.InstanceId);
+Assert.Equal(ExecStatus.Completed, instance.Status);
+Assert.Equal(&quot;approved&quot;, ((JsonContextValue)instance.Output!)
+    .Value.GetProperty(&quot;decision&quot;).GetString());
+</code></pre>
+<h3>Testing patterns</h3>
+<p><strong>Node unit test</strong> — test a single executor in isolation, no engine:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">[Fact]
+public async Task FilterNode_NullTarget_EmitsUnknown()
+{
+    var ctx    = TestExecutionContext.Create().Build();  // no entity set
+    var node   = WorkflowTestBuilder.FilterNode(&quot;$.entity&quot;, someFilterSet);
+    var result = await new FilterNodeExecutor().ExecuteAsync(node, ctx.Instance, ctx, default);
+    Assert.Equal(DecisionOutcome.Unknown, result.Outcome);
+}
+</code></pre>
+<p><strong>Integration test</strong> — full workflow, in-memory stack, assert terminal state:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">[Fact]
+public async Task ExpenseApproval_UnderThreshold_AutoApproves()
+{
+    var engine   = BuildTestEngine();   // helper that wires InMemory stack
+    var instance = await engine.StartAsync(new StartRequest
+    {
+        WorkflowId = &quot;expense-approval&quot;,
+        Entity     = new JsonContextValue { Value = JsonSerializer.SerializeToElement(new { Total = 250 }) }
+    });
+    Assert.Equal(ExecStatus.Completed, instance.Status);
+    Assert.Equal(&quot;approved&quot;, ((JsonContextValue)instance.Output!)
+        .Value.GetProperty(&quot;decision&quot;).GetString());
+}
+</code></pre>
+<p><strong>Suspend/resume test</strong> — assert suspension, deliver signal, assert completion:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">[Fact]
+public async Task WaitNode_SignalReceived_Resumes()
+{
+    var engine   = BuildTestEngine();
+    var instance = await engine.StartAsync(new StartRequest
+    {
+        WorkflowId    = &quot;order-fulfillment&quot;,
+        Entity        = new JsonContextValue { Value = JsonSerializer.SerializeToElement(order) },
+        CorrelationId = order.OrderId
+    });
+
+    Assert.Equal(ExecStatus.Suspended, instance.Status);
+    Assert.Equal(&quot;payment.confirmed&quot;, instance.PendingWait!.EventName);
+
+    instance = await engine.ResumeAsync(
+        eventName:     &quot;payment.confirmed&quot;,
+        correlationKey: order.OrderId,
+        signalPayload:  JsonSerializer.SerializeToElement(new { status = &quot;ok&quot; }));
+
+    Assert.Equal(ExecStatus.Completed, instance.Status);
+}
+</code></pre>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('theme');
+  if (stored) html.setAttribute('data-theme', stored);
+  toggle.textContent = html.getAttribute('data-theme') === 'light' ? '🌙' : '☀️';
+  toggle.addEventListener('click', () => {
+    const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    toggle.textContent = next === 'light' ? '🌙' : '☀️';
+  });
+})();
+</script>
+
+</body>
+</html>

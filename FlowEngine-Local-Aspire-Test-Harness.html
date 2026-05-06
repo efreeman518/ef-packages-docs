@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowEngine — Local Aspire Test Harness</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--text2:#c9d1d9;--muted:#8b949e;
+    --teal:#1D9E75;--amber:#EF9F27;--coral:#D85A30;--blue:#378ADD;
+    --purple:#7F77DD;--green:#3FB950;
+    --code-bg:#161b22;--inline-code-color:#EF9F27;
+    --h1-span-color:#1D9E75;
+    --th-bg:var(--bg3);
+    --tr-hover:rgba(255,255,255,.02);
+    --callout-teal-bg:rgba(29,158,117,.08);--callout-teal-fg:#b8e8d6;
+    --callout-amber-bg:rgba(239,159,39,.08);--callout-amber-fg:#f5d898;
+    --callout-blue-bg:rgba(55,138,221,.08);--callout-blue-fg:#a8ccee;
+    --callout-coral-bg:rgba(216,90,48,.08);--callout-coral-fg:#f0b8a0;
+    --content-surface:rgba(22,27,34,.96);
+    --content-border:rgba(139,148,158,.28);
+    --content-shadow:0 28px 72px rgba(0,0,0,.32);
+    --content-max:940px;
+    --canvas-top:rgba(29,158,117,.08);
+    --canvas-bottom:rgba(55,138,221,.06);
+  }
+  [data-theme="light"] {
+    --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;
+    --text:#1f2328;--text2:#36454f;--muted:#656d76;
+    --teal:#1a7f64;--amber:#b45309;--coral:#bc4c00;--blue:#0969da;
+    --purple:#6e40c9;--green:#1a7f37;
+    --code-bg:#f6f8fa;--inline-code-color:#b45309;
+    --h1-span-color:#1a7f64;
+    --th-bg:#eaeef2;
+    --tr-hover:rgba(0,0,0,.02);
+    --callout-teal-bg:rgba(26,127,100,.08);--callout-teal-fg:#1a7f64;
+    --callout-amber-bg:rgba(180,83,9,.08);--callout-amber-fg:#b45309;
+    --callout-blue-bg:rgba(9,105,218,.08);--callout-blue-fg:#0969da;
+    --callout-coral-bg:rgba(188,76,0,.08);--callout-coral-fg:#bc4c00;
+    --content-surface:rgba(255,255,255,.94);
+    --content-border:rgba(208,215,222,.95);
+    --content-shadow:0 24px 56px rgba(31,35,40,.08);
+    --canvas-top:rgba(26,127,100,.05);
+    --canvas-bottom:rgba(9,105,218,.04);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;overflow-x:hidden;}
+  body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;overflow-x:hidden;padding:0 clamp(12px,2.8vw,32px) 56px;}
+
+  .doc-header{width:min(100%,var(--content-max));max-width:var(--content-max);background:var(--bg2);border:1px solid var(--content-border);padding:40px 64px 36px;position:relative;overflow:hidden;margin:16px auto 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header-badge{display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;}
+  .header-back{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:3px;transition:color .15s,border-color .15s;}
+  .header-back:hover{color:var(--text);border-color:var(--muted);}
+  .doc-header h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;}
+  .doc-header h1 span{color:var(--h1-span-color);}
+  .doc-header .tagline{font-size:15px;font-weight:300;color:var(--muted);max-width:680px;line-height:1.6;margin-bottom:0;}
+  .theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;margin-left:auto;}
+  .theme-toggle:hover{background:var(--border);color:var(--text);}
+
+  .content{width:min(100%,var(--content-max));max-width:var(--content-max);margin:20px auto 0;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  h2{font-size:22px;font-weight:600;color:var(--text);margin:52px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);letter-spacing:-.01em;}
+  h2:first-child{margin-top:0;}
+  h3{font-size:16px;font-weight:600;color:var(--text);margin:28px 0 8px;}
+  h4{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--teal);margin:20px 0 6px;letter-spacing:.02em;}
+  p{margin-bottom:12px;color:var(--text2);}
+  ul,ol{margin:0 0 12px 1.4rem;color:var(--text2);}
+  li{margin-bottom:4px;}
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0;}
+  strong{color:var(--text);font-weight:600;}
+
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--inline-code-color);}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;overflow-x:auto;margin:12px 0 18px;position:relative;}
+  pre code{background:none;border:none;padding:0;color:var(--text);font-size:12.5px;line-height:1.65;}
+  .lang-tag{position:absolute;top:8px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 18px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{background:var(--th-bg);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:8px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--tr-hover);}
+
+  .callout{border-radius:6px;padding:13px 17px;margin:14px 0;border-left:3px solid;font-size:14px;line-height:1.65;}
+  .callout-teal{background:var(--callout-teal-bg);border-color:var(--teal);color:var(--callout-teal-fg);}
+  .callout-amber{background:var(--callout-amber-bg);border-color:var(--amber);color:var(--callout-amber-fg);}
+  .callout-blue{background:var(--callout-blue-bg);border-color:var(--blue);color:var(--callout-blue-fg);}
+  .callout-coral{background:var(--callout-coral-bg);border-color:var(--coral);color:var(--callout-coral-fg);}
+  .callout strong{color:inherit;font-weight:600;}
+  .callout code{background:rgba(127,119,221,.1);border-color:var(--border);color:inherit;}
+
+  .arch-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0;}
+  .arch-box{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px 20px;}
+  .arch-box h4{margin-top:0;}
+  .arch-box ul{margin-bottom:0;}
+
+  .step-list{counter-reset:steps;list-style:none;margin:0 0 12px 0;}
+  .step-list li{counter-increment:steps;position:relative;padding-left:38px;margin-bottom:14px;}
+  .step-list li::before{content:counter(steps);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+  @media (max-width:768px){
+    body{padding:0 12px 32px;}
+    .doc-header{padding:24px 20px 20px;border-radius:20px;}
+    .doc-header h1{font-size:22px;}
+    .content{margin-top:16px;padding:24px 18px;border-radius:20px;}
+    pre{font-size:12px;padding:14px 16px;}
+    .arch-row{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Developer Guide</div>
+    <a class="header-back" href="FlowEngine-Design-Doc.html">← Tech Doc</a>
+    <a class="header-back" href="FlowEngine-Operations.html" style="margin-left:4px;">← Operations</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark">☀️</button>
+  </div>
+  <h1><span>Flow</span>Engine — Local Aspire Test Harness</h1>
+  <p class="tagline">Run a fully wired FlowEngine development environment locally using .NET Aspire to provision SQL Server and Redis, then graduate to production by swapping in real resources and typed client registrations.</p>
+</div>
+
+<div class="content">
+
+<h2 id="toc">Contents</h2>
+<ul>
+  <li><a href="#architecture">Architecture Overview</a></li>
+  <li><a href="#client-registry">The Client Registry Contract</a></li>
+  <li><a href="#running-locally">Running the Harness Locally</a></li>
+  <li><a href="#aspire-resources">What Aspire Provides</a></li>
+  <li><a href="#sample-clients">Sample Clients &amp; Seed Data</a></li>
+  <li><a href="#ui-registered">UI-Registered Clients</a></li>
+  <li><a href="#to-production">Moving to Production</a></li>
+  <li><a href="#production-worker">Registering Clients in a Production Worker</a></li>
+</ul>
+
+<hr>
+
+<h2 id="architecture">Architecture Overview</h2>
+
+<p>FlowEngine separates <strong>workflow definition</strong> from <strong>workflow execution</strong>. Definitions are stored in a registry (SQL, Redis, or Cosmos). Execution requires a running engine instance with the right external clients registered — databases, APIs, message buses, and so on.</p>
+
+<p>Two deployment surfaces exist:</p>
+
+<div class="arch-row">
+  <div class="arch-box">
+    <h4>Dashboard UI</h4>
+    <ul>
+      <li>Blazor Server app for designing and managing workflows</li>
+      <li>Can also execute workflows (co-host mode)</li>
+      <li>Exposes the Admin API and Client Registry page</li>
+      <li>Needs the same clients registered so designers can reference them in node configs</li>
+    </ul>
+  </div>
+  <div class="arch-box">
+    <h4>Production Worker</h4>
+    <ul>
+      <li>Background service / Azure Function / Worker Service</li>
+      <li>Automatically processes triggered or scheduled workflows</li>
+      <li>Must register the same client vocabulary as the Dashboard</li>
+      <li>Points at production resources, not Aspire containers</li>
+    </ul>
+  </div>
+</div>
+
+<p>Workflow node configs embed <code>clientRef</code> strings — e.g., <code>"clientRef": "crm-api"</code>. The engine resolves clients by that name from <code>IClientRegistry</code> at runtime. If a client with that name isn't registered, the node faults. The client registry is therefore the <strong>shared vocabulary</strong> between workflow designers and the execution environment.</p>
+
+<div class="callout callout-blue">
+  <strong>Key principle:</strong> Register clients once in code (startup). The vocabulary of available <code>clientRef</code> names is a developer responsibility, not a runtime configuration. The Dashboard UI makes those registrations visible to workflow designers so they know what names to use in node configs.
+</div>
+
+<hr>
+
+<h2 id="client-registry">The Client Registry Contract</h2>
+
+<p>All external integrations implement one of the typed client interfaces:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>Interface</th><th>Used by node type</th><th>Implementations</th></tr>
+  <tr><td><code>IRequestResponseClient</code></td><td>fetch, integration</td><td><code>ResilientHttpFlowClient</code>, <code>DirectHttpFlowClient</code></td></tr>
+  <tr><td><code>IQueryClient</code></td><td>query</td><td><code>EfQueryClient&lt;TContext&gt;</code>, <code>AdHocSqlQueryClient</code></td></tr>
+  <tr><td><code>IMessageClient</code></td><td>message</td><td><code>ServiceBusMessageClient</code></td></tr>
+  <tr><td><code>IAgentClient</code></td><td>agent</td><td>Custom LLM/SK integrations</td></tr>
+</table></div>
+
+<p>Each client is registered under a unique <code>clientRef</code> string:</p>
+
+<pre><span class="lang-tag">csharp</span><code>// Fluent builder on IServiceCollection
+var flowEngineBuilder = builder.Services.AddFlowEngine();
+
+flowEngineBuilder
+    .AddResilientHttpClient("crm-api", namedClient: "CrmApi")
+    .AddServiceBusClient("order-events", connectionString, queueOrTopic: "orders")
+    .AddClient(sp =&gt; new EfQueryClient&lt;CrmDbContext&gt;(
+        clientRef:   "crm-query",
+        factory:     sp.GetRequiredService&lt;IDbContextFactory&lt;CrmDbContext&gt;&gt;(),
+        typeMap:     CrmDbContext.EntityTypeMap,
+        setResolver: (db, entity) =&gt; entity.ToLower() switch {
+            "customer" =&gt; db.Customers,
+            "order"    =&gt; db.Orders,
+            _          =&gt; null
+        }));
+</code></pre>
+
+<p>The Dashboard UI's <strong>Client Registry page</strong> (<code>/clients</code>) displays all registered clients. Clients registered at startup are shown as <em>startup</em> source and are read-only in the UI. Clients added via the UI form are shown as <em>config</em> source and can be deleted.</p>
+
+<div class="callout callout-amber">
+  <strong>Note on EfQueryClient&lt;TContext&gt;:</strong> This client requires compile-time generic type parameters and must be registered in code. It cannot be created from the UI. Use it for typed EF Core queries against a known DbContext. For ad-hoc SQL access from the UI, use the <code>AdHocSqlQueryClient</code> type.
+</div>
+
+<hr>
+
+<h2 id="running-locally">Running the Harness Locally</h2>
+
+<p>The <code>EF.FlowEngine.Dashboard.AppHost</code> project is a .NET Aspire AppHost that provisions SQL Server and Redis via Docker and wires their connection strings into <code>EF.FlowEngine.Dashboard.UI</code>.</p>
+
+<h3>Prerequisites</h3>
+<ul>
+  <li>.NET 10 SDK</li>
+  <li>Docker Desktop (running)</li>
+  <li>.NET Aspire workload: <code>dotnet workload install aspire</code></li>
+</ul>
+
+<h3>Start the harness</h3>
+<pre><span class="lang-tag">shell</span><code>dotnet run --project EF.FlowEngine.Dashboard.AppHost
+</code></pre>
+
+<p>Aspire opens its dashboard at <code>http://localhost:15888</code>. From there you can watch all resources come up, view logs, and navigate to the Dashboard.UI.</p>
+
+<ol class="step-list">
+  <li>Aspire starts a SQL Server container and a Redis container with persistent data volumes.</li>
+  <li>Connection strings are injected into Dashboard.UI as environment variables (<code>ConnectionStrings__FlowEngineDb</code>, <code>ConnectionStrings__TaskFlowDb</code>, <code>ConnectionStrings__Redis</code>).</li>
+  <li>Dashboard.UI detects the SQL connection string and runs EF Core migrations automatically on startup (<code>MigrationStartupTask</code>).</li>
+  <li>Sample workflows are seeded into the workflow registry (<code>SampleWorkflowSeeder</code>) if none exist.</li>
+  <li>A <code>taskflow-query</code> EF Core client is registered against the <code>TaskFlow</code> demo database, which is migrated and seeded with representative data.</li>
+  <li>The Dashboard.UI is available at its Aspire-assigned port.</li>
+</ol>
+
+<div class="callout callout-teal">
+  Containers use <code>WithLifetime(ContainerLifetime.Persistent)</code> and named data volumes, so data survives across <code>dotnet run</code> restarts. On first run, migrations and seeders run; on subsequent runs they are idempotent.
+</div>
+
+<hr>
+
+<h2 id="aspire-resources">What Aspire Provides</h2>
+
+<div class="table-wrap"><table>
+  <tr><th>Resource</th><th>Connection name</th><th>Used for</th></tr>
+  <tr><td>SQL Server container</td><td><code>FlowEngineDb</code></td><td>FlowEngine state store, workflow registry, distributed locks — all backed by <code>FlowEngineDashboardDbContext</code></td></tr>
+  <tr><td>SQL Server container</td><td><code>TaskFlowDb</code></td><td>TaskFlow demo schema (patients, customers, vehicles, etc.) — queried via the <code>taskflow-query</code> EF client</td></tr>
+  <tr><td>Redis container</td><td><code>Redis</code></td><td>Alternative to SQL for state store / registry / locks. Active only when <code>FlowEngineDb</code> is absent.</td></tr>
+</table></div>
+
+<h3>Provider selection logic in Dashboard.UI</h3>
+<pre><span class="lang-tag">csharp</span><code>if (!string.IsNullOrEmpty(flowEngineDbCs))
+{
+    // SQL preferred — persistent, supports rich instance queries
+    flowEngineBuilder
+        .UseStateStoreSql&lt;FlowEngineDashboardDbContext&gt;()
+        .UseWorkflowRegistrySql&lt;FlowEngineDashboardDbContext&gt;()
+        .UseLockProviderSql&lt;FlowEngineDashboardDbContext&gt;();
+}
+else if (!string.IsNullOrEmpty(redisCs))
+{
+    // Redis — lighter-weight alternative
+    builder.AddRedisClient("Redis");   // registers IConnectionMultiplexer
+    flowEngineBuilder
+        .UseStateStoreRedis()
+        .UseWorkflowRegistryRedis()
+        .UseLockProviderRedis();
+}
+// else: in-memory defaults (no external services required)
+</code></pre>
+
+<p>This means Dashboard.UI works in three modes: full-SQL (Aspire or real SQL Server), Redis-only, or in-memory (no configuration required — useful for quick UI exploration).</p>
+
+<hr>
+
+<h2 id="sample-clients">Sample Clients &amp; Seed Data</h2>
+
+<p>When the AppHost starts, Dashboard.UI auto-registers the following sample clients that workflow designers can reference immediately:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>clientRef</th><th>Type</th><th>Points to</th><th>Source</th></tr>
+  <tr><td><code>taskflow-query</code></td><td><code>EfQueryClient&lt;TaskFlowDemoDbContext&gt;</code></td><td>TaskFlow demo SQL database (Aspire container)</td><td>Startup (code)</td></tr>
+</table></div>
+
+<h3>TaskFlow demo entities</h3>
+<p>The TaskFlow schema contains representative healthcare and e-commerce tables seeded with fixture data:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>entityType value</th><th>Table</th><th>Sample data</th></tr>
+  <tr><td><code>Patient</code></td><td><code>TfPatients</code></td><td>5 patients with ages and conditions</td></tr>
+  <tr><td><code>InsurancePlan</code></td><td><code>TfInsurancePlans</code></td><td>3 insurance plans</td></tr>
+  <tr><td><code>Medication</code></td><td><code>TfMedications</code></td><td>4 medications</td></tr>
+  <tr><td><code>Customer</code></td><td><code>TfCustomers</code></td><td>5 customers</td></tr>
+  <tr><td><code>CustomerAddress</code></td><td><code>TfCustomerAddresses</code></td><td>7 addresses</td></tr>
+  <tr><td><code>Product</code></td><td><code>TfProducts</code></td><td>5 products</td></tr>
+  <tr><td><code>Batch</code></td><td><code>TfBatches</code></td><td>3 batches</td></tr>
+  <tr><td><code>Vehicle</code></td><td><code>TfVehicles</code></td><td>4 vehicles</td></tr>
+</table></div>
+
+<h3>Seeded sample workflows</h3>
+<p>Three workflow definitions are seeded on first startup so designers have working examples to explore:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>Workflow ID</th><th>Pattern</th><th>Demonstrates</th></tr>
+  <tr><td><code>http-fetch-demo</code></td><td>fetch → decision → output</td><td>HTTP client node, conditional branching</td></tr>
+  <tr><td><code>query-demo</code></td><td>query → decision → output</td><td><code>taskflow-query</code> client, filter-based queries</td></tr>
+  <tr><td><code>human-approval-demo</code></td><td>human-task → decision → output</td><td>Human task inbox, approval/rejection flow</td></tr>
+</table></div>
+
+<hr>
+
+<h2 id="ui-registered">UI-Registered Clients</h2>
+
+<p>The Client Registry page (<code>/clients</code>) lets developers add three types of clients at runtime without redeploying:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>Type</th><th>Fields</th><th>Implementation</th><th>Persisted?</th></tr>
+  <tr><td>HTTP</td><td>Base URL, optional API key header</td><td><code>DirectHttpFlowClient</code></td><td>Yes — <code>clientconfigs.json</code></td></tr>
+  <tr><td>Service Bus</td><td>Connection string, queue/topic name</td><td><code>ServiceBusMessageClient</code></td><td>Yes — <code>clientconfigs.json</code></td></tr>
+  <tr><td>SQL Query</td><td>Connection string, entity→table map</td><td><code>AdHocSqlQueryClient</code></td><td>Yes — <code>clientconfigs.json</code></td></tr>
+</table></div>
+
+<p>Persisted configs are stored in <code>{FlowEngine:DataDirectory}/clientconfigs.json</code> (default: <code>AppData/clientconfigs.json</code> relative to the app root) and reloaded on every startup by <code>ClientRegistryStartupTask</code>.</p>
+
+<div class="callout callout-amber">
+  <strong>Dev convenience, not a production pattern.</strong> UI-registered clients store connection strings in plaintext on disk. They are intended for local development and prototyping. In production, register all clients in code using startup DI and source connection strings from Azure Key Vault, environment variables, or managed identity.
+</div>
+
+<p><code>AdHocSqlQueryClient</code> translates <code>FilterSet</code> predicates to parameterized SQL at runtime. It supports the common filter operations (eq, neq, gt, lt, gte, lte, contains→LIKE, startswith→LIKE, in→IN) and works against any SQL Server table. For more complex queries — joins, projections, stored procedures — register a typed <code>EfQueryClient&lt;TContext&gt;</code> in code instead.</p>
+
+<hr>
+
+<h2 id="to-production">Moving to Production</h2>
+
+<p>The Aspire AppHost is a development convenience. Moving to production means replacing Aspire-provisioned containers with real Azure services and switching from UI-registered clients to code-registered ones.</p>
+
+<h3>Step 1 — Replace connection strings</h3>
+<p>Remove the AppHost and configure connection strings in your production host's <code>appsettings.json</code>, environment variables, or Azure App Configuration:</p>
+
+<pre><span class="lang-tag">json</span><code>{
+  "ConnectionStrings": {
+    "FlowEngineDb": "Server=my-sql.database.windows.net;Database=FlowEngine;Authentication=Active Directory Default",
+    "TaskFlowDb":   "Server=my-sql.database.windows.net;Database=TaskFlow;Authentication=Active Directory Default"
+  }
+}
+</code></pre>
+
+<p>The same conditional provider selection code in <code>Program.cs</code> works unchanged — it reads from <code>ConnectionStrings:FlowEngineDb</code> regardless of whether it was injected by Aspire or set directly.</p>
+
+<h3>Step 2 — Register typed clients in code</h3>
+<p>Replace the TaskFlow demo client with your application's real clients. In <strong>both</strong> the Dashboard.UI <em>and</em> the production worker service:</p>
+
+<pre><span class="lang-tag">csharp</span><code>// Your AppDbContext must inherit FlowEngineDbContext (for SQL state store)
+// or be a separate DbContext (for data queries)
+
+flowEngineBuilder
+    // HTTP: use the resilience pipeline for production
+    .AddResilientHttpClient("my-api", namedClient: "MyApi")
+
+    // Azure Service Bus
+    .AddServiceBusClient("order-events",
+        connectionString: config["ServiceBus:ConnectionString"],
+        queueOrTopic:     "orders")
+
+    // Typed EF Core query client
+    .AddClient(sp =&gt; new EfQueryClient&lt;MyAppDbContext&gt;(
+        clientRef:   "app-query",
+        factory:     sp.GetRequiredService&lt;IDbContextFactory&lt;MyAppDbContext&gt;&gt;(),
+        typeMap:     MyAppDbContext.EntityTypeMap,
+        setResolver: (db, entity) =&gt; entity.ToLowerInvariant() switch {
+            "order"    =&gt; db.Orders,
+            "customer" =&gt; db.Customers,
+            _          =&gt; null
+        }));
+
+// Named HttpClient configured with base address and auth
+builder.Services.AddHttpClient("MyApi", c =&gt;
+{
+    c.BaseAddress = new Uri(config["MyApi:BaseUrl"]);
+    c.DefaultRequestHeaders.Add("x-api-key", config["MyApi:ApiKey"]);
+});
+</code></pre>
+
+<h3>Step 3 — Remove UI-registered dev clients</h3>
+<p>Delete or ignore <code>clientconfigs.json</code>. In production, all clients should come from code. If you need runtime client configuration (e.g., tenant-specific endpoints), implement a custom <code>IClientConfigStore</code> backed by a database or Key Vault and wire it accordingly — but this is an application-level concern, not a FlowEngine responsibility.</p>
+
+<hr>
+
+<h2 id="production-worker">Registering Clients in a Production Worker</h2>
+
+<p>A production worker runs the engine in the background, executing workflows triggered by events, timers, or the Admin API. It must register the <strong>same client vocabulary</strong> as the Dashboard so workflow definitions — which embed <code>clientRef</code> strings — resolve successfully.</p>
+
+<pre><span class="lang-tag">csharp</span><code>// Worker service Program.cs (Worker Service / Azure Functions host / etc.)
+var builder = Host.CreateApplicationBuilder(args);
+
+var flowEngineBuilder = builder.Services.AddFlowEngine()
+    .UseStateStoreSql&lt;WorkerDbContext&gt;()
+    .UseWorkflowRegistrySql&lt;WorkerDbContext&gt;()
+    .UseLockProviderSql&lt;WorkerDbContext&gt;();
+
+// Register EXACTLY the same clientRef names as the Dashboard
+flowEngineBuilder
+    .AddResilientHttpClient("my-api",      namedClient: "MyApi")
+    .AddServiceBusClient("order-events",   connectionString, queueOrTopic: "orders")
+    .AddClient(sp =&gt; new EfQueryClient&lt;MyAppDbContext&gt;(
+        "app-query", factory, MyAppDbContext.EntityTypeMap, setResolver));
+
+builder.Services.AddHostedService&lt;FlowEngineWorker&gt;();  // your polling/trigger loop
+</code></pre>
+
+<div class="callout callout-coral">
+  <strong>clientRef mismatch = runtime fault.</strong> If the worker registers <code>"my-api"</code> but a workflow definition uses <code>"myApi"</code>, the fetch node will fault. Keep a shared constants file or configuration section that both the Dashboard and worker reference for clientRef names.
+</div>
+
+<h3>Shared client ref names</h3>
+<p>The simplest way to avoid drift is a shared constants class in a common library:</p>
+
+<pre><span class="lang-tag">csharp</span><code>// Shared library: MyApp.FlowEngine.Clients
+public static class ClientRefs
+{
+    public const string MyApi        = "my-api";
+    public const string OrderEvents  = "order-events";
+    public const string AppQuery     = "app-query";
+}
+</code></pre>
+
+<p>Reference this in both hosts and in any code that programmatically constructs workflow definitions.</p>
+
+<h3>Deployment topology summary</h3>
+<div class="table-wrap"><table>
+  <tr><th>Environment</th><th>State store</th><th>Client registration</th><th>Workflow source</th></tr>
+  <tr><td>Local / Aspire harness</td><td>SQL Server or Redis (Docker containers)</td><td>Startup code + optional UI form</td><td>Seeded + designer</td></tr>
+  <tr><td>Staging / CI</td><td>SQL Server or Redis</td><td>Startup code only</td><td>Registry</td></tr>
+  <tr><td>Production (Dashboard)</td><td>SQL Server / Redis / Cosmos</td><td>Startup code only</td><td>Registry</td></tr>
+  <tr><td>Production (Worker)</td><td>SQL Server / Redis / Cosmos</td><td>Startup code only</td><td>Registry</td></tr>
+</table></div>
+
+</div>
+
+<script>
+  const toggle = document.getElementById('themeToggle');
+  const root   = document.documentElement;
+  const saved  = localStorage.getItem('theme') || 'dark';
+  root.setAttribute('data-theme', saved);
+  toggle.textContent = saved === 'dark' ? '☀️' : '🌙';
+  toggle.addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    toggle.textContent = next === 'dark' ? '☀️' : '🌙';
+  });
+</script>
+</body>
+</html>

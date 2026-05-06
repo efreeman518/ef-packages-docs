@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EF.FilterBuilder — Unit Test Samples</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--muted:#8b949e;
+    --purple:#7F77DD;--teal:#1D9E75;--amber:#EF9F27;--blue:#378ADD;--coral:#D85A30;
+    --code-bg:#161b22;
+    --canvas-top:rgba(127,119,221,.08);--canvas-bottom:rgba(29,158,117,.06);
+    --content-surface:rgba(22,27,34,.96);--content-border:rgba(139,148,158,.28);
+    --content-shadow:0 28px 72px rgba(0,0,0,.32);--layout-gap:clamp(20px,2.4vw,32px);
+    --sidebar-width:232px;--content-max:880px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;overflow-x:hidden;}
+  body.nav-open{overflow:hidden;}
+
+  /* ── Header ── */
+  .doc-header{background:var(--bg2);border:1px solid var(--content-border);padding:48px 64px 40px;position:relative;overflow:hidden;margin:16px 16px 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:320px;height:320px;background:radial-gradient(circle,rgba(29,158,117,.1) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .title-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+  .doc-header .badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);border:1px solid rgba(29,158,117,.35);background:rgba(29,158,117,.08);padding:3px 10px;border-radius:4px;}
+  .doc-header h1{font-size:34px;font-weight:300;letter-spacing:-.02em;margin:0;}
+  .doc-header h1 strong{font-weight:600;color:#fff;}
+  .doc-header .subtitle{font-size:15px;color:var(--muted);font-weight:300;max-width:620px;}
+  .meta-row{display:flex;gap:32px;margin-top:24px;flex-wrap:wrap;}
+  .meta-item{font-size:12px;color:var(--muted);}
+  .meta-item strong{color:var(--text);font-weight:600;display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px;}
+  .hamburger{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:none;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;}
+  .hamburger:hover{background:var(--border);color:var(--text);}
+
+  /* ── Layout ── */
+  .layout{display:grid;grid-template-columns:minmax(210px,var(--sidebar-width)) minmax(0,var(--content-max));justify-content:center;align-items:flex-start;gap:var(--layout-gap);width:100%;max-width:calc(var(--sidebar-width) + var(--content-max) + var(--layout-gap));min-height:100vh;padding:18px clamp(16px,2.6vw,36px) 40px;margin:0 auto;}
+  .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:198;}
+  .sidebar-overlay.open{display:block;}
+  .sidebar{width:100%;background:var(--bg2);border:1px solid var(--content-border);padding:28px 0;position:sticky;top:18px;height:calc(100vh - 36px);overflow-y:auto;border-radius:20px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .sidebar-label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 20px;margin-bottom:6px;margin-top:18px;}
+  .sidebar-label:first-child{margin-top:0;}
+  .sidebar-top-link{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;background:rgba(127,119,221,.12);border:1px solid rgba(127,119,221,.28);border-radius:999px;color:var(--purple);cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1;transition:background .15s,color .15s,border-color .15s;}
+  .sidebar-top-link:hover{background:rgba(127,119,221,.2);color:var(--text);border-color:rgba(127,119,221,.4);}
+  .sidebar a{display:block;font-size:13px;color:var(--muted);text-decoration:none;padding:4px 20px;border-left:2px solid transparent;transition:all .15s;}
+  .sidebar a:hover{color:var(--text);border-color:var(--border);}
+  .sidebar a.active{color:var(--purple);border-color:var(--purple);background:rgba(127,119,221,.06);}
+  .content{width:100%;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);max-width:var(--content-max);margin:0;background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  /* ── Section titles ── */
+  section{margin-bottom:60px;}
+  section+section{border-top:1px solid var(--border);padding-top:52px;}
+  h2{font-size:22px;font-weight:600;color:#fff;margin-bottom:18px;display:flex;align-items:center;gap:10px;}
+  h2 .sec-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--purple);background:rgba(127,119,221,.1);border:1px solid rgba(127,119,221,.25);border-radius:3px;padding:2px 7px;font-weight:600;letter-spacing:.06em;}
+  h3{font-size:15px;font-weight:600;color:var(--text);margin:32px 0 10px;}
+  p{color:#c9d1d9;margin-bottom:12px;}
+
+  /* ── Code ── */
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:18px 22px;overflow-x:auto;margin:10px 0 20px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.65;}
+  code{font-family:'IBM Plex Mono',monospace;font-size:.875em;}
+  p code,li code{background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:#d2a8ff;}
+  .kw{color:#ff7b72;}.ty{color:#79c0ff;}.st{color:#a5d6ff;}.co{color:#8b949e;font-style:italic;}.nu{color:#f2cc60;}.me{color:#d2a8ff;}.pr{color:#ffa657;}
+
+  /* ── Test card ── */
+  .test-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;overflow:hidden;}
+  .test-card-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .test-name{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--text);}
+  .test-what{font-size:13px;color:var(--muted);line-height:1.5;flex:1;min-width:200px;}
+  .test-body{padding:0 18px 14px;}
+  .test-intent{font-size:13px;color:#9db0c4;line-height:1.6;padding:14px 0 6px;border-bottom:1px dashed var(--border);margin-bottom:4px;}
+  .compiled{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--teal);background:rgba(29,158,117,.07);border:1px solid rgba(29,158,117,.2);border-radius:4px;padding:6px 12px;margin:8px 0;display:inline-block;max-width:100%;}
+  .assert-line{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);background:rgba(239,159,39,.07);border:1px solid rgba(239,159,39,.2);border-radius:4px;padding:5px 12px;margin-top:6px;display:inline-block;}
+
+  /* ── Pair layout ── */
+  .pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;}
+  .pair-grid > *{min-width:0;}
+  .pair-label{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:4px 4px 0 0;margin-bottom:-1px;}
+  .pair-label.same{background:rgba(29,158,117,.15);color:var(--teal);border:1px solid rgba(29,158,117,.3);}
+  .pair-label.any{background:rgba(216,90,48,.15);color:var(--coral);border:1px solid rgba(216,90,48,.3);}
+
+  .pair-grid .test-card,
+  .pair-grid .test-body,
+  .pair-grid pre{min-width:0;max-width:100%;}
+
+  /* ── Callout ── */
+  .callout{border-radius:6px;padding:12px 16px;margin:14px 0;border-left:3px solid;font-size:13.5px;line-height:1.6;}
+  .callout.info{background:rgba(55,138,221,.08);border-color:var(--blue);color:#a8ccee;}
+  .callout.warn{background:rgba(239,159,39,.08);border-color:var(--amber);color:#e8c98a;}
+  .callout.tip{background:rgba(29,158,117,.08);border-color:var(--teal);color:#8fd4bc;}
+  .callout strong{color:#fff;}
+
+  /* ── Entity diagram ── */
+  .diagram-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:28px 20px 16px;margin:18px 0 28px;}
+  .diagram-caption{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-top:12px;letter-spacing:.06em;}
+
+  /* ── Test data table ── */
+  table{width:100%;border-collapse:collapse;margin:14px 0 24px;font-size:13px;}
+  th{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:7px 12px;border-bottom:1px solid var(--border);}
+  td{padding:7px 12px;border-bottom:1px solid rgba(48,54,61,.5);vertical-align:top;font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  td.val{color:var(--amber);}td.name{color:var(--teal);}td.null{color:var(--muted);font-style:italic;}
+  tr:last-child td{border-bottom:none;}
+
+  /* ── Section count badge ── */
+  .count-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:1px 8px;margin-left:6px;vertical-align:middle;}
+
+  ul,ol{padding-left:20px;color:#c9d1d9;margin-bottom:12px;}
+  li{margin-bottom:4px;}
+
+  footer{background:var(--bg2);border:1px solid var(--content-border);padding:24px 64px;margin:0 16px 16px;border-radius:20px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  footer p{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);margin:0 0 4px;}
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+  @media (min-width: 769px) and (max-width: 1023px){
+    .doc-header{padding:40px 32px 32px;margin:12px 12px 0;}
+    .doc-header h1{font-size:30px;}
+    .layout{grid-template-columns:minmax(190px,220px) minmax(0,1fr);gap:16px;max-width:1024px;padding:16px 20px 32px;}
+    .content{padding:40px 28px;border-radius:22px;}
+  }
+  @media (min-width: 1024px) and (max-width: 1439px){
+    .layout{padding:18px 24px 40px;}
+    .content{padding:44px 36px;}
+  }
+  @media (min-width: 1440px){
+    .layout{padding:24px 32px 48px;}
+  }
+  @media (max-width: 900px){
+    .pair-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width: 768px){
+    .hamburger{display:flex;}
+    .layout{display:block;padding:0 0 24px;}
+    .doc-header{padding:34px 20px 28px;margin:12px 12px 0;border-radius:20px;}
+    .doc-header h1{font-size:28px;}
+    .meta-row{gap:16px;}
+    .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:199;transform:translateX(-100%);transition:transform .25s ease;width:240px;max-height:none;border-radius:0 20px 20px 0;border-left:none;box-shadow:0 20px 48px rgba(0,0,0,.35);}
+    .sidebar.open{transform:translateX(0);}
+    .content{width:auto;max-width:none;margin:16px 12px 0;padding:28px 18px;border-radius:20px;}
+    footer{padding:20px;margin:0 12px 12px;border-radius:20px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="header-top">
+    <div class="badge">Unit Test Samples</div>
+  </div>
+  <div class="title-row">
+    <button class="hamburger" id="hamburger" aria-label="Open navigation">&#9776;</button>
+    <h1><strong>EF.FilterBuilder</strong> — Test Reference</h1>
+  </div>
+  <p class="subtitle">Executable examples from the test suite, organized by feature. Each test demonstrates one specific behaviour of the library against a shared in-memory dataset.</p>
+  <div class="meta-row">
+    <div class="meta-item"><strong>Test framework</strong>MSTest / Assert extensions</div>
+    <div class="meta-item"><strong>Execution</strong>In-memory IEnumerable&lt;T&gt;</div>
+    <div class="meta-item"><strong>Platform</strong>C# 14 / .NET 10</div>
+    <div class="meta-item"><strong>Status</strong>Patent Pending</div>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="overlay"></div>
+
+<div class="layout">
+<nav class="sidebar">
+  <div class="sidebar-label">Reference</div>
+  <a href="#model">Entity Model</a>
+  <a href="#testdata">Test Data</a>
+  <div class="sidebar-label">Core</div>
+  <a href="#navigation">Deep Navigation</a>
+  <a href="#collections">Collection Scope</a>
+  <a href="#nullsafety">Null Safety</a>
+  <a href="#comparison">Comparison Operators</a>
+  <a href="#string-ops">String Operators</a>
+  <div class="sidebar-label">Operators</div>
+  <a href="#in-nin">In / Nin</a>
+  <a href="#isnull">IsNull / IsNotNull</a>
+  <a href="#datetime">Date / Time</a>
+  <a href="#strlen">String Length</a>
+  <a href="#caseflags">Case &amp; Normalize</a>
+  <div class="sidebar-label">Dynamic RHS</div>
+  <a href="#params">Runtime Params</a>
+  <a href="#filterexpr">Dataset Query</a>
+  <a href="#json">JSONPath</a>
+  <a href="#jsonexpr">JSONPath + Math</a>
+  <div class="sidebar-label">Feature A</div>
+  <a href="#multi">Multi-Result Query</a>
+  <div class="sidebar-label">Feature B</div>
+  <a href="#branch">Branch (if/else)</a>
+  <a href="#switch">Switch (multi-case)</a>
+  <a href="#nested">Nested Branching</a>
+  <div class="sidebar-label">Utility</div>
+  <a href="#findmatch">FindFirstMatch</a>
+  <a href="#misc">Miscellaneous</a>
+</nav>
+
+<main class="content">
+
+<!-- ══ ENTITY MODEL ══════════════════════════════════════════════════════════ -->
+<section id="model">
+  <h2><span class="sec-badge">REF</span> Entity Model</h2>
+  <p>All tests operate on a five-level class hierarchy. Every level carries the same scalar properties (<code>Id</code>, <code>Name</code>, <code>Value</code>, <code>Enum</code>, <code>Date</code>) plus optional scalar navigation to the next level and an optional collection of the next level.</p>
+
+  <div class="diagram-wrap">
+    <svg width="100%" viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="#8b949e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+        <marker id="arrt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="#1D9E75" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <!-- Node A -->
+      <rect x="20" y="80" width="120" height="140" rx="7" fill="#1a2235" stroke="#7F77DD" stroke-width="1.2"/>
+      <rect x="20" y="80" width="120" height="28" rx="7" fill="rgba(127,119,221,.3)"/>
+      <rect x="20" y="96" width="120" height="12" fill="rgba(127,119,221,.3)"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#c5c2f8" x="80" y="100" text-anchor="middle">A</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="32" y="124">Id, Name, Value</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="32" y="140">Enum, Date</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#79c0ff" x="32" y="158">B?</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#1D9E75" x="32" y="175">ICollection&lt;B&gt;?</text>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="32" y="191">Bcol</text>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#4a6080" x="32" y="210">(test data: A1, A2)</text>
+
+      <!-- A→B scalar -->
+      <line x1="140" y1="148" x2="198" y2="148" stroke="#79c0ff" stroke-width="1.2" marker-end="url(#arr)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#79c0ff" x="160" y="143">B</text>
+      <!-- A→Bcol collection -->
+      <line x1="140" y1="175" x2="198" y2="175" stroke="#1D9E75" stroke-width="1.2" marker-end="url(#arrt)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="152" y="170">Bcol[]</text>
+
+      <!-- Node B -->
+      <rect x="200" y="55" width="126" height="170" rx="7" fill="#1a2235" stroke="#378ADD" stroke-width="1.2"/>
+      <rect x="200" y="55" width="126" height="28" rx="7" fill="rgba(55,138,221,.25)"/>
+      <rect x="200" y="71" width="126" height="12" fill="rgba(55,138,221,.25)"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#79c0ff" x="263" y="75" text-anchor="middle">B</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="212" y="99">Id, Name, Value</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="212" y="115">Enum, Date</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#79c0ff" x="212" y="133">C?</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#1D9E75" x="212" y="150">ICollection&lt;C&gt;?</text>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="212" y="166">Ccol</text>
+
+      <!-- B→C scalar -->
+      <line x1="326" y1="123" x2="384" y2="123" stroke="#79c0ff" stroke-width="1.2" marker-end="url(#arr)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#79c0ff" x="340" y="118">C</text>
+      <!-- B→Ccol -->
+      <line x1="326" y1="150" x2="384" y2="150" stroke="#1D9E75" stroke-width="1.2" marker-end="url(#arrt)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="334" y="145">Ccol[]</text>
+
+      <!-- Node C -->
+      <rect x="386" y="40" width="126" height="185" rx="7" fill="#1a2235" stroke="#1D9E75" stroke-width="1.2"/>
+      <rect x="386" y="40" width="126" height="28" rx="7" fill="rgba(29,158,117,.2)"/>
+      <rect x="386" y="56" width="126" height="12" fill="rgba(29,158,117,.2)"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#5ecfac" x="449" y="60" text-anchor="middle">C</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="398" y="84">Id, Name, Value</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="398" y="100">Enum, Date</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#79c0ff" x="398" y="118">D?</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#1D9E75" x="398" y="135">ICollection&lt;D&gt;?</text>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="398" y="151">Dcol</text>
+
+      <!-- C→D scalar -->
+      <line x1="512" y1="108" x2="570" y2="108" stroke="#79c0ff" stroke-width="1.2" marker-end="url(#arr)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#79c0ff" x="526" y="103">D</text>
+      <!-- C→Dcol -->
+      <line x1="512" y1="135" x2="570" y2="135" stroke="#1D9E75" stroke-width="1.2" marker-end="url(#arrt)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="520" y="130">Dcol[]</text>
+
+      <!-- Node D -->
+      <rect x="572" y="30" width="126" height="185" rx="7" fill="#1a2235" stroke="#EF9F27" stroke-width="1.2"/>
+      <rect x="572" y="30" width="126" height="28" rx="7" fill="rgba(239,159,39,.2)"/>
+      <rect x="572" y="46" width="126" height="12" fill="rgba(239,159,39,.2)"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#f5c06b" x="635" y="50" text-anchor="middle">D</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="584" y="74">Id, Name, Value</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="584" y="90">Enum, Date</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#79c0ff" x="584" y="108">E?</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#1D9E75" x="584" y="125">ICollection&lt;E&gt;?</text>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="584" y="141">Ecol</text>
+
+      <!-- D→E scalar -->
+      <line x1="698" y1="98" x2="756" y2="98" stroke="#79c0ff" stroke-width="1.2" marker-end="url(#arr)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#79c0ff" x="712" y="93">E</text>
+      <!-- D→Ecol -->
+      <line x1="698" y1="125" x2="756" y2="125" stroke="#1D9E75" stroke-width="1.2" marker-end="url(#arrt)"/>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#1D9E75" x="706" y="120">Ecol[]</text>
+
+      <!-- Node E -->
+      <rect x="758" y="60" width="88" height="130" rx="7" fill="#1a2235" stroke="#D85A30" stroke-width="1.2"/>
+      <rect x="758" y="60" width="88" height="28" rx="7" fill="rgba(216,90,48,.2)"/>
+      <rect x="758" y="76" width="88" height="12" fill="rgba(216,90,48,.2)"/>
+      <text font-family="IBM Plex Mono" font-size="13" font-weight="600" fill="#f09070" x="802" y="80" text-anchor="middle">E</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="768" y="104">Id, Name</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="768" y="120">Value, Enum</text>
+      <text font-family="IBM Plex Mono" font-size="10.5" fill="#8b949e" x="768" y="136">Date</text>
+      <text font-family="IBM Plex Mono" font-size="9" fill="#4a6080" x="768" y="175">(leaf level)</text>
+
+      <!-- Legend -->
+      <line x1="20" y1="270" x2="50" y2="270" stroke="#79c0ff" stroke-width="1.2" marker-end="url(#arr)"/>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#79c0ff" x="56" y="274">scalar nav property (B?, C?, D?, E?)</text>
+      <line x1="320" y1="270" x2="350" y2="270" stroke="#1D9E75" stroke-width="1.2" marker-end="url(#arrt)"/>
+      <text font-family="IBM Plex Mono" font-size="10" fill="#1D9E75" x="356" y="274">collection property (Bcol, Ccol, Dcol, Ecol)</text>
+    </svg>
+    <div class="diagram-caption">FIG 1 — Entity class hierarchy. Every level has both a scalar navigation property and a collection of the next level.</div>
+  </div>
+
+  <p>Property paths can be written as flat dot-notation traversing any mix of levels: <code>"B.C.D.Name"</code>, <code>"B.C.Dcol.Name"</code>, <code>"Bcol.C.Dcol.E.Name"</code>. The library detects collection boundaries automatically.</p>
+</section>
+
+<!-- ══ TEST DATA ══════════════════════════════════════════════════════════════ -->
+<section id="testdata">
+  <h2><span class="sec-badge">REF</span> Test Data</h2>
+  <p>The shared dataset is initialized in <code>[TestInitialize]</code> and contains exactly two root entities, <strong>A1</strong> and <strong>A2</strong>. A1 is fully populated; A2 is sparse. Most tests expect a count of 1 based on which entity satisfies the filter.</p>
+
+  <table>
+    <tr><th>Path</th><th>A1 value</th><th>A2 value</th></tr>
+    <tr><td>Name</td><td class="name">A1</td><td class="name">A2</td></tr>
+    <tr><td>Value</td><td class="val">1</td><td class="val">2</td></tr>
+    <tr><td>Enum</td><td class="val">Enum1</td><td class="val">Enum2</td></tr>
+    <tr><td>Date</td><td class="val">1900-01-20 (Saturday)</td><td class="val">1902-01-20 (Monday)</td></tr>
+    <tr><td>B.Name</td><td class="name">A1B1</td><td class="null">null</td></tr>
+    <tr><td>B.Value</td><td class="val">23</td><td class="null">null</td></tr>
+    <tr><td>B.Enum</td><td class="val">Enum1</td><td class="null">null</td></tr>
+    <tr><td>B.C.Name</td><td class="name">A1B1C1</td><td class="null">—</td></tr>
+    <tr><td>B.C.Value</td><td class="val">3</td><td class="null">—</td></tr>
+    <tr><td>B.C.Enum</td><td class="val">Enum3</td><td class="null">—</td></tr>
+    <tr><td>B.C.D.Name</td><td class="name">A1B1C1D1</td><td class="null">—</td></tr>
+    <tr><td>B.C.D.Enum</td><td class="val">Enum1</td><td class="null">—</td></tr>
+    <tr><td>B.C.D.Value</td><td class="val">4</td><td class="null">—</td></tr>
+    <tr><td>B.C.D.E.Name</td><td class="name">A1B1C1D1E1</td><td class="null">—</td></tr>
+    <tr><td>B.C.D.E.Enum</td><td class="val">Enum2</td><td class="null">—</td></tr>
+    <tr><td>Bcol</td><td class="name">A1Bcol1, A1Bcol2, A1Bcol3</td><td class="null">null</td></tr>
+    <tr><td>Bcol[0].C.Value</td><td class="val">123 (A1Bcol1)</td><td class="null">—</td></tr>
+    <tr><td>Bcol[1].C.Value</td><td class="val">22 (A1Bcol2)</td><td class="null">—</td></tr>
+    <tr><td>B.C.Dcol[0].Name</td><td class="name">A1B1C1Dcol1, Enum=Enum1</td><td class="null">—</td></tr>
+    <tr><td>B.C.Dcol[1].Name</td><td class="name">A1B1C1Dcol2, Enum=Enum3</td><td class="null">—</td></tr>
+    <tr><td>B.C.D.Ecol[0]</td><td class="name">A1B1C1D1Ecol1, Enum=Enum1, Value=65</td><td class="null">—</td></tr>
+    <tr><td>B.C.D.Ecol[1]</td><td class="name">A1B1C1D1Ecol2, Enum=Enum2, Value=77</td><td class="null">—</td></tr>
+  </table>
+
+  <div class="callout info">
+    <strong>Reading the tests:</strong> When a test asserts <code>HasCount(1, match)</code> and <code>AreEqual("A1", match[0].Name)</code>, the filter matched only the A1 entity. When it asserts <code>HasCount(2, match)</code>, both A1 and A2 matched. Most tests assert count 1 — the key question is <em>which</em> entity.
+  </div>
+</section>
+
+<!-- ══ DEEP NAVIGATION ════════════════════════════════════════════════════════ -->
+<section id="navigation">
+  <h2><span class="sec-badge">CORE</span> Deep Property Navigation <span class="count-badge">4 tests</span></h2>
+  <p>These tests demonstrate that <code>PropertyPath</code> can reach arbitrarily deep into an object graph using dot notation, without any FilterSet nesting required. The path is decomposed at expression-build time.</p>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">sssAMatch1</span>
+      <span class="test-what">Flat dot-path to a 4-level scalar: <code>B.C.D.Name</code> and <code>B.C.D.Enum</code> resolved by path decomposition alone.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Both filters independently traverse the full B→C→D path. No nesting in the FilterSet definition is required — the system decomposes the path at build time.</div>
+      <div class="compiled">a =&gt; a.B.C.D.Name == "A1B1C1D1" &amp;&amp; a.B.C.D.Enum == Enum1</div>
+<pre><span class="kw">var</span> filterset = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    Operator = Operator.AND,
+    Filters = [
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.C.D.Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1"</span> },
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.C.D.Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span> }
+    ]
+};</pre>
+      <div class="assert-line">Assert.HasCount(1, match) — A1 matches; A2.B is null so null-guard returns false</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">sss2Match1</span>
+      <span class="test-what">Explicit 2-level FilterSet nesting producing the same result as <code>sssAMatch1</code>.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Root Filter scopes to B; child FilterSet applies C.D.Name and C.D.Enum using dot-path remainders. Functionally identical to the flat path — shows the equivalence.</div>
+      <div class="compiled">a =&gt; a.B.C.D.Name == "A1B1C1D1" &amp;&amp; a.B.C.D.Enum == Enum1</div>
+<pre><span class="kw">var</span> filterset = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    Operator = Operator.AND,
+    Filters = [
+        <span class="kw">new</span> <span class="ty">Filter</span>
+        {
+            PropertyPath = <span class="st">"B"</span>,
+            FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span>
+            {
+                Operator = Operator.AND,
+                Filters = [
+                    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"C.D.Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1"</span> },
+                    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"C.D.Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span> }
+                ]
+            }
+        }
+    ]
+};</pre>
+      <div class="assert-line">Assert.HasCount(1, match) — same result as sssAMatch1</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">sss3MatchSame1</span>
+      <span class="test-what">Full 4-level explicit nesting — A→B→C→D each as a separate FilterSet boundary.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Every navigation level is explicitly scoped. This is the most verbose way to write a deep path filter and produces exactly the same compiled expression as the flat dot-path approach.</div>
+      <div class="compiled">a =&gt; a.B.C.D.Name == "A1B1C1D1" &amp;&amp; a.B.C.D.Enum == Enum1</div>
+<pre><span class="co">// B scopes to C, C scopes to D, D scopes to leaf conditions</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B"</span>, FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+    Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"C"</span>, FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"D"</span>, FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+            Operator = Operator.AND,
+            Filters = [
+                <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1"</span> },
+                <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span> }
+            ]
+        }}]
+    }}]
+}}</pre>
+      <div class="assert-line">Assert.HasCount(1, match) — same compiled expression, same result</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Delimiter_SlashSeparated_DeepNavPath &nbsp;·&nbsp; Delimiter_MultiChar_DeepNavPath &nbsp;·&nbsp; Delimiter_MixedPerFilter_SameFilterSet</span>
+      <span class="test-what">Alternative and mixed delimiters on deep paths.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Delimiters are per-Filter and can be any string. All three examples below produce the same compiled expression as <code>sssAMatch1</code>.</div>
+<pre><span class="co">// Slash delimiter on every segment</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B/C/D/Name"</span>, Delimiter = <span class="st">"/"</span>,  Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1"</span> }
+
+<span class="co">// Multi-character arrow delimiter</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B->C->D->Name"</span>, Delimiter = <span class="st">"->"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1"</span> }
+
+<span class="co">// Mixed delimiters within the same FilterSet — each Filter is independent</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B/C/D/Name"</span>,   Delimiter = <span class="st">"/"</span>,  Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1"</span> },
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B::C::D::Enum"</span>, Delimiter = <span class="st">"::"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span>    }</pre>
+      <div class="assert-line">Assert.HasCount(1, match) — identical result for all delimiter variants</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ COLLECTION SCOPE ═══════════════════════════════════════════════════════ -->
+<section id="collections">
+  <h2><span class="sec-badge">CORE</span> Collection Scope Disambiguation <span class="count-badge">8 tests</span></h2>
+  <p>The most important structural concept in FilterBuilder. The presence or absence of a child <code>FilterSet</code> on the <code>Filter</code> targeting a collection property determines whether conditions must match the <strong>same</strong> element or can match <strong>different</strong> elements.</p>
+
+  <div class="callout warn">
+    <strong>The paired tests below use identical conditions.</strong> Same data, same property paths, same values. Only the FilterSet structure differs — and the results are different. Read them side by side.
+  </div>
+
+  <h3>Pair 1 — B.C.Dcol: any-object vs same-object</h3>
+  <div class="pair-grid">
+    <div>
+      <div class="pair-label any">Any-object scope — sscMatchAny1</div>
+      <div class="test-card" style="border-radius:0 8px 8px 8px;margin-bottom:0;">
+        <div class="test-body" style="padding-top:14px;">
+          <div class="test-intent">Filters placed above the collection boundary in <code>PropertyPath</code>. Each generates its own independent <code>Any()</code> — different Dcol elements may satisfy different conditions.</div>
+          <div class="compiled">Dcol.Any(d =&gt; d.Name == "A1B1C1Dcol1") &amp;&amp; Dcol.Any(d =&gt; d.Enum == Enum1)</div>
+<pre><span class="co">// No child FilterSet → any-object scope</span>
+Filters = [
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.C.Dcol.Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1Dcol1"</span> },
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.C.Dcol.Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span> }
+]</pre>
+          <div class="assert-line">HasCount(1) — Dcol[0] has Name; Dcol[0] also has Enum1 → match</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="pair-label same">Same-object scope — sscMatchSame1 / sscMatch2</div>
+      <div class="test-card" style="border-radius:0 8px 8px 8px;margin-bottom:0;">
+        <div class="test-body" style="padding-top:14px;">
+          <div class="test-intent">Child FilterSet on the Dcol filter wraps both conditions in a single <code>Any()</code>. The SAME Dcol element must satisfy both Name and Enum. Dcol[0] satisfies both, so A1 still matches.</div>
+          <div class="compiled">Dcol.Any(d =&gt; d.Name == "A1B1C1Dcol1" &amp;&amp; d.Enum == Enum1)</div>
+<pre><span class="co">// Child FilterSet → same-object scope</span>
+<span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath = <span class="st">"B.C.Dcol"</span>,
+    FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        Operator = Operator.AND,
+        Filters = [
+            <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1Dcol1"</span> },
+            <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span> }
+        ]
+    }
+}</pre>
+          <div class="assert-line">HasCount(1) — same result here; difference emerges in Pair 2</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Pair 2 — D.Ecol: conditions that can't be satisfied by one element</h3>
+  <p style="margin-top:8px;">Ecol[0] has <code>Name="A1B1C1D1Ecol1"</code> and <code>Enum=Enum1</code>. Ecol[1] has <code>Enum=Enum2</code>. Asking for <em>Name=Ecol1 AND Enum=Enum2</em> — no single element has both.</p>
+  <div class="pair-grid">
+    <div>
+      <div class="pair-label same">Same-object scope — Ecol_SameObjectScope_NoMatch</div>
+      <div class="test-card" style="border-radius:0 8px 8px 8px;margin-bottom:0;">
+        <div class="test-body" style="padding-top:14px;">
+          <div class="test-intent">No single Ecol item has Name="A1B1C1D1Ecol1" AND Enum=Enum2. The single Any() returns false.</div>
+          <div class="compiled">Ecol.Any(e =&gt; e.Name == "A1B1C1D1Ecol1" &amp;&amp; e.Enum == Enum2)</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath = <span class="st">"B.C.D.Ecol"</span>,
+    FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        Operator = Operator.AND,
+        Filters = [
+            <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1Ecol1"</span> },
+            <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum2"</span> }
+        ]
+    }
+}</pre>
+          <div class="assert-line">HasCount(0) — no single Ecol item satisfies both conditions</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="pair-label any">Any-object scope — Ecol_AnyObjectScope_Matches</div>
+      <div class="test-card" style="border-radius:0 8px 8px 8px;margin-bottom:0;">
+        <div class="test-body" style="padding-top:14px;">
+          <div class="test-intent">Ecol[0] satisfies the Name filter; Ecol[1] satisfies Enum=Enum2. Independent Any() chains — different items, both true under AND.</div>
+          <div class="compiled">Ecol.Any(e =&gt; e.Name == "A1B1C1D1Ecol1") &amp;&amp; Ecol.Any(e =&gt; e.Enum == Enum2)</div>
+<pre><span class="co">// No child FilterSet → any-object scope</span>
+Filters = [
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.C.D.Ecol.Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1B1C1D1Ecol1"</span> },
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.C.D.Ecol.Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum2"</span> }
+]</pre>
+          <div class="assert-line">HasCount(1) — Ecol[0] and Ecol[1] together satisfy both filters</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Pair 3 — Bcol multi-level: conditions that belong to different Bcol items</h3>
+  <p style="margin-top:8px;">Bcol[0] (A1Bcol1) has <code>C.Value=123</code>. Bcol[1] (A1Bcol2) has <code>C.Value=22</code>. Asking for <em>Name=A1Bcol1 AND C.Value=22</em>.</p>
+  <div class="pair-grid">
+    <div>
+      <div class="pair-label same">Same-object scope — MultiLevel_BAndC_SameScope_NoMatch</div>
+      <div class="test-card" style="border-radius:0 8px 8px 8px;margin-bottom:0;">
+        <div class="test-body" style="padding-top:14px;">
+          <div class="test-intent">The same B instance must satisfy both B-level (Name) and C-level (C.Value) conditions. A1Bcol1 has the Name but C.Value=123, not 22. No match.</div>
+          <div class="compiled">Bcol.Any(b =&gt; b.Name=="A1Bcol1" &amp;&amp; b.C.Value==22)</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath = <span class="st">"Bcol"</span>,
+    FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> { Operator = Operator.AND, Filters = [
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>,    Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1Bcol1"</span> },
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"C.Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="nu">22</span> }
+    ]}
+}</pre>
+          <div class="assert-line">HasCount(0) — no single Bcol item has both Name=A1Bcol1 AND C.Value=22</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="pair-label any">Any-object scope — MultiLevel_BAndC_AnyScope_Matches</div>
+      <div class="test-card" style="border-radius:0 8px 8px 8px;margin-bottom:0;">
+        <div class="test-body" style="padding-top:14px;">
+          <div class="test-intent">Bcol[0] satisfies Name=A1Bcol1; Bcol[1] satisfies C.Value=22. Different items, independent Any() traversals — A1 matches.</div>
+          <div class="compiled">Bcol.Any(b =&gt; b.Name=="A1Bcol1") &amp;&amp; Bcol.Any(b =&gt; b.C.Value==22)</div>
+<pre><span class="co">// No child FilterSet → any-object scope</span>
+Filters = [
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Bcol.Name"</span>,    Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1Bcol1"</span> },
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Bcol.C.Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="nu">22</span> }
+]</pre>
+          <div class="assert-line">HasCount(1) — Bcol[0] satisfies Name; Bcol[1] satisfies C.Value</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Nested scopes — C-S-C-S hierarchy</h3>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">cscsMatchSame</span>
+      <span class="test-what">Four-level same-object scope: Bcol → C → Dcol → E with correlated scoping at every collection boundary.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">The specific Bcol item, its C.Dcol item, and the E under that Dcol item must all jointly satisfy their conditions. The name describes the pattern: Collection → Scalar → Collection → Scalar.</div>
+      <div class="compiled">Bcol.Any(b =&gt; b.Name=="A1Bcol1" &amp;&amp; b.C.Dcol.Any(d =&gt; d.E.Name==p1 &amp;&amp; d.E.Value&gt;p2))</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Bcol"</span>, FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+    Filters = [
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1Bcol1"</span> },
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"C.Dcol"</span>, FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+            Filters = [
+                <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"E"</span>, FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+                    Operator = Operator.AND,
+                    Filters = [
+                        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>,  Operation = <span class="st">"eq"</span>, FilterType = FilterType.TestValueParam, ParamKey = <span class="st">"param1"</span> },
+                        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"gt"</span>, FilterType = FilterType.TestValueParam, ParamKey = <span class="st">"param2"</span> }
+                    ]
+                }}
+            ]
+        }}
+    ]
+}}</pre>
+      <div class="assert-line">HasCount(1, match) — A1 matches when param1 matches an E.Name and param2 &lt; E.Value</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ NULL SAFETY ═══════════════════════════════════════════════════════════ -->
+<section id="nullsafety">
+  <h2><span class="sec-badge">CORE</span> Null Safety <span class="count-badge">3 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">NullCollection_NullGuardReturnsFalse</span>
+      <span class="test-what">A collection navigation property that is null evaluates to false, not a NullReferenceException.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">A2.Bcol is null. The auto-injected null-guard wraps the Any() call in a null-check. A2 evaluates to false safely; A1 (with Bcol populated) is the only match.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span>
+{
+    PropertyPath = <span class="st">"Bcol"</span>,
+    FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"A1Bcol1"</span> } ]
+    }
+}</pre>
+      <div class="assert-line">HasCount(1) — A1 matches; IsFalse(func(A2)) — null Bcol returns false, no throw</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">NullChecksDisabled_SkipsNullGuard</span>
+      <span class="test-what"><code>enableNullChecks: false</code> suppresses null-guard injection entirely.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Useful when the caller guarantees non-null navigation or the LINQ provider handles nulls natively in its translation. The expression is simpler but callers assume responsibility for null data.</div>
+<pre><span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">A</span>, <span class="kw">bool</span>&gt;&gt; expr = <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.ProcessFilterSet(filterset, <span class="kw">enableNullChecks: false</span>);</pre>
+      <div class="assert-line">HasCount(1) — flat data still matches correctly when no nulls are present</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">NullFilterSet_NoFilters_ReturnsAll</span>
+      <span class="test-what">A FilterSet with neither Filters nor FilterSets produces a match-everything predicate.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">The degenerate empty case compiles to <code>Expression.Constant(true)</code> — all items pass through without throwing. Same behavior as <code>BranchIfNoMatch = null</code> and <code>SwitchDefault = null</code>.</div>
+<pre><span class="kw">var</span> filterset = <span class="kw">new</span> <span class="ty">FilterSet</span> { Operator = Operator.AND };
+<span class="co">// Filters = null, FilterSets = null — compiles to Expression.Constant(true)</span></pre>
+      <div class="assert-line">HasCount(_data.Count, match) — all items returned</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ COMPARISON OPERATORS ═══════════════════════════════════════════════════ -->
+<section id="comparison">
+  <h2><span class="sec-badge">OPS</span> Comparison Operators <span class="count-badge">4 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">ComparisonOperators_GreaterThanLessThan</span>
+      <span class="test-what">Range filter using <code>gt</code> and <code>lt</code> — exclusive range (1, 3) returns only Value=2.</span>
+    </div>
+    <div class="test-body">
+      <div class="compiled">a =&gt; a.Value &gt; 1 &amp;&amp; a.Value &lt; 3</div>
+<pre>Filters = [
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"gt"</span>, TestValue = <span class="nu">1</span> },
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"lt"</span>, TestValue = <span class="nu">3</span> }
+]</pre>
+      <div class="assert-line">HasCount(1) — only A2 (Value=2) falls within the exclusive range</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">ComparisonOperators_GreaterOrEqualLessOrEqual</span>
+      <span class="test-what">Inclusive range [1, 2] using <code>ge</code> and <code>le</code> — both A1 and A2 match.</span>
+    </div>
+    <div class="test-body">
+      <div class="compiled">a =&gt; a.Value &gt;= 1 &amp;&amp; a.Value &lt;= 2</div>
+<pre>Filters = [
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"ge"</span>, TestValue = <span class="nu">1</span> },
+    <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"le"</span>, TestValue = <span class="nu">2</span> }
+]</pre>
+      <div class="assert-line">HasCount(2) — A1(Value=1) and A2(Value=2) both match</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">NotEqual_ReturnsNonMatchingItems</span>
+      <span class="test-what"><code>ne</code> compiles to a NotEqual BinaryExpression.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"ne"</span>, TestValue = <span class="st">"A1"</span> }</pre>
+      <div class="assert-line">HasCount(1) — only A2 matches (A1 excluded)</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">EnumFilter_IntegerValue</span>
+      <span class="test-what">Enum properties accept string names — coerced to the enum constant at expression-build time.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">TestValue <code>"Enum1"</code> is a string. The compiler detects the target property is an enum type and calls <code>Enum.Parse()</code> at build time. No manual conversion needed.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span> }
+<span class="co">// Also accepts integer: TestValue = 0  (Enum.Enum1 = 0)</span></pre>
+      <div class="assert-line">HasCount(1) — A1 has Enum=Enum1; A2 has Enum=Enum2</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ STRING OPERATORS ════════════════════════════════════════════════════════ -->
+<section id="string-ops">
+  <h2><span class="sec-badge">OPS</span> String Operators <span class="count-badge">6 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">StringOperator_BeginsWith &nbsp;&nbsp; StringOperator_NotBeginsWith</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"bw"</span>, TestValue = <span class="st">"A1"</span> }
+<span class="co">// → a.Name.StartsWith("A1") — A1 matches</span>
+
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"bn"</span>, TestValue = <span class="st">"A1"</span> }
+<span class="co">// → !a.Name.StartsWith("A1") — A2 matches</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">StringOperator_EndsWith &nbsp;&nbsp; StringOperator_NotEndsWith</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"ew"</span>, TestValue = <span class="st">"2"</span> }
+<span class="co">// → a.Name.EndsWith("2") — A2 matches</span>
+
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"en"</span>, TestValue = <span class="st">"2"</span> }
+<span class="co">// → !a.Name.EndsWith("2") — A1 matches</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">StringOperator_Contains &nbsp;&nbsp; StringOperator_NotContains</span>
+    </div>
+    <div class="test-body">
+<pre><span class="co">// Working on the Bcol flat list (B items directly)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"cn"</span>, TestValue = <span class="st">"Bcol1"</span> }
+<span class="co">// → a.Name.Contains("Bcol1") — A1Bcol1 matches (1 of 3 Bcol items)</span>
+
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"nc"</span>, TestValue = <span class="st">"Bcol1"</span> }
+<span class="co">// → !a.Name.Contains("Bcol1") — A1Bcol2 and A1Bcol3 match (2 of 3)</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ IN / NIN ════════════════════════════════════════════════════════════════ -->
+<section id="in-nin">
+  <h2><span class="sec-badge">OPS</span> In / Nin — List Membership <span class="count-badge">5 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">In_MatchesWhenValueInList</span>
+      <span class="test-what">Entity is included when its property value is in the provided array.</span>
+    </div>
+    <div class="test-body">
+      <div class="compiled">a =&gt; new[]{"A1","X"}.Contains(a.Name) → SQL IN ('A1','X')</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"in"</span>, TestValue = <span class="kw">new</span>[] { <span class="st">"A1"</span>, <span class="st">"X"</span> } }</pre>
+      <div class="assert-line">HasCount(1) — A1 matches; A2 and "X" don't exist in data</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Nin_ExcludesWhenValueInList</span>
+      <span class="test-what">Entity is excluded when its property value is in the list.</span>
+    </div>
+    <div class="test-body">
+      <div class="compiled">a =&gt; !new[]{"A1"}.Contains(a.Name) → SQL NOT IN ('A1')</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"nin"</span>, TestValue = <span class="kw">new</span>[] { <span class="st">"A1"</span> } }</pre>
+      <div class="assert-line">HasCount(1) — A2 matches; A1 is excluded</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">In_WorksWithIntegerList &nbsp;·&nbsp; In_RoundTripsThroughJson &nbsp;·&nbsp; In_WorksOnIQueryable</span>
+    </div>
+    <div class="test-body">
+<pre><span class="co">// Integer list — each element is coerced to int? at build time</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"in"</span>, TestValue = <span class="kw">new</span> <span class="kw">object</span>[] { <span class="nu">1</span>, <span class="nu">3</span> } }
+
+<span class="co">// JSON round-trip — TestValue serializes as a JSON array, deserialized to JsonElement,
+// then coerced to the target type by BuildMembershipExpression</span>
+<span class="kw">var</span> json = JsonSerializer.Serialize(filterset);
+<span class="kw">var</span> deserialized = JsonSerializer.Deserialize&lt;<span class="ty">FilterSet</span>&gt;(json)!;
+<span class="ty">Expression</span>&lt;<span class="ty">Func</span>&lt;<span class="ty">A</span>, <span class="kw">bool</span>&gt;&gt; expr = <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.ProcessFilterSet(deserialized);
+
+<span class="co">// IQueryable — expression tree passes unevaluated to LINQ provider (EF Core → SQL IN)</span>
+<span class="ty">IQueryable</span>&lt;<span class="ty">A</span>&gt; queryable = _data.AsQueryable();
+<span class="kw">var</span> match = queryable.Where(expr).ToList();</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ISNULL / ISNOTNULL ═══════════════════════════════════════════════════════ -->
+<section id="isnull">
+  <h2><span class="sec-badge">OPS</span> IsNull / IsNotNull <span class="count-badge">6 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">IsNull_MatchesNullProperty &nbsp;·&nbsp; IsNotNull_MatchesNonNullProperty</span>
+      <span class="test-what">A2.B.Name is null; A1.B.Name is "A1B1".</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.Name"</span>, Operation = <span class="st">"isnull"</span>    } <span class="co">// → A2 matches</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.Name"</span>, Operation = <span class="st">"isnotnull"</span> } <span class="co">// → A1 matches</span>
+<span class="co">// No TestValue required. Do not set one.</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">IsNull_OnNonNullableValueType_ReturnsFalseConstant &nbsp;·&nbsp; IsNotNull_OnNonNullableValueType_ReturnsTrueConstant</span>
+      <span class="test-what">Value types (Guid, int, etc.) can never be null — the compiler produces a constant at build time.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Applying <code>isnull</code> to <code>Guid Id</code> produces <code>Expression.Constant(false)</code>. Applying <code>isnotnull</code> produces <code>Expression.Constant(true)</code>. No runtime check is generated.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Id"</span>, Operation = <span class="st">"isnull"</span>    } <span class="co">// → Constant(false) → 0 matches</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Id"</span>, Operation = <span class="st">"isnotnull"</span> } <span class="co">// → Constant(true)  → all match</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ DATE / TIME ════════════════════════════════════════════════════════════ -->
+<section id="datetime">
+  <h2><span class="sec-badge">OPS</span> Date / Time Component Operators <span class="count-badge">7 tests</span></h2>
+  <p>Test data: A1.Date = <strong>1900-01-20 (Saturday)</strong>. A2.Date = <strong>1902-01-20 (Monday)</strong>. Bcol items use various dates including 1955-07-07 (A1Bcol3).</p>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">YearEq &nbsp;·&nbsp; MonthEq &nbsp;·&nbsp; DayEq &nbsp;·&nbsp; HourEq</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Date"</span>, Operation = <span class="st">"year-eq"</span>,  TestValue = <span class="nu">1900</span> } <span class="co">// A1 matches</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Date"</span>, Operation = <span class="st">"month-eq"</span>, TestValue = <span class="nu">7</span>    } <span class="co">// A1Bcol3 (Month=7)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Date"</span>, Operation = <span class="st">"day-eq"</span>,   TestValue = <span class="nu">7</span>    } <span class="co">// A1Bcol3 (Day=7)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Date"</span>, Operation = <span class="st">"hour-eq"</span>,  TestValue = <span class="nu">0</span>    } <span class="co">// both A1 and A2</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">DowEq_ByName &nbsp;·&nbsp; DowEq_ByInteger</span>
+      <span class="test-what">Day-of-week accepts a string name or an integer (0=Sunday … 6=Saturday). Both forms produce identical results.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Date"</span>, Operation = <span class="st">"dow-eq"</span>, TestValue = <span class="st">"Saturday"</span> } <span class="co">// A1 (1900-01-20=Sat)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Date"</span>, Operation = <span class="st">"dow-eq"</span>, TestValue = <span class="nu">6</span>           } <span class="co">// same result</span></pre>
+      <div class="assert-line">Both assert HasCount(1) and AreEqual("A1") — Saturday=6</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">DateComponent_NonDateTimeProperty_ThrowsDescriptiveException</span>
+      <span class="test-what">Applying a date component operator to a non-DateTime property throws at expression-build time.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"year-eq"</span>, TestValue = <span class="nu">2024</span> }
+<span class="co">// → throws InvalidOperationException with "DateTime" in the message</span>
+Assert.Throws&lt;<span class="ty">InvalidOperationException</span>&gt;(() => <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.ProcessFilterSet(filterset));</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ STRING LENGTH ══════════════════════════════════════════════════════════ -->
+<section id="strlen">
+  <h2><span class="sec-badge">OPS</span> String Length Operators <span class="count-badge">from Operators file</span></h2>
+  <p>All six Bcol item names are 7 characters long ("A1Bcol1", "A1Bcol2", "A1Bcol3"). Tests operate on the flat Bcol list.</p>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">LenEq / LenNe / LenGt / LenGe / LenLt / LenLe</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"len-eq"</span>, TestValue = <span class="nu">7</span> } <span class="co">// all 3 match (length=7)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"len-ne"</span>, TestValue = <span class="nu">7</span> } <span class="co">// 0 match</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"len-gt"</span>, TestValue = <span class="nu">6</span> } <span class="co">// all 3 match (7 > 6)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"len-ge"</span>, TestValue = <span class="nu">7</span> } <span class="co">// all 3 match (7 >= 7)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"len-lt"</span>, TestValue = <span class="nu">8</span> } <span class="co">// all 3 match (7 < 8)</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"len-le"</span>, TestValue = <span class="nu">7</span> } <span class="co">// all 3 match (7 <= 7)</span>
+
+<span class="co">// Null string evaluates to false for all len-* operators — no exception</span>
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.Name"</span>, Operation = <span class="st">"len-gt"</span>, TestValue = <span class="nu">0</span> }
+<span class="co">// A2.B is null → null-guard returns false safely</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CASE & NORMALIZE ════════════════════════════════════════════════════════ -->
+<section id="caseflags">
+  <h2><span class="sec-badge">OPS</span> CaseSensitive &amp; Normalize Flags <span class="count-badge">8 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">CaseInsensitive_Eq / CaseInsensitive_Contains / CaseInsensitive_BeginsWith</span>
+      <span class="test-what"><code>CaseSensitive = false</code> lowercases both property value and TestValue before comparison.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"a1"</span>,    CaseSensitive = <span class="kw">false</span> }
+<span class="co">// "a1".ToLower() == "A1".ToLower() → true. A1 matches.</span>
+
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"cn"</span>, TestValue = <span class="st">"BCOL1"</span>, CaseSensitive = <span class="kw">false</span> }
+<span class="co">// On Bcol flat list: "bcol1" found in "a1bcol1" → A1Bcol1 matches</span>
+
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"bw"</span>, TestValue = <span class="st">"a"</span>,     CaseSensitive = <span class="kw">false</span> }
+<span class="co">// Both A1 and A2 begin with "a" after lowercasing → 2 matches</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">CaseSensitive_Default_True_BehaviourUnchanged</span>
+      <span class="test-what">Regression: default <code>CaseSensitive=true</code> does not fold case.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"a1"</span> }
+<span class="co">// "a1" != "A1" (no lowercasing) → 0 matches</span></pre>
+      <div class="assert-line">HasCount(0) — case-sensitive default is preserved</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Normalize_TrimsWhitespaceBothSides &nbsp;·&nbsp; Normalize_CombinedWithCaseInsensitive</span>
+      <span class="test-what"><code>Normalize = true</code> trims both sides. When combined with <code>CaseSensitive = false</code>, trim runs first then lowercase.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>,
+             TestValue = <span class="st">" A1 "</span>, Normalize = <span class="kw">true</span> }
+<span class="co">// " A1 ".Trim() == "A1".Trim() → true. A1 matches.</span>
+
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>,
+             TestValue = <span class="st">" a1 "</span>, Normalize = <span class="kw">true</span>, CaseSensitive = <span class="kw">false</span> }
+<span class="co">// Trim → "a1", then ToLower. "a1" == "a1" (A1 lowercased) → match</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">CaseInsensitive_NullProperty_DoesNotThrow &nbsp;·&nbsp; Normalize_NullProperty_DoesNotThrow</span>
+      <span class="test-what">Both flags handle null property values safely — the null-guard returns false before the string operation is attempted.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"B.Name"</span>, Operation = <span class="st">"eq"</span>,
+             TestValue = <span class="st">"a1b1"</span>, CaseSensitive = <span class="kw">false</span> }
+<span class="co">// A2.B.Name is null → null-guard returns false (no throw). A1.B.Name matches "a1b1".</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ RUNTIME PARAMS ═════════════════════════════════════════════════════════ -->
+<section id="params">
+  <h2><span class="sec-badge">RHS</span> Runtime Parameters (TestValueParam) <span class="count-badge">2 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">sscMatch2WithParams</span>
+      <span class="test-what">Same-object collection scope with runtime values — scope semantics are unaffected by dynamic value injection.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Both filters inside the B.C.Dcol child FilterSet use <code>TestValueParam</code>. The values come from <code>params1</code> at build time. The same-object Any() scope is still enforced — the same Dcol item must satisfy both conditions.</div>
+      <div class="compiled">Dcol.Any(d =&gt; d.Name == paramName1 &amp;&amp; d.Enum == paramName2)</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath = <span class="st">"B.C.Dcol"</span>,
+    FilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> { Operator = Operator.AND, Filters = [
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Name"</span>, Operation = <span class="st">"eq"</span>, FilterType = FilterType.TestValueParam, ParamKey = <span class="st">"paramName1"</span> },
+        <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Enum"</span>, Operation = <span class="st">"eq"</span>, FilterType = FilterType.TestValueParam, ParamKey = <span class="st">"paramName2"</span> }
+    ]}
+}
+
+<span class="kw">var</span> params1 = <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;
+{
+    { <span class="st">"paramName1"</span>, <span class="st">"A1B1C1Dcol1"</span> },
+    { <span class="st">"paramName2"</span>, Enum.Enum1 }
+};</pre>
+      <div class="assert-line">HasCount(1) — Dcol[0] satisfies both params at once</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ DATASET QUERY ══════════════════════════════════════════════════════════ -->
+<section id="filterexpr">
+  <h2><span class="sec-badge">RHS</span> Cross-Type Dataset Query (TestValueFilterExpression) <span class="count-badge">2 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">cMatchParamFilterSet</span>
+      <span class="test-what">RHS derived at build time by running a nested FilterSet against a <code>List&lt;B&gt;</code> — a completely different type from the primary entity <code>A</code>.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">The child FilterSet finds the B item where <code>Value == 12</code> in the dataset. The <code>Name</code> of that B is extracted and baked into the outer filter as a constant. The outer filter then checks <code>Bcol.Name == &lt;resolved&gt;</code>.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath = <span class="st">"Bcol.Name"</span>,
+    Operation    = <span class="st">"eq"</span>,
+    FilterType   = FilterType.TestValueFilterExpression,
+    ParamKey     = <span class="st">"dataset1"</span>,  <span class="co">// key to a List&lt;B&gt; in params1</span>
+    Query        = <span class="st">"Name"</span>,       <span class="co">// property to extract from the first matching B</span>
+    FilterSet    = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"12"</span> } ]
+    }
+}
+
+<span class="co">// params1 contains a pre-materialized IEnumerable&lt;B&gt; derived from _data</span>
+<span class="kw">var</span> params1 = <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;
+{
+    { <span class="st">"dataset1"</span>, _data.Where(a => a.Bcol != <span class="kw">null</span>).SelectMany(a => a.Bcol!) }
+};</pre>
+      <div class="assert-line">IsNotEmpty(match) — the resolved Name is found in Bcol</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ JSONPATH ════════════════════════════════════════════════════════════════ -->
+<section id="json">
+  <h2><span class="sec-badge">RHS</span> JSONPath (TestValueJson) <span class="count-badge">1 test</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">cscsMatchAnyParamJson</span>
+      <span class="test-what">RHS extracted via JSONPath from a serialized JSON dataset in <code>params1</code>.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">The E.Name filter's test value is resolved at build time by executing a JSONPath query (<code>[?(@.Enum == 1)].Name</code>) against a JSON string in params1. The E.Value filter uses a separate runtime param.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath = <span class="st">"Bcol.C.Dcol.E.Name"</span>,
+    Operation    = <span class="st">"eq"</span>,
+    FilterType   = FilterType.TestValueJson,
+    ParamKey     = <span class="st">"EcollectionJson"</span>,          <span class="co">// key to a JSON string in params1</span>
+    Query        = <span class="st">"[?(@.Enum == 1)].Name"</span>      <span class="co">// JSONPath: first E where Enum=1, extract Name</span>
+}
+
+<span class="kw">var</span> params1 = <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;
+{
+    { <span class="st">"EcollectionJson"</span>, JsonSerializer.Serialize(eCollection) },
+    { <span class="st">"param2"</span>, <span class="nu">25</span> }
+};</pre>
+      <div class="assert-line">IsNotEmpty(match)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ JSONPATH + MATH ════════════════════════════════════════════════════════ -->
+<section id="jsonexpr">
+  <h2><span class="sec-badge">RHS</span> JSONPath + Math Transform (TestValueJson + TestValueExpression) <span class="count-badge">1 test</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">cscsMatchAnyParamJsonExpr</span>
+      <span class="test-what">Three-stage RHS pipeline: JSONPath extraction → math transform → constant baked into expression.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Step 1: JSONPath query extracts raw Value=65 from JSON. Step 2: <code>TestValueExpression</code> evaluates <code>Math.Abs(65 - 90)</code> = 25. Step 3: 25 is used as the comparison constant. This finds E items with Value=25.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath        = <span class="st">"Bcol.C.Dcol.E.Value"</span>,
+    Operation           = <span class="st">"eq"</span>,
+    FilterType          = FilterType.TestValueJson,
+    ParamKey            = <span class="st">"EcollectionJson"</span>,
+    Query               = <span class="st">"[?(@.Name == 'A1B1C1D1Ecol1')].Value"</span>,  <span class="co">// → 65</span>
+    TestValueExpression = <span class="st">"Math.Abs(TestValue-90)"</span>                     <span class="co">// → |65-90| = 25</span>
+}
+<span class="co">// Compiled constant: 25 (not 65)
+// Finds E items where Value == 25</span></pre>
+      <div class="assert-line">IsNotEmpty(match) — E item with Value=25 exists in the data</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FEATURE A: MULTI-RESULT ════════════════════════════════════════════════ -->
+<section id="multi">
+  <h2><span class="sec-badge">A</span> Multi-Result Dataset Query (TestValueFilterExpressionMulti) <span class="count-badge">8 tests</span></h2>
+  <p>Collects a named property from <em>all</em> matching elements in a dataset and builds a typed array. <code>Operation</code> must be <code>"in"</code> or <code>"nin"</code>. EF Core translates to <code>WHERE col IN (...)</code>.</p>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">MultiResult_ReturnsAllMatchingCategoryIds</span>
+      <span class="test-what">Active promotions drive which products match — the CategoryIds are collected into an array at build time.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Promotions: CategoryId=1 (active), CategoryId=2 (inactive), CategoryId=3 (active). At build time: run child FilterSet → collect CategoryId from active promotions → int[] { 1, 3 }. Products with CategoryId 1 or 3 match.</div>
+<pre><span class="kw">var</span> promotions = <span class="kw">new</span> List&lt;<span class="ty">Promotion</span>&gt;
+{
+    <span class="kw">new</span>() { CategoryId = <span class="nu">1</span>, IsActive = <span class="kw">true</span>,  Name = <span class="st">"P1"</span> },
+    <span class="kw">new</span>() { CategoryId = <span class="nu">2</span>, IsActive = <span class="kw">false</span>, Name = <span class="st">"P2"</span> },
+    <span class="kw">new</span>() { CategoryId = <span class="nu">3</span>, IsActive = <span class="kw">true</span>,  Name = <span class="st">"P3"</span> },
+};
+<span class="kw">var</span> products = <span class="kw">new</span> List&lt;<span class="ty">Product</span>&gt;
+{
+    <span class="kw">new</span>() { CategoryId = <span class="nu">1</span>, Name = <span class="st">"Prod1"</span> },
+    <span class="kw">new</span>() { CategoryId = <span class="nu">2</span>, Name = <span class="st">"Prod2"</span> },
+    <span class="kw">new</span>() { CategoryId = <span class="nu">3</span>, Name = <span class="st">"Prod3"</span> },
+    <span class="kw">new</span>() { CategoryId = <span class="nu">4</span>, Name = <span class="st">"Prod4"</span> },
+};
+
+<span class="kw">var</span> filter = <span class="kw">new</span> <span class="ty">Filter</span>
+{
+    PropertyPath = <span class="st">"CategoryId"</span>,
+    Operation    = <span class="st">"in"</span>,              <span class="co">// must be "in" or "nin"</span>
+    FilterType   = FilterType.TestValueFilterExpressionMulti,
+    ParamKey     = <span class="st">"promotions"</span>,      <span class="co">// key to the List&lt;Promotion&gt; in params1</span>
+    Query        = <span class="st">"CategoryId"</span>,      <span class="co">// property to extract from each matching Promotion</span>
+    FilterSet    = <span class="kw">new</span> <span class="ty">FilterSet</span> {    <span class="co">// which Promotions qualify</span>
+        Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"IsActive"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="kw">true</span> } ]
+    }
+};
+
+<span class="kw">var</span> expr = <span class="ty">FilterBuilder</span>&lt;<span class="ty">Product</span>&gt;.ProcessFilterSet(filterset, <span class="kw">true</span>,
+    <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt; { [<span class="st">"promotions"</span>] = promotions });</pre>
+      <div class="assert-line">HasCount(2) — Prod1 (CategoryId=1) and Prod3 (CategoryId=3) match</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">MultiResult_NinOperator_ExcludesAllMatchedValues</span>
+      <span class="test-what"><code>nin</code> excludes products whose CategoryId is in the active-promotion set.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Active promotions: CategoryId 1 and 3. Products 2 and 4 are not in the set — they match the <code>nin</code> filter.</div>
+<pre>Operation = <span class="st">"nin"</span>  <span class="co">// everything else identical to the "in" example above</span></pre>
+      <div class="assert-line">HasCount(2) — Prod2 and Prod4 match (not in the promotion set)</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">MultiResult_EmptyDataset / MultiResult_NoMatchesInDataset — both produce 0 results</span>
+    </div>
+    <div class="test-body">
+<pre><span class="co">// Empty dataset — array has no elements</span>
+params1[<span class="st">"promotions"</span>] = <span class="kw">new</span> List&lt;<span class="ty">Promotion</span>&gt;()
+
+<span class="co">// Dataset has items but none satisfy the child FilterSet (all IsActive=false)</span>
+<span class="kw">new</span>() { CategoryId = <span class="nu">1</span>, IsActive = <span class="kw">false</span> }, <span class="kw">new</span>() { CategoryId = <span class="nu">2</span>, IsActive = <span class="kw">false</span> }</pre>
+      <div class="assert-line">HasCount(0) in both cases — empty IN array matches nothing</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">MultiResult_WrongOperation_ThrowsAtBuildTime</span>
+      <span class="test-what">Using <code>Operation = "eq"</code> with <code>TestValueFilterExpressionMulti</code> throws at expression-build time.</span>
+    </div>
+    <div class="test-body">
+<pre>Operation = <span class="st">"eq"</span>,  <span class="co">// must be "in" or "nin" — anything else throws</span>
+FilterType = FilterType.TestValueFilterExpressionMulti
+
+Assert.Throws&lt;<span class="ty">InvalidDataException</span>&gt;(() =>
+    <span class="ty">FilterBuilder</span>&lt;<span class="ty">Product</span>&gt;.ProcessFilterSet(filterset, ...));</pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">MultiResult_CrossTypeDataset / MultiResult_WorksOnIQueryable / MultiResult_WorksOnIEnumerable / MultiResult_RoundTripsThroughJson</span>
+    </div>
+    <div class="test-body">
+<pre><span class="co">// Cross-type: Promotion dataset drives filtering on A.Value (different entity type)
+// The same pattern works regardless of what types are on each side</span>
+
+<span class="co">// IQueryable — expression tree passes directly to .Where(); EF Core generates IN (...)
+</span>
+var match = queryable.Where(expr).ToList(); <span class="co">// IQueryable, not compiled delegate</span>
+
+<span class="co">// IEnumerable — same expression compiled and evaluated in memory</span>
+IEnumerable&lt;<span class="ty">Product</span>&gt; source = products;
+var match = source.Where(func).ToList();
+
+<span class="co">// JSON round-trip — all TestValueFilterExpressionMulti fields survive serialization</span>
+var json = JsonSerializer.Serialize(original);
+var deserialized = JsonSerializer.Deserialize&lt;<span class="ty">FilterSet</span>&gt;(json);
+Assert.AreEqual(FilterType.TestValueFilterExpressionMulti, deserialized.Filters[0].FilterType);</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FEATURE B: BRANCH ══════════════════════════════════════════════════════ -->
+<section id="branch">
+  <h2><span class="sec-badge">B</span> Branch — Binary if/else <span class="count-badge">10 tests</span></h2>
+  <p>Branch resolves which FilterSet to compile at expression-build time. EF Core receives a single flat predicate with no conditional structure.</p>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Branch_ConditionTrue_CompilesBranchIfMatch</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">VipList contains CustomerId=42. ConditionFilterSet finds a match → BranchIfMatch compiles (Value &gt; 1). A2 (Value=2) matches.</div>
+<pre><span class="kw">var</span> vipList = <span class="kw">new</span> List&lt;<span class="ty">VipCustomer</span>&gt; { <span class="kw">new</span>() { CustomerId = <span class="nu">42</span> } };
+
+<span class="kw">var</span> filterset = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    FilterSetType      = FilterSetType.Branch,
+    ConditionParamKey  = <span class="st">"vipList"</span>,
+    ConditionFilterSet = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"CustomerId"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="nu">42</span> } ]
+    },
+    BranchIfMatch    = <span class="kw">new</span> <span class="ty">FilterSet</span> { Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"gt"</span>, TestValue = <span class="nu">1</span> } ] },
+    BranchIfNoMatch  = <span class="kw">new</span> <span class="ty">FilterSet</span> { Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="nu">1</span> } ] }
+};
+
+<span class="kw">var</span> expr = <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.ProcessFilterSet(filterset, <span class="kw">true</span>,
+    <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt; { [<span class="st">"vipList"</span>] = vipList });</pre>
+      <div class="assert-line">HasCount(1) — A2 (Value=2 &gt; 1); A1 (Value=1) excluded by BranchIfMatch filter</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Branch_ConditionFalse_CompilesBranchIfNoMatch</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Empty vipList — ConditionFilterSet matches nothing → BranchIfNoMatch compiles (Value == 1). A1 matches.</div>
+<pre><span class="kw">var</span> vipList = <span class="kw">new</span> List&lt;<span class="ty">VipCustomer</span>&gt;(); <span class="co">// empty</span>
+<span class="co">// ConditionFilterSet finds no match → BranchIfNoMatch selected at build time</span></pre>
+      <div class="assert-line">HasCount(1) — A1 (Value=1 == 1)</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Branch_ConditionFalse_NullBranchIfNoMatch_MatchesEverything</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent"><code>BranchIfNoMatch = null</code> compiles to <code>Expression.Constant(true)</code> — all items pass through.</div>
+<pre>BranchIfNoMatch = <span class="kw">null</span>
+<span class="co">// When condition is false and BranchIfNoMatch is null → match everything</span></pre>
+      <div class="assert-line">AreEqual(_data.Count, match.Count) — all items returned</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Branch_ConditionUsesTestValueParam_ResolvesCorrectly</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">The ConditionFilterSet itself uses <code>TestValueParam</code> — the customer ID comes from the same <code>params1</code> dictionary. Both the condition dataset and the scalar ID are in params1 simultaneously.</div>
+<pre>ConditionFilterSet: <span class="kw">new</span> <span class="ty">Filter</span> {
+    PropertyPath = <span class="st">"CustomerId"</span>, Operation = <span class="st">"eq"</span>,
+    FilterType   = FilterType.TestValueParam, ParamKey = <span class="st">"currentCustomerId"</span>
+}
+
+<span class="kw">var</span> params1 = <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;
+{
+    [<span class="st">"vipList"</span>]           = vipList,       <span class="co">// dataset</span>
+    [<span class="st">"currentCustomerId"</span>] = <span class="nu">42</span>            <span class="co">// scalar for condition comparison</span>
+};</pre>
+      <div class="assert-line">HasCount(1) — A2 — condition matched, BranchIfMatch (Value &gt; 1) applied</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Branch error cases — missing fields throw descriptive exceptions</span>
+    </div>
+    <div class="test-body">
+<pre><span class="co">// ConditionFilterSet is null</span>
+Assert.Throws&lt;<span class="ty">InvalidOperationException</span>&gt;(() => ...) <span class="co">// message contains "ConditionFilterSet"</span>
+
+<span class="co">// ConditionParamKey is null</span>
+Assert.Throws&lt;<span class="ty">InvalidOperationException</span>&gt;(() => ...) <span class="co">// message contains "ConditionParamKey"</span>
+
+<span class="co">// BranchIfMatch is null</span>
+Assert.Throws&lt;<span class="ty">InvalidOperationException</span>&gt;(() => ...) <span class="co">// message contains "BranchIfMatch"</span>
+
+<span class="co">// params1 exists but does not contain the ConditionParamKey</span>
+Assert.Throws&lt;<span class="ty">InvalidOperationException</span>&gt;(() => ...) <span class="co">// message contains the missing key name</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Branch_WorksOnIQueryable &nbsp;·&nbsp; Branch_WorksOnIEnumerable &nbsp;·&nbsp; Branch_RoundTripsThroughJson</span>
+    </div>
+    <div class="test-body">
+<pre><span class="co">// IQueryable — the resolved predicate is a standard expression tree</span>
+var match = queryable.Where(expr).ToList();
+
+<span class="co">// IEnumerable — compiled delegate, same result</span>
+IEnumerable&lt;<span class="ty">A</span>&gt; source = _data;
+var match = source.Where(func).ToList();
+
+<span class="co">// JSON round-trip — all Branch properties survive serialization</span>
+Assert.AreEqual(FilterSetType.Branch, deserialized.FilterSetType);
+Assert.AreEqual(<span class="st">"vipList"</span>, deserialized.ConditionParamKey);
+Assert.IsNotNull(deserialized.BranchIfMatch);
+Assert.IsNotNull(deserialized.BranchIfNoMatch);</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FEATURE B: SWITCH ══════════════════════════════════════════════════════ -->
+<section id="switch">
+  <h2><span class="sec-badge">B</span> Switch — Multi-Case Selection <span class="count-badge">7 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Switch_MatchesFirstCase_CorrectCaseCompiled</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">TierName="VIP" extracted from the first matching TierRule → VIP case compiles (Value &gt; 1). A2 matches.</div>
+<pre><span class="kw">var</span> tierRules = <span class="kw">new</span> List&lt;<span class="ty">TierRule</span>&gt; { <span class="kw">new</span>() { CustomerId = <span class="nu">5</span>, TierName = <span class="st">"VIP"</span> } };
+
+<span class="kw">var</span> filterset = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    FilterSetType       = FilterSetType.Switch,
+    ConditionParamKey   = <span class="st">"tierRules"</span>,
+    ConditionFilterSet  = <span class="kw">new</span> <span class="ty">FilterSet</span> {
+        Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"CustomerId"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="nu">5</span> } ]
+    },
+    SwitchValueProperty = <span class="st">"TierName"</span>,  <span class="co">// extract from first matching TierRule</span>
+    SwitchCases =
+    [
+        <span class="kw">new</span> <span class="ty">FilterSetCase</span> { WhenValue = <span class="st">"VIP"</span>,
+            Then = <span class="kw">new</span> <span class="ty">FilterSet</span> { Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"gt"</span>, TestValue = <span class="nu">1</span> } ] } },
+        <span class="kw">new</span> <span class="ty">FilterSetCase</span> { WhenValue = <span class="st">"Standard"</span>,
+            Then = <span class="kw">new</span> <span class="ty">FilterSet</span> { Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="nu">1</span> } ] } }
+    ],
+    SwitchDefault = <span class="kw">new</span> <span class="ty">FilterSet</span> { Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="nu">999</span> } ] }
+};</pre>
+      <div class="assert-line">HasCount(1) — A2 (Value=2 &gt; 1)</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Switch_NoMatchingCase_UsesSwitchDefault</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">TierName="Gold" — no matching case (only VIP and Standard defined). SwitchDefault compiles (Value == 1). A1 matches.</div>
+<pre>TierName = <span class="st">"Gold"</span>  <span class="co">// not in SwitchCases → SwitchDefault selected</span>
+SwitchDefault: Value == 1</pre>
+      <div class="assert-line">HasCount(1) — A1 (Value=1)</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Switch_CaseMatchIsCaseInsensitive</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent"><code>WhenValue</code> comparison is <code>OrdinalIgnoreCase</code>. TierName="vip" (lowercase) matches <code>WhenValue = "VIP"</code>.</div>
+<pre>TierName = <span class="st">"vip"</span>,  WhenValue = <span class="st">"VIP"</span>
+<span class="co">// StringComparison.OrdinalIgnoreCase → match</span></pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Switch_AllCasesCheckedInOrder_FirstMatchWins</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Two SwitchCases both have <code>WhenValue = "VIP"</code>. Only the first is compiled. The second case (Value==999) is never evaluated.</div>
+<pre>SwitchCases = [
+    <span class="kw">new</span>() { WhenValue = <span class="st">"VIP"</span>, Then = <span class="co">/* Value == 1 → A1 */</span> },  <span class="co">// ← first match, compiled</span>
+    <span class="kw">new</span>() { WhenValue = <span class="st">"VIP"</span>, Then = <span class="co">/* Value == 999 → no match */</span> }  <span class="co">// ← never reached</span>
+]</pre>
+      <div class="assert-line">HasCount(1) — A1 (first case compiled); second case with Value==999 ignored</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ NESTED BRANCHING ════════════════════════════════════════════════════════ -->
+<section id="nested">
+  <h2><span class="sec-badge">B</span> Nested Branching <span class="count-badge">2 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Branch_NestedBranch_InnerBranchResolvesCorrectly</span>
+      <span class="test-what">BranchIfMatch is itself a Branch-type FilterSet.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Outer Branch: vipList matches → enter BranchIfMatch (which is another Branch). Inner Branch: emptyList has no match → inner BranchIfNoMatch compiles (Value==1). A1 matches. The compiler recurses through the same entry point at each level.</div>
+<pre>Outer Branch (vipList matches → enter inner)
+  Inner Branch (emptyList → no match → BranchIfNoMatch)
+    BranchIfNoMatch: Value == 1
+
+<span class="kw">var</span> params1 = <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;
+{
+    [<span class="st">"vipList"</span>]   = vipList,    <span class="co">// has CustomerId=1 → outer condition matches</span>
+    [<span class="st">"emptyList"</span>] = emptyList   <span class="co">// empty → inner condition fails → inner BranchIfNoMatch</span>
+};</pre>
+      <div class="assert-line">HasCount(1) — A1 (Value=1); final output is a single flat predicate</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">Switch_NestedInsideBranch_ResolvesCorrectly</span>
+      <span class="test-what">Outer Branch selects BranchIfMatch; BranchIfMatch is a Switch that selects VIP case.</span>
+    </div>
+    <div class="test-body">
+<pre>Outer Branch (vipList matches → enter Switch)
+  Switch (TierName="VIP" → VIP case: Value &gt; 1)
+
+<span class="kw">var</span> params1 = <span class="kw">new</span> Dictionary&lt;<span class="kw">string</span>, <span class="kw">object</span>?&gt;
+{
+    [<span class="st">"vipList"</span>]   = vipList,    <span class="co">// outer condition dataset</span>
+    [<span class="st">"tierRules"</span>] = tierRules   <span class="co">// inner Switch condition dataset</span>
+};</pre>
+      <div class="assert-line">HasCount(1) — A2 (Value=2 &gt; 1); nested resolution, single flat predicate</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FIND FIRST MATCH ════════════════════════════════════════════════════════ -->
+<section id="findmatch">
+  <h2><span class="sec-badge">UTIL</span> FindFirstMatch — Priority Evaluation <span class="count-badge">3 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">FindFirstMatch_SequenceOrderDeterminesWinner</span>
+      <span class="test-what">FilterSets are sorted by Sequence before evaluation — insertion order is irrelevant.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Three FilterSets in the list in order: Sequence=3 (NoMatch), Sequence=2 (SpecificMatch: Name=="A1"), Sequence=1 (BroadMatch: Name begins with "A"). BroadMatch has the lowest Sequence so it's evaluated first and wins — even though it's last in the list.</div>
+<pre><span class="kw">var</span> filtersets = <span class="kw">new</span> List&lt;<span class="ty">FilterSet</span>&gt;
+{
+    <span class="kw">new</span>() { Sequence = <span class="nu">3</span>, Name = <span class="st">"NoMatch"</span>,      Filters = [<span class="co">/* Value == "DoesNotExist" */</span>] },
+    <span class="kw">new</span>() { Sequence = <span class="nu">2</span>, Name = <span class="st">"SpecificMatch"</span>, Filters = [<span class="co">/* Name == "A1" */</span>] },
+    <span class="kw">new</span>() { Sequence = <span class="nu">1</span>, Name = <span class="st">"BroadMatch"</span>,    Filters = [<span class="co">/* Name bw "A" */</span>] }
+};
+
+<span class="kw">var</span> result = <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.FindFirstMatch(_data, filtersets);</pre>
+      <div class="assert-line">result.Name == "BroadMatch" — Sequence=1 wins regardless of list position</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">FindFirstMatch_ReturnsFirstMatchingFilterSet</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Sequence=1 (Name="NoMatch") fails. Sequence=2 (Name=="A1") succeeds and is returned. The search stops at the first match.</div>
+<pre>Sequence=1: Name == "NoMatch"  <span class="co">// → fails, no item named "NoMatch"</span>
+Sequence=2: Name == "A1"       <span class="co">// → succeeds (A1 exists), returned immediately</span></pre>
+      <div class="assert-line">result.Name == "Second" (the Name field of the Sequence=2 FilterSet)</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">FindFirstMatch_ReturnsNullWhenNoMatch</span>
+    </div>
+    <div class="test-body">
+<pre>Sequence=1: Name == "DoesNotExist"  <span class="co">// no items match</span>
+<span class="kw">var</span> result = <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.FindFirstMatch(_data, filtersets);
+<span class="co">// No FilterSet matches any item → null returned, no exception</span></pre>
+      <div class="assert-line">IsNull(result)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ MISCELLANEOUS ══════════════════════════════════════════════════════════ -->
+<section id="misc">
+  <h2><span class="sec-badge">UTIL</span> Miscellaneous <span class="count-badge">5 tests</span></h2>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">LeafCollectionWithoutFilterSet_Throws</span>
+      <span class="test-what">A Filter whose PropertyPath resolves to a collection without a child FilterSet throws at build time.</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Collection properties require a child FilterSet to define the Any() predicate scope. A bare collection leaf (e.g. <code>PropertyPath = "Bcol"</code>, no FilterSet, an <code>Operation</code> set) is invalid.</div>
+<pre>Assert.Throws&lt;<span class="ty">InvalidDataException</span>&gt;(() => <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.ProcessFilterSet(filterset));</pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">GuidFilter_ExactMatch</span>
+      <span class="test-what">Filtering on a Guid property — TestValue as a string is coerced to Guid at build time.</span>
+    </div>
+    <div class="test-body">
+<pre><span class="kw">var</span> knownId = _data.First().Id;  <span class="co">// Guid from the first item</span>
+
+<span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Id"</span>, Operation = <span class="st">"eq"</span>, TestValue = knownId.ToString() }
+<span class="co">// string GUID coerced to Guid at expression-build time via Guid.Parse()</span></pre>
+      <div class="assert-line">HasCount(1) — exactly the item with the known Guid</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">sscMatch3 — nested FilterSets with mixed AND/OR operators</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">Two sibling FilterSets combined with AND at the parent level. First sibling is AND (Enum==Enum1). Second sibling is OR (Value==12 OR Value==19). The result: items where Enum=Enum1 AND (Value is 12 or 19).</div>
+      <div class="compiled">b =&gt; b.Enum == Enum1 &amp;&amp; (b.Value == 12 || b.Value == 19)</div>
+<pre><span class="kw">var</span> filterset = <span class="kw">new</span> <span class="ty">FilterSet</span>
+{
+    Operator = Operator.AND,
+    FilterSets = [
+        <span class="kw">new</span> <span class="ty">FilterSet</span> {
+            Filters = [ <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Enum"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"Enum1"</span> } ]
+        },
+        <span class="kw">new</span> <span class="ty">FilterSet</span> {
+            Operator = Operator.OR,
+            Filters = [
+                <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"12"</span> },
+                <span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Value"</span>, Operation = <span class="st">"eq"</span>, TestValue = <span class="st">"19"</span> }
+            ]
+        }
+    ]
+};</pre>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">ProcessFilterSets_DirectCall_CombinesCorrectly</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">The public <code>ProcessFilterSets</code> (plural) API accepts an explicit ParameterExpression and combines a collection of FilterSets with a given Operator. This is the engine behind nested FilterSet trees and is also usable directly.</div>
+<pre><span class="kw">var</span> parameter = Expression.Parameter(<span class="kw">typeof</span>(<span class="ty">A</span>), <span class="st">"a"</span>);
+<span class="ty">Expression</span> body = <span class="ty">FilterBuilder</span>&lt;<span class="ty">A</span>&gt;.ProcessFilterSets(parameter, Operator.AND, filtersets);
+<span class="kw">var</span> lambda = Expression.Lambda&lt;<span class="ty">Func</span>&lt;<span class="ty">A</span>, <span class="kw">bool</span>&gt;&gt;(body, parameter);</pre>
+      <div class="assert-line">HasCount(1) — Value=1 AND Enum=Enum1 → only A1</div>
+    </div>
+  </div>
+
+  <div class="test-card">
+    <div class="test-card-head">
+      <span class="test-name">DateFilter_GreaterThan — DateTime string coercion</span>
+    </div>
+    <div class="test-body">
+      <div class="test-intent">A string test value ("1901-01-01") is coerced to a DateTime constant at build time via <code>Convert.ChangeType</code>. A2.Date = 1902-01-20 matches; A1.Date = 1900-01-20 does not.</div>
+<pre><span class="kw">new</span> <span class="ty">Filter</span> { PropertyPath = <span class="st">"Date"</span>, Operation = <span class="st">"gt"</span>, TestValue = <span class="st">"1901-01-01"</span> }</pre>
+      <div class="assert-line">HasCount(1) — A2 (1902 &gt; 1901); A1 (1900) excluded</div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <p>Copyright &copy; 2026 Eben Freeman. All rights reserved.</p>
+  <p>Patent Pending &mdash; US Provisional Applications 64/009,218 (filed March 18, 2026) and 64/010,396 (filed March 19, 2026).</p>
+</footer>
+
+<script>
+  const ham = document.getElementById('hamburger');
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('overlay');
+  const openSidebar = () => { sidebar.classList.add('open'); overlay.classList.add('open'); document.body.classList.add('nav-open'); };
+  const closeSidebar = () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); document.body.classList.remove('nav-open'); };
+  ham.addEventListener('click', () => {
+    if (sidebar.classList.contains('open')) closeSidebar();
+    else openSidebar();
+  });
+  overlay.addEventListener('click', closeSidebar);
+  sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { if (window.innerWidth <= 768) closeSidebar(); }));
+
+  const topLabel = document.querySelector('.sidebar .sidebar-label');
+  if (topLabel && !topLabel.querySelector('.sidebar-top-link')) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sidebar-top-link';
+    btn.setAttribute('aria-label', 'Scroll to top of document');
+    btn.title = 'Scroll to top';
+    btn.textContent = '↑';
+    btn.addEventListener('click', () => {
+      sidebar.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (window.innerWidth <= 768) closeSidebar();
+    });
+    topLabel.appendChild(btn);
+  }
+
+  const links    = document.querySelectorAll('.sidebar a');
+  const sections = document.querySelectorAll('section[id]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const m = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+        if (m) m.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

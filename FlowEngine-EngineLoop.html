@@ -1,0 +1,2812 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowEngine — Implementation Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  /* ── Dark theme (default) ───────────────────────────────────────────────── */
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--text2:#c9d1d9;--muted:#8b949e;
+    --teal:#1D9E75;--amber:#EF9F27;--coral:#D85A30;--blue:#378ADD;
+    --purple:#7F77DD;--green:#3FB950;
+    --code-bg:#161b22;--inline-code-color:#EF9F27;
+    --h1-span-color:#1D9E75;
+    --th-bg:var(--bg3);
+    --tr-hover:rgba(255,255,255,.02);
+    --callout-teal-bg:rgba(29,158,117,.08);--callout-teal-fg:#b8e8d6;
+    --callout-amber-bg:rgba(239,159,39,.08);--callout-amber-fg:#f5d898;
+    --callout-blue-bg:rgba(55,138,221,.08);--callout-blue-fg:#a8ccee;
+        --arch-color:var(--muted);
+        --node-card-bg:var(--bg2);
+        --canvas-top:rgba(29,158,117,.08);
+        --canvas-bottom:rgba(55,138,221,.06);
+        --content-surface:rgba(22,27,34,.96);
+        --content-border:rgba(139,148,158,.28);
+        --content-shadow:0 28px 72px rgba(0,0,0,.32);
+        --content-max:920px;
+  }
+  /* ── Light theme ─────────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;
+    --text:#1f2328;--text2:#36454f;--muted:#656d76;
+    --teal:#1a7f64;--amber:#b45309;--coral:#bc4c00;--blue:#0969da;
+    --purple:#6e40c9;--green:#1a7f37;
+    --code-bg:#f6f8fa;--inline-code-color:#b45309;
+    --h1-span-color:#1a7f64;
+    --th-bg:#eaeef2;
+    --tr-hover:rgba(0,0,0,.02);
+    --callout-teal-bg:rgba(26,127,100,.08);--callout-teal-fg:#1a7f64;
+    --callout-amber-bg:rgba(180,83,9,.08);--callout-amber-fg:#b45309;
+    --callout-blue-bg:rgba(9,105,218,.08);--callout-blue-fg:#0969da;
+        --arch-color:#36454f;
+        --node-card-bg:#ffffff;
+        --canvas-top:rgba(26,127,100,.05);
+        --canvas-bottom:rgba(9,105,218,.04);
+        --content-surface:rgba(255,255,255,.94);
+        --content-border:rgba(208,215,222,.95);
+        --content-shadow:0 24px 56px rgba(31,35,40,.08);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;overflow-x:hidden;}
+    body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;transition:background .2s,color .2s;overflow-x:hidden;padding:0 clamp(12px,2.8vw,32px) 56px;}
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+    .doc-header{width:min(100%,var(--content-max));max-width:var(--content-max);background:var(--bg2);border:1px solid var(--content-border);padding:40px 64px 36px;position:relative;overflow:hidden;margin:16px auto 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header-badge{display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;}
+  .header-back{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:3px;transition:color .15s,border-color .15s;}
+  .header-back:hover{color:var(--text);border-color:var(--muted);}
+  .doc-header h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;}
+  .doc-header h1 span{color:var(--h1-span-color);}
+  .doc-header .tagline{font-size:15px;font-weight:300;color:var(--muted);max-width:640px;line-height:1.6;margin-bottom:0;}
+  .theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;margin-left:auto;}
+  .theme-toggle:hover{background:var(--border);color:var(--text);}
+
+  /* ── Content ─────────────────────────────────────────────────────────────── */
+    .content{width:min(100%,var(--content-max));max-width:var(--content-max);margin:20px auto 0;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  h2{font-size:22px;font-weight:600;color:var(--text);margin:52px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);letter-spacing:-.01em;}
+  h2:first-child{margin-top:0;}
+  h3{font-size:16px;font-weight:600;color:var(--text);margin:28px 0 8px;}
+  h4{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--teal);margin:20px 0 6px;letter-spacing:.02em;}
+  p{margin-bottom:12px;color:var(--text2);}
+  ul,ol{margin:0 0 12px 1.4rem;color:var(--text2);}
+  li{margin-bottom:4px;}
+  li p{margin-bottom:4px;}
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0;}
+  strong{color:var(--text);font-weight:600;}
+  blockquote{border-left:3px solid var(--border);padding:8px 16px;margin:12px 0;color:var(--muted);font-style:italic;}
+  blockquote p{color:var(--muted);}
+
+  /* ── Code ────────────────────────────────────────────────────────────────── */
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--inline-code-color);}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;overflow-x:auto;margin:12px 0 18px;position:relative;}
+  pre code{background:none;border:none;padding:0;color:var(--text);font-size:12.5px;line-height:1.65;}
+  .lang-tag{position:absolute;top:8px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+
+  /* ── Tables ──────────────────────────────────────────────────────────────── */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 18px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{background:var(--th-bg);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:8px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--tr-hover);}
+
+  /* ── Callouts ────────────────────────────────────────────────────────────── */
+  .callout{border-radius:6px;padding:13px 17px;margin:14px 0;border-left:3px solid;font-size:14px;line-height:1.65;}
+  .callout-teal{background:var(--callout-teal-bg);border-color:var(--teal);color:var(--callout-teal-fg);}
+  .callout-amber{background:var(--callout-amber-bg);border-color:var(--amber);color:var(--callout-amber-fg);}
+  .callout-blue{background:var(--callout-blue-bg);border-color:var(--blue);color:var(--callout-blue-fg);}
+  .callout strong{color:inherit;font-weight:600;}
+  .callout code{background:rgba(127,119,221,.1);border-color:var(--border);color:inherit;}
+
+  /* ── Divider ─────────────────────────────────────────────────────────────── */
+  .divider{height:1px;background:var(--border);margin:40px 0;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+    /* ── Responsive breakpoints ─────────────────────────────────────────────── */
+    @media (min-width: 769px) and (max-width: 1023px) {
+        .doc-header{padding:28px 32px 24px;}
+        .doc-header h1{font-size:24px;}
+        .content{padding:32px 28px;border-radius:22px;}
+    }
+
+    @media (min-width: 1024px) and (max-width: 1439px) {
+        .content{padding:40px 36px;}
+    }
+
+    @media (min-width: 1440px) {
+        body{padding:0 clamp(18px,3vw,40px) 64px;}
+    }
+
+    @media (max-width: 768px) {
+        body{padding:0 12px 32px;}
+        .doc-header{padding:24px 20px 20px;margin-top:12px;border-radius:20px;}
+        .doc-header h1{font-size:22px;}
+        .content{margin-top:16px;padding:24px 18px;border-radius:20px;}
+        pre{font-size:12px;padding:14px 16px;}
+    }
+</style>
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Implementation Guide</div>
+    <a class="header-back" href="FlowEngine-Design-Doc.html">← Tech Doc</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀️</button>
+  </div>
+  <h1><span>Flow</span>Engine — Engine Loop</h1>
+  <p class="tagline">Implementation reference for the core engine loop, background services, and DI registration.</p>
+</div>
+<div class="content">
+<h2>Overview</h2>
+<p>The core engine loop — the orchestrator that takes an <code>ExecutionInstance</code> from one stable state to the next.
+Central piece that all node executors, state store implementations, and background services depend on.</p>
+<p><strong>Related docs:</strong><br />
+- <code>FlowEngine-CoreSchema.md</code> — <code>ExecutionInstance</code>, all interfaces (canonical)<br />
+- <code>FlowEngine-WorkflowDefinition.md</code> — <code>WorkflowDefinition</code>, <code>NodeDefinition</code>, <code>EdgeDefinition</code></p>
+<p><strong>Key files:</strong><br />
+- <code>EF.FlowEngine/Engine/FlowEngine.cs</code>                    — main engine class<br />
+- <code>EF.FlowEngine/Engine/WhenEvaluator.cs</code>                 — edge predicate evaluator<br />
+- <code>EF.FlowEngine/Engine/RetryHandler.cs</code>                  — retry policy logic<br />
+- <code>EF.FlowEngine/Engine/ChildSignalHandler.cs</code>            — child→parent signalling<br />
+- <code>EF.FlowEngine/Background/ExecutionSweepService.cs</code>          — background sweep<br />
+- <code>EF.FlowEngine/Background/LeaseRenewalService.cs</code>            — claim heartbeat<br />
+- <code>EF.FlowEngine/Background/FlowEngineInitializationService.cs</code> — startup validation (confirms all registered clients and executors are wired up)<br />
+- <code>EF.FlowEngine/FlowEngineServiceExtensions.cs</code>               — DI registration</p>
+<hr />
+<h2>1. FlowEngine — main class</h2>
+<h3>Constructor dependencies</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class FlowEngine : IFlowEngine
+{
+    private readonly IExecutionStateStore    _stateStore;
+    private readonly IDistributedLockProvider _lockProvider;
+    private readonly IWorkflowRegistry       _workflowRegistry;
+    private readonly INodeExecutorRegistry   _executorRegistry;
+    private readonly IClientRegistry         _clientRegistry;
+    private readonly IServiceProvider        _services;
+    private readonly FlowEngineOptions       _options;
+    private readonly ILogger&lt;FlowEngine&gt;     _logger;
+    private readonly WhenEvaluator           _whenEvaluator;
+    private readonly IFlowEngineTelemetry?   _telemetry;
+
+    // Tracks instances this process is actively executing.
+    // Used by LeaseRenewalService to know which claims to renew.
+    internal readonly ConcurrentDictionary&lt;string, CancellationTokenSource&gt;
+        ActiveExecutions = new();
+
+    public FlowEngine(
+        IExecutionStateStore     stateStore,
+        IDistributedLockProvider lockProvider,
+        IWorkflowRegistry        workflowRegistry,
+        INodeExecutorRegistry    executorRegistry,
+        IClientRegistry          clientRegistry,
+        IServiceProvider         services,
+        FlowEngineOptions        options,
+        ILogger&lt;FlowEngine&gt;      logger,
+        WhenEvaluator            whenEvaluator,
+        IFlowEngineTelemetry?    telemetry = null)
+    { ... }
+}
+</code></pre>
+<h3>Public API</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;Start a new workflow instance.&lt;/summary&gt;
+public Task&lt;ExecutionInstance&gt; StartAsync(StartRequest request, CancellationToken ct = default);
+
+/// &lt;summary&gt;Start multiple workflow instances concurrently.&lt;/summary&gt;
+public Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; StartManyAsync(
+    IEnumerable&lt;StartRequest&gt; requests,
+    CancellationToken ct = default);
+
+/// &lt;summary&gt;
+/// Resume a suspended instance when an external signal arrives.
+/// Looks up the suspended instance by eventName + correlationKey.
+/// Falls back to a direct load by instanceId if the event lookup misses
+/// (e.g. PendingWait was already cleared). Idempotent if already past suspension.
+/// &lt;/summary&gt;
+public Task&lt;ExecutionInstance&gt; ResumeAsync(
+    string        instanceId,
+    string        eventName,
+    string        correlationKey,
+    JsonElement?  signalPayload = null,
+    CancellationToken ct        = default);
+
+/// &lt;summary&gt;Cancel a running or suspended instance. Cascades to non-terminal children.&lt;/summary&gt;
+public Task&lt;ExecutionInstance&gt; CancelAsync(
+    string instanceId,
+    string reason,
+    CancellationToken ct = default);
+
+/// &lt;summary&gt;
+/// Resume a suspended instance directly by instanceId.
+/// Use when you know the instanceId (admin UI, monitoring, manual intervention).
+/// For external triggers (webhooks, Service Bus) prefer ResumeAsync which
+/// uses eventName + correlationKey.
+/// &lt;/summary&gt;
+public Task&lt;ExecutionInstance&gt; ResumeByInstanceIdAsync(
+    string        instanceId,
+    JsonElement?  signalPayload = null,
+    CancellationToken ct        = default);
+
+/// &lt;summary&gt;
+/// Migrate a non-terminal instance to a different workflow version.
+/// Optionally remaps the current node ID via nodeIdMap.
+/// Throws if the target node does not exist in the target version.
+/// &lt;/summary&gt;
+public Task&lt;ExecutionInstance&gt; MigrateInstanceAsync(
+    string                               instanceId,
+    string                               targetVersion,
+    IReadOnlyDictionary&lt;string, string&gt;? nodeIdMap = null,
+    CancellationToken                    ct         = default);
+
+/// &lt;summary&gt;
+/// Delete a workflow version from the registry.
+/// Throws if any Running or Suspended instances exist on that version.
+/// Transitions Active → Draft before deleting (registry requires Draft state).
+/// &lt;/summary&gt;
+public Task DeleteWorkflowVersionAsync(
+    string workflowId, string version, CancellationToken ct = default);
+
+/// &lt;summary&gt;
+/// Internal: resume from a child signal (loop/parallel/workflow node completion).
+/// Called by ChildSignalHandler after acquiring the parent lock with childSignalClaimantId.
+/// Enqueues the signal, releases the child-signal lock, then runs the engine loop.
+/// &lt;/summary&gt;
+internal Task ResumeChildAsync(
+    string            parentInstanceId,
+    ChildSignal       signal,
+    string            childSignalClaimantId,
+    CancellationToken ct = default);
+</code></pre>
+<h3>StartAsync implementation</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;ExecutionInstance&gt; StartAsync(StartRequest request, CancellationToken ct = default)
+{
+    var workflowId       = request.WorkflowId;
+    var entity           = request.Entity;
+    var @params          = request.Params;
+    var correlationId    = request.CorrelationId;
+    var tags             = request.Tags;
+    var deadline         = request.Deadline;
+    var parentInstanceId = request.ParentInstanceId;
+    var parentNodeId     = request.ParentNodeId;
+
+    // 1. Load and validate workflow definition
+    var definition = await _workflowRegistry.GetAsync(workflowId, version: null, ct)
+        ?? throw new WorkflowNotFoundException(workflowId);
+
+    if (definition.Status != DefinitionStatus.Active)
+        throw new WorkflowNotActiveException(workflowId, definition.Status);
+
+    // 2. Validate all client dependencies are registered and reachable
+    await ValidateWorkflowDependenciesAsync(definition, ct);
+
+    // 3. Validate params against definition.ParamsSchema if set
+    if (!string.IsNullOrWhiteSpace(definition.ParamsSchema))
+    {
+        var paramsErrors = ParamsSchemaValidator.Validate(
+            definition.ParamsSchema,
+            @params as IReadOnlyDictionary&lt;string, ContextValue&gt;
+                ?? @params?.ToDictionary(kv =&gt; kv.Key, kv =&gt; kv.Value));
+        if (paramsErrors.Count &gt; 0)
+            throw new ArgumentException(
+                $&quot;Workflow '{workflowId}' params schema validation failed: &quot;
+                + string.Join(&quot;; &quot;, paramsErrors));
+    }
+
+    // 4. Create instance
+    var instance = new ExecutionInstance
+    {
+        InstanceId       = Guid.NewGuid().ToString(&quot;N&quot;),
+        WorkflowId       = definition.Id,
+        WorkflowVersion  = definition.Version,
+        CorrelationId    = correlationId,
+        Status           = ExecStatus.Running,
+        CurrentNodeId    = definition.EntryNodeId,
+        CreatedAt        = DateTimeOffset.UtcNow,
+        UpdatedAt        = DateTimeOffset.UtcNow,
+        Deadline         = deadline,
+        ParentInstanceId = parentInstanceId,
+        ParentNodeId     = parentNodeId,
+        Tags             = MergeTags(definition.DefaultTags, tags),
+        Context          = new ContextDictionary
+        {
+            Entity  = entity,
+            Params  = @params,
+            Context = new Dictionary&lt;string, ContextValue&gt;()
+        }
+    };
+
+    // 5. Save initial state (no claim needed — nobody else knows this ID yet)
+    await _stateStore.SaveAsync(instance, ct);
+
+    // 6. Emit telemetry
+    EmitEvent(&quot;flow.instance.started&quot;, instance);
+
+    // 7. Run the engine loop
+    return await ExecuteLoopAsync(instance, ct);
+}
+
+// ── ValidateWorkflowDependenciesAsync ──────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Called before any instance starts. Scans all nodes for clientRef values,
+/// verifies each is registered in the IClientRegistry, and calls ValidateAsync
+/// on each to confirm connectivity.
+///
+/// Fails fast with a MissingClientException before any execution begins.
+/// This prevents workflows with misconfigured dependencies from silently
+/// failing on the first node that tries to use an unregistered client.
+/// &lt;/summary&gt;
+private async Task ValidateWorkflowDependenciesAsync(
+    WorkflowDefinition definition, CancellationToken ct)
+{
+    // Extract all clientRefs from node configs
+    var clientRefs = definition.Nodes.Values
+        .Select(n =&gt; ExtractClientRef(n))
+        .Where(r =&gt; r != null)
+        .Distinct()
+        .ToList();
+
+    foreach (var clientRef in clientRefs)
+    {
+        var client = _clientRegistry.Get(clientRef!)
+            ?? throw new MissingClientException(
+                $&quot;Workflow '{definition.Id}' node requires client '{clientRef}' &quot; +
+                $&quot;which is not registered. Register it via &quot; +
+                $&quot;FlowEngineBuilder.AddClient(\&quot;{clientRef}\&quot;, ...).&quot;);
+
+        try
+        {
+            await client.ValidateAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            throw new ClientValidationException(
+                $&quot;Client '{clientRef}' required by workflow '{definition.Id}' &quot; +
+                $&quot;failed validation: {ex.Message}&quot;, ex);
+        }
+    }
+}
+
+/// &lt;summary&gt;
+/// Extract the clientRef from a node's Config JsonElement.
+/// Returns null for node types that don't use external clients.
+/// &lt;/summary&gt;
+private static string? ExtractClientRef(NodeDefinition node)
+{
+    try
+    {
+        if (node.Config.ValueKind == JsonValueKind.Object
+            &amp;&amp; node.Config.TryGetProperty(&quot;clientRef&quot;, out var prop))
+            return prop.GetString();
+    }
+    catch { /* ignore deserialization errors — caught at execution time */ }
+    return null;
+}
+</code></pre>
+<p>Add to exceptions:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public class MissingClientException    : Exception { public MissingClientException(string msg) : base(msg) {} }
+public class ClientValidationException : Exception { public ClientValidationException(string msg, Exception inner) : base(msg, inner) {} }
+</code></pre>
+<h3>ResumeAsync implementation</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;ExecutionInstance&gt; ResumeAsync(
+    string instanceId, string eventName, string correlationKey,
+    JsonElement? signalPayload = null, CancellationToken ct = default)
+{
+    var instance = await _stateStore.FindBySuspendedEventAsync(eventName, correlationKey, ct);
+
+    // Fallback: event lookup may miss if PendingWait was already cleared.
+    // Return idempotently if the instance is already past suspension.
+    if (instance == null)
+    {
+        var direct = await _stateStore.LoadAsync(instanceId, ct)
+            ?? throw new InstanceNotFoundException(instanceId);
+        if (direct.Status != ExecStatus.Suspended || direct.PendingWait == null)
+            return direct;
+        throw new InstanceNotFoundException(instanceId);
+    }
+
+    if (instance.Status != ExecStatus.Suspended)
+        return instance; // idempotent
+
+    if (instance.PendingWait == null)
+        return instance; // corrupted state: suspended without pending wait
+
+    // Append signal to ReceivedSignals
+    instance.PendingWait.ReceivedSignals.Add(
+        signalPayload ?? JsonSerializer.SerializeToElement(new {}));
+
+    // Not enough signals yet — save and return
+    if (instance.PendingWait.ReceivedSignals.Count &lt; instance.PendingWait.MinSignalCount)
+    {
+        instance.UpdatedAt = DateTimeOffset.UtcNow;
+        await _stateStore.SaveAsync(instance, ct);
+        return instance;
+    }
+
+    // Enough signals — write payload to context, advance past the wait node, run loop
+    AppendSignalToContext(instance, signalPayload);
+    await AdvancePastCurrentNodeAsync(instance, DecisionOutcome.Match, ct);
+    await _stateStore.SaveAsync(instance, ct);
+
+    EmitEvent(&quot;flow.instance.resumed&quot;, instance);
+    return await ExecuteLoopAsync(instance, ct);
+}
+
+// ── ResumeByInstanceIdAsync ────────────────────────────────────────────────────
+
+public async Task&lt;ExecutionInstance&gt; ResumeByInstanceIdAsync(
+    string instanceId, JsonElement? signalPayload = null, CancellationToken ct = default)
+{
+    var instance = await _stateStore.LoadAsync(instanceId, ct)
+        ?? throw new InstanceNotFoundException(instanceId);
+
+    if (instance.Status != ExecStatus.Suspended)
+        return instance; // idempotent
+
+    if (instance.PendingWait != null)
+    {
+        instance.PendingWait.ReceivedSignals.Add(
+            signalPayload ?? JsonSerializer.SerializeToElement(new {}));
+
+        if (instance.PendingWait.ReceivedSignals.Count &lt; instance.PendingWait.MinSignalCount)
+        {
+            instance.UpdatedAt = DateTimeOffset.UtcNow;
+            await _stateStore.SaveAsync(instance, ct);
+            return instance;
+        }
+    }
+
+    AppendSignalToContext(instance, signalPayload);
+    await AdvancePastCurrentNodeAsync(instance, DecisionOutcome.Match, ct);
+    await _stateStore.SaveAsync(instance, ct);
+
+    EmitEvent(&quot;flow.instance.resumed&quot;, instance);
+    return await ExecuteLoopAsync(instance, ct);
+}
+</code></pre>
+<hr />
+<h2>2. ExecuteLoopAsync — the main loop</h2>
+<p>This is the core. Implement exactly as specified below. Do not deviate<br />
+from the sequence.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">private async Task&lt;ExecutionInstance&gt; ExecuteLoopAsync(
+    ExecutionInstance instance,
+    CancellationToken hostCt)
+{
+    var claimantId = _options.ClaimantId;
+
+    // ── Phase 1: Acquire claim ────────────────────────────────────────────────
+    var claimed = await _lockProvider.TryAcquireAsync(
+        instance.InstanceId, claimantId, _options.DefaultLeaseDuration, hostCt);
+
+    if (!claimed)
+    {
+        _logger.LogDebug(&quot;Instance {Id} already claimed — skipping&quot;, instance.InstanceId);
+        return instance;
+    }
+
+    // Register with lease renewal service
+    var executionCts = CancellationTokenSource.CreateLinkedTokenSource(hostCt);
+    ActiveExecutions[instance.InstanceId] = executionCts;
+    var ct = executionCts.Token;
+
+    try
+    {
+        // ── Phase 2: Load fresh state ──────────────────────────────────────────
+        var fresh = await _stateStore.LoadAsync(instance.InstanceId, ct);
+        if (fresh == null)
+        {
+            _logger.LogWarning(&quot;Instance {Id} not found after claim&quot;, instance.InstanceId);
+            return instance;
+        }
+        instance = fresh;
+
+        var definition = await _workflowRegistry.GetAsync(
+            instance.WorkflowId, instance.WorkflowVersion, ct);
+        if (definition is null)
+        {
+            await FaultInstanceAsync(instance, &quot;DEFINITION_NOT_FOUND&quot;,
+                $&quot;Workflow '{instance.WorkflowId}@{instance.WorkflowVersion}' not found in registry.&quot;,
+                instance.CurrentNodeId);
+            await _stateStore.SaveAsync(instance, ct);
+            EmitFinalEvent(instance);
+            return instance;
+        }
+
+        // Use per-workflow lease duration override when specified
+        var leaseDuration = definition.DefaultLeaseDuration ?? _options.DefaultLeaseDuration;
+
+        // Update claim fields on the instance
+        instance.ClaimedBy      = claimantId;
+        instance.ClaimedAt      = DateTimeOffset.UtcNow;
+        instance.ClaimExpiresAt = DateTimeOffset.UtcNow.Add(leaseDuration);
+
+        // Dequeue any pending child signals (processed inside loop/parallel executors)
+        await _stateStore.DequeueChildSignalsAsync(instance.InstanceId, ct);
+
+    // ── Phase 3: Execution loop ───────────────────────────────────────────
+    //
+    // PERSISTENCE MODEL:
+    // SaveAsync is called at loop EXIT only (Phase 4), not after every node.
+    // A chain of synchronous nodes runs entirely in memory. On crash recovery
+    // the sweep service reclaims the instance and the chain re-executes from
+    // the last saved CurrentNodeId. All node executors MUST be idempotent.
+    // The only exception is the checkpoint node, which sets ForceCheckpoint=true
+    // in its NodeResult, triggering an immediate mid-loop SaveAsync (see step 3k).
+    //
+    var deadlineHandled = false;
+    while (true)
+    {
+            ct.ThrowIfCancellationRequested();
+
+            // ── 3a. Check instance-level deadline ─────────────────────────────
+            if (!deadlineHandled &amp;&amp; instance.Deadline.HasValue
+                &amp;&amp; instance.Deadline.Value &lt;= DateTimeOffset.UtcNow)
+            {
+                if (definition.GlobalOnDeadlineNodeId != null)
+                {
+                    instance.CurrentNodeId = definition.GlobalOnDeadlineNodeId;
+                    deadlineHandled = true; // prevent re-triggering on subsequent iterations
+                    continue;
+                }
+                else
+                {
+                    instance.Status      = ExecStatus.TimedOut;
+                    instance.CompletedAt = DateTimeOffset.UtcNow;
+                    instance.Error = new ExecutionError
+                    {
+                        Code       = &quot;INSTANCE_DEADLINE_EXCEEDED&quot;,
+                        Message    = $&quot;Instance deadline {instance.Deadline} exceeded&quot;,
+                        NodeId     = instance.CurrentNodeId,
+                        OccurredAt = DateTimeOffset.UtcNow
+                    };
+                    break;
+                }
+            }
+
+            // ── 3b. Load current node ─────────────────────────────────────────
+            if (!definition.Nodes.TryGetValue(instance.CurrentNodeId, out var node))
+            {
+                await FaultInstanceAsync(instance,
+                    &quot;NODE_NOT_FOUND&quot;,
+                    $&quot;Node '{instance.CurrentNodeId}' not found in workflow '{instance.WorkflowId}'&quot;,
+                    instance.CurrentNodeId);
+                break;
+            }
+
+            // ── 3c. MaxVisits guard ───────────────────────────────────────────
+            var visits = instance.NodeVisitCounts.GetValueOrDefault(node.Id, 0) + 1;
+            instance.NodeVisitCounts[node.Id] = visits;
+
+            if (visits &gt; node.MaxVisits)
+            {
+                instance.Status      = ExecStatus.CycleDetected;
+                instance.CompletedAt = DateTimeOffset.UtcNow;
+                instance.Error = new ExecutionError
+                {
+                    Code       = &quot;MAX_VISITS_EXCEEDED&quot;,
+                    Message    = $&quot;Node '{node.Id}' visited {visits} times (max {node.MaxVisits})&quot;,
+                    NodeId     = node.Id,
+                    OccurredAt = DateTimeOffset.UtcNow
+                };
+                break;
+            }
+
+            // ── 3d. Execute node (with retry) ─────────────────────────────────
+            EmitEvent(&quot;flow.node.started&quot;, instance, node);
+            var startedAt = DateTimeOffset.UtcNow;
+
+            var (result, attemptCount) = await ExecuteWithRetryAsync(
+                node, instance, definition, ct);
+
+            var completedAt = DateTimeOffset.UtcNow;
+            EmitEvent(&quot;flow.node.completed&quot;, instance, node, result,
+                (completedAt - startedAt).TotalMilliseconds);
+
+            // ── 3e. Apply storeAs ─────────────────────────────────────────────
+            if (node.StoreAs != null &amp;&amp; result.Output != null)
+                instance.Context.Store(node.StoreAs, result.Output);
+
+            // ── 3f. Build history record ──────────────────────────────────────
+            var record = new NodeExecutionRecord
+            {
+                NodeId         = node.Id,
+                NodeType       = node.Type,
+                NodeLabel      = node.Label,
+                StartedAt      = startedAt,
+                CompletedAt    = completedAt,
+                Outcome        = result.Outcome,
+                StoredAs       = node.StoreAs,
+                OutputSnapshot = result.Output,
+                HttpStatusCode = result.HttpStatusCode,
+                AttemptNumber  = attemptCount,
+                Error          = result.Error
+            };
+
+            // ── 3g. Handle suspension (wait / human nodes) ────────────────────
+            if (result.PendingWait != null)
+            {
+                instance.PendingWait       = result.PendingWait;
+                instance.PendingHumanTaskId= result.HumanTaskId;
+                instance.Status            = ExecStatus.Suspended;
+                instance.UpdatedAt         = DateTimeOffset.UtcNow;
+                record.BranchTaken         = &quot;suspended&quot;;
+                instance.History.Add(record);
+
+                EmitEvent(&quot;flow.instance.suspended&quot;, instance);
+                break; // → Phase 4: save + release
+            }
+
+            // ── 3h. Resolve next node via edge evaluation ─────────────────────
+            string? nextNodeId = null;
+            string? branchLabel = null;
+
+            foreach (var edge in node.Edges)
+            {
+                // Check outcome match (null/empty On = catch-all)
+                var outcomeMatches = edge.On == null
+                    || edge.On.Count == 0
+                    || edge.On.Contains(result.Outcome);
+
+                if (!outcomeMatches) continue;
+
+                // Evaluate When predicate if present
+                if (edge.When != null)
+                {
+                    var ctx = BuildExecutionContext(instance, definition);
+                    var whenMet = await _whenEvaluator.EvaluateAsync(edge.When, ctx, ct);
+                    if (!whenMet) continue;
+                }
+
+                nextNodeId  = edge.NextNodeId;
+                branchLabel = edge.Label;
+                break;
+            }
+
+            record.BranchTaken = branchLabel;
+            instance.History.Add(record);
+
+            // ── 3i. Handle no matching edge ───────────────────────────────────
+            if (nextNodeId == null)
+            {
+                // No edges at all = terminal output node
+                if (node.Edges.Count == 0)
+                {
+                    instance.Status      = ExecStatus.Completed;
+                    instance.CompletedAt = DateTimeOffset.UtcNow;
+                    instance.Output      = result.Output;
+                    break;
+                }
+
+                // Error outcome with global handler
+                if (result.Outcome == DecisionOutcome.Error
+                    &amp;&amp; definition.GlobalOnFailureNodeId != null)
+                {
+                    instance.CurrentNodeId = definition.GlobalOnFailureNodeId;
+                    continue;
+                }
+
+                // No handler — fault
+                await FaultInstanceAsync(instance,
+                    &quot;NO_MATCHING_EDGE&quot;,
+                    $&quot;No edge matched outcome '{result.Outcome}' from node '{node.Id}'&quot;,
+                    node.Id);
+                break;
+            }
+
+            // ── 3j. Advance to next node ──────────────────────────────────────
+            instance.CurrentNodeId = nextNodeId;
+            instance.UpdatedAt     = DateTimeOffset.UtcNow;
+
+            // ── 3k. Checkpoint — force mid-loop save if node requested it ────────
+            // Only the checkpoint node executor sets ForceCheckpoint = true.
+            // All other executors leave it false — saves happen at loop exit only.
+            // After a checkpoint save, CurrentNodeId is already nextNodeId so
+            // crash recovery resumes from the node AFTER the checkpoint, not before.
+            if (result.ForceCheckpoint)
+            {
+                _logger.LogDebug(&quot;Checkpoint at node {Id} instance {Inst}&quot;,
+                    node.Id, instance.InstanceId);
+                EmitEvent(&quot;flow.checkpoint.saved&quot;, instance);
+                await SaveWithRetryAsync(instance, claimantId, ct);
+                // Do NOT release claim — execution is still active
+            }
+
+            // continue loop
+        }
+    }
+    catch (OperationCanceledException) when (!hostCt.IsCancellationRequested)
+    {
+        // Per-node timeout — already handled inside ExecuteWithRetryAsync
+        // If we reach here the instance is already faulted
+    }
+    catch (OperationCanceledException)
+    {
+        // Host shutdown — save state as-is (sweep will reclaim)
+        instance.UpdatedAt = DateTimeOffset.UtcNow;
+        // Status stays Running — do NOT transition to Cancelled
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, &quot;Unhandled exception in engine loop for {Id}&quot;, instance.InstanceId);
+        await FaultInstanceAsync(instance, &quot;ENGINE_ERROR&quot;, ex.Message,
+            instance.CurrentNodeId);
+    }
+    finally
+    {
+        // ── Phase 4: Save and release ─────────────────────────────────────────
+        ActiveExecutions.TryRemove(instance.InstanceId, out _);
+        executionCts.Dispose();
+
+        instance.UpdatedAt = DateTimeOffset.UtcNow;
+        if (IsTerminal(instance.Status) &amp;&amp; !instance.CompletedAt.HasValue)
+            instance.CompletedAt = DateTimeOffset.UtcNow;
+
+        await SaveWithRetryAsync(instance, claimantId, hostCt);
+
+        if (instance.Status == ExecStatus.Suspended || IsTerminal(instance.Status))
+            await _lockProvider.ReleaseAsync(instance.InstanceId, claimantId, hostCt);
+
+        // Clear claim fields after release
+        instance.ClaimedBy      = null;
+        instance.ClaimedAt      = null;
+        instance.ClaimExpiresAt = null;
+
+        EmitFinalEvent(instance);
+
+        // After suspension: flush any child signals enqueued while the parent's lock was
+        // held (e.g. sequential loop items that completed synchronously before the parent
+        // could suspend). Without this, those signals would be stuck until the sweep fires.
+        if (instance.Status == ExecStatus.Suspended)
+        {
+            var pendingSignals = await _stateStore.DequeueChildSignalsAsync(
+                instance.InstanceId, hostCt);
+
+            if (pendingSignals.Count &gt; 0)
+            {
+                foreach (var sig in pendingSignals)
+                    await _stateStore.EnqueueChildSignalAsync(instance.InstanceId, sig, hostCt);
+
+                var reloaded = await _stateStore.LoadAsync(instance.InstanceId, hostCt);
+                if (reloaded?.Status == ExecStatus.Suspended)
+                {
+                    reloaded.Status    = ExecStatus.Running;
+                    reloaded.UpdatedAt = DateTimeOffset.UtcNow;
+                    _ = Task.Run(() =&gt; ExecuteLoopAsync(reloaded, hostCt), hostCt);
+                }
+            }
+        }
+
+        // If this instance has a parent, signal it
+        if (IsTerminal(instance.Status) &amp;&amp; instance.ParentInstanceId != null)
+            await ChildSignalHandler.SignalParentAsync(instance, _stateStore,
+                _lockProvider, this, _logger, hostCt);
+    }
+
+    return instance;
+}
+</code></pre>
+<hr />
+<h2>3. ExecuteWithRetryAsync</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">private async Task&lt;(NodeResult result, int attemptCount)&gt; ExecuteWithRetryAsync(
+    NodeDefinition    node,
+    ExecutionInstance instance,
+    WorkflowDefinition definition,
+    CancellationToken ct)
+{
+    var policy       = node.RetryPolicy ?? definition.DefaultRetryPolicy;
+    var executor     = _executorRegistry.Get(node.Type)
+                       ?? throw new NodeExecutorNotFoundException(node.Type);
+    var ctx          = BuildExecutionContext(instance, definition);
+    var attemptCount = 0;
+
+    while (true)
+    {
+        attemptCount++;
+
+        // Apply per-node execution timeout
+        using var nodeCts = node.ExecutionTimeout.HasValue
+            ? CancellationTokenSource.CreateLinkedTokenSource(ct)
+            : null;
+        if (nodeCts != null)
+            nodeCts.CancelAfter(node.ExecutionTimeout!.Value);
+        var nodeCt = nodeCts?.Token ?? ct;
+
+        NodeResult result;
+        try
+        {
+            result = await executor.ExecuteAsync(node, instance, ctx, nodeCt);
+        }
+        catch (OperationCanceledException) when (
+            nodeCts != null &amp;&amp; nodeCts.IsCancellationRequested)
+        {
+            // Per-node timeout (not host cancellation)
+            result = new NodeResult
+            {
+                Outcome = DecisionOutcome.Error,
+                Error   = new ExecutionError
+                {
+                    Code       = &quot;NODE_EXECUTION_TIMEOUT&quot;,
+                    Message    = $&quot;Node '{node.Id}' exceeded timeout {node.ExecutionTimeout}&quot;,
+                    NodeId     = node.Id,
+                    OccurredAt = DateTimeOffset.UtcNow
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            result = new NodeResult
+            {
+                Outcome = DecisionOutcome.Error,
+                Error   = new ExecutionError
+                {
+                    Code       = &quot;NODE_EXECUTOR_EXCEPTION&quot;,
+                    Message    = ex.Message,
+                    Detail     = ex.ToString(),
+                    NodeId     = node.Id,
+                    OccurredAt = DateTimeOffset.UtcNow
+                }
+            };
+        }
+
+        // Check if retry applies
+        if (policy != null
+            &amp;&amp; policy.RetryOn.Contains(result.Outcome)
+            &amp;&amp; attemptCount &lt; policy.MaxAttempts
+            &amp;&amp; !ct.IsCancellationRequested)
+        {
+            var delay = RetryHandler.CalculateDelay(policy, attemptCount);
+            _logger.LogDebug(
+                &quot;Retrying node {NodeId} attempt {Attempt}/{Max} after {Delay}ms&quot;,
+                node.Id, attemptCount, policy.MaxAttempts, delay.TotalMilliseconds);
+            await Task.Delay(delay, ct);
+            continue;
+        }
+
+        return (result, attemptCount);
+    }
+}
+</code></pre>
+<hr />
+<h2>4. WhenEvaluator</h2>
+<p>Instance-based singleton. Scripts compiled once and cached up to <code>FlowEngineOptions.ScriptCacheSize</code> entries (default 1000). When the cache is full, 10% of entries are evicted to prevent unbounded memory growth. Shared across all concurrent workflow instances.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Evaluates EdgeDefinition.When predicate expressions using Roslyn scripting.
+/// Exposes four dictionaries as script globals: Context, Entity, Params, Engine.
+/// &lt;/summary&gt;
+public class WhenEvaluator
+{
+    public class Globals
+    {
+        /// &lt;summary&gt;Workflow context dictionary ($.context.*) with unwrapped CLR values.&lt;/summary&gt;
+        public IReadOnlyDictionary&lt;string, object?&gt; Context { get; set; } = null!;
+        /// &lt;summary&gt;
+        /// Engine metadata: instanceId, workflowId, currentNodeId, status,
+        /// visits (node visit count map), totalVisits.
+        /// &lt;/summary&gt;
+        public IReadOnlyDictionary&lt;string, object?&gt; Engine  { get; set; } = null!;
+        /// &lt;summary&gt;Primary entity ($.entity) as string-keyed CLR dictionary.&lt;/summary&gt;
+        public IReadOnlyDictionary&lt;string, object?&gt; Entity  { get; set; } = null!;
+        /// &lt;summary&gt;Workflow start parameters ($.params.*).&lt;/summary&gt;
+        public IReadOnlyDictionary&lt;string, object?&gt; Params  { get; set; } = null!;
+    }
+
+    private readonly int _maxCacheSize;
+    private readonly Lock _cacheLock = new();
+    private readonly Dictionary&lt;string, Script&lt;object&gt;&gt; _cache = [];
+
+    private static readonly ScriptOptions _scriptOptions = ScriptOptions.Default
+        .AddImports(&quot;System&quot;, &quot;System.Linq&quot;, &quot;System.Collections.Generic&quot;, &quot;System.Text.Json&quot;)
+        .AddReferences(
+            typeof(object).Assembly,
+            typeof(Enumerable).Assembly,
+            typeof(System.Text.Json.JsonElement).Assembly);
+
+    public WhenEvaluator(FlowEngineOptions options)
+    {
+        _maxCacheSize = options.ScriptCacheSize &gt; 0 ? options.ScriptCacheSize : 1000;
+    }
+
+    /// &lt;summary&gt;Evaluates a boolean edge-guard expression. Truthy = non-null, non-false, non-zero, non-empty.&lt;/summary&gt;
+    public async Task&lt;bool&gt; EvaluateAsync(
+        string expression, IExecutionContext ctx, CancellationToken ct)
+    {
+        var globals = BuildGlobals(ctx);
+        var script  = GetOrAddScript(expression);
+        var state   = await script.RunAsync(globals, cancellationToken: ct);
+        return IsTruthy(state.ReturnValue);
+    }
+
+    /// &lt;summary&gt;
+    /// Evaluates an expression and returns its result as a string.
+    /// Used by WaitNodeConfig.CorrelationKeyExpression to derive a dynamic correlation key.
+    /// &lt;/summary&gt;
+    public async Task&lt;string?&gt; EvaluateAsStringAsync(
+        string expression, IExecutionContext ctx, CancellationToken ct)
+    {
+        var globals = BuildGlobals(ctx);
+        var script  = GetOrAddScript(expression);
+        var state   = await script.RunAsync(globals, cancellationToken: ct);
+        return state.ReturnValue?.ToString();
+    }
+
+    /// &lt;summary&gt;
+    /// Evaluates an expression and returns the raw Roslyn result preserving its runtime type.
+    /// Used by ComputeNodeExecutor to avoid string coercion before JSON serialisation.
+    /// &lt;/summary&gt;
+    public async Task&lt;object?&gt; EvaluateAsObjectAsync(
+        string expression, IExecutionContext ctx, CancellationToken ct)
+    {
+        var globals = BuildGlobals(ctx);
+        var script  = GetOrAddScript(expression);
+        var state   = await script.RunAsync(globals, cancellationToken: ct);
+        return state.ReturnValue;
+    }
+
+    /// &lt;summary&gt;
+    /// Gets or adds a compiled script from the bounded cache.
+    /// Evicts 10% of entries when cache reaches _maxCacheSize.
+    /// &lt;/summary&gt;
+    private Script&lt;object&gt; GetOrAddScript(string expression)
+    {
+        lock (_cacheLock)
+        {
+            if (_cache.TryGetValue(expression, out var cached))
+                return cached;
+
+            if (_cache.Count &gt;= _maxCacheSize)
+            {
+                var toRemove = (int)(_cache.Count * 0.1);
+                var keysToRemove = _cache.Keys.Take(toRemove).ToList();
+                foreach (var key in keysToRemove)
+                    _cache.Remove(key);
+            }
+
+            var script = CompileScript(expression);
+            _cache[expression] = script;
+            return script;
+        }
+    }
+
+    private static Script&lt;object&gt; CompileScript(string expression)
+    {
+        // Wrap bare expressions in a return statement
+        var code = expression.TrimStart().StartsWith(&quot;return &quot;, StringComparison.Ordinal)
+            ? expression
+            : $&quot;return (object)({expression});&quot;;
+        return CSharpScript.Create&lt;object&gt;(code, _scriptOptions, typeof(Globals));
+    }
+
+    private static bool IsTruthy(object? value) =&gt; value switch
+    {
+        null           =&gt; false,
+        bool b         =&gt; b,
+        int i          =&gt; i != 0,
+        string s       =&gt; !string.IsNullOrEmpty(s),
+        _              =&gt; true
+    };
+
+    private static Globals BuildGlobals(IExecutionContext ctx)
+    {
+        var engine = new Dictionary&lt;string, object?&gt;
+        {
+            [&quot;instanceId&quot;]    = ctx.Instance.InstanceId,
+            [&quot;workflowId&quot;]    = ctx.Instance.WorkflowId,
+            [&quot;currentNodeId&quot;] = ctx.Instance.CurrentNodeId,
+            [&quot;status&quot;]        = ctx.Instance.Status.ToString(),
+            [&quot;visits&quot;]        = new Dictionary&lt;string, int&gt;(ctx.Instance.NodeVisitCounts),
+            [&quot;totalVisits&quot;]   = ctx.TotalVisitCount
+        };
+
+        return new Globals
+        {
+            Context = UnwrapContext(ctx.Instance.Context.Context),
+            Engine  = engine,
+            Entity  = UnwrapContextValue(ctx.Instance.Context.Entity),
+            Params  = UnwrapContext(ctx.Instance.Context.Params ?? new())
+        };
+    }
+
+    private static IReadOnlyDictionary&lt;string, object?&gt; UnwrapContext(
+        IDictionary&lt;string, ContextValue&gt; source)
+        =&gt; source.ToDictionary(kv =&gt; kv.Key, kv =&gt; UnwrapValue(kv.Value));
+
+    private static IReadOnlyDictionary&lt;string, object?&gt; UnwrapContextValue(ContextValue? v)
+    {
+        if (v is JsonContextValue jv)
+            return jv.Value.Deserialize&lt;Dictionary&lt;string, object?&gt;&gt;()
+                   ?? new Dictionary&lt;string, object?&gt;();
+        return new Dictionary&lt;string, object?&gt;();
+    }
+
+    private static object? UnwrapValue(ContextValue? v) =&gt; v switch
+    {
+        JsonContextValue     j =&gt; j.Value.Deserialize&lt;object?&gt;(),
+        NullContextValue       =&gt; null,
+        DocumentContextValue d =&gt; new { d.StoreRef, d.FileName, d.ContentType },
+        null                   =&gt; null,
+        _                      =&gt; null
+    };
+}
+</code></pre>
+<hr />
+<h2>5. RetryHandler</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public static class RetryHandler
+{
+    private static readonly Random _jitter = new();
+
+    public static TimeSpan CalculateDelay(RetryPolicy policy, int attemptNumber)
+    {
+        // attemptNumber is 1-based; first retry fires after attempt 1
+        var attempt = attemptNumber - 1; // 0-based exponent
+
+        var delay = policy.Backoff switch
+        {
+            BackoffType.Fixed       =&gt; policy.InitialDelay,
+            BackoffType.Linear      =&gt; policy.InitialDelay * attemptNumber,
+            BackoffType.Exponential =&gt; policy.InitialDelay * Math.Pow(2, attempt),
+            BackoffType.ExponentialWithJitter =&gt;
+                policy.InitialDelay * Math.Pow(2, attempt)
+                + TimeSpan.FromMilliseconds(_jitter.Next(0, 1000)),
+            _ =&gt; policy.InitialDelay
+        };
+
+        // Cap at MaxDelay
+        return delay &gt; policy.MaxDelay ? policy.MaxDelay : delay;
+    }
+}
+</code></pre>
+<hr />
+<h2>6. ChildSignalHandler</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public static class ChildSignalHandler
+{
+    /// &lt;summary&gt;
+    /// Called when a child instance (loop item, sub-workflow, parallel branch)
+    /// reaches a terminal state. Signals the parent to check if it can resume.
+    /// &lt;/summary&gt;
+    public static async Task SignalParentAsync(
+        ExecutionInstance         child,
+        IExecutionStateStore      stateStore,
+        IDistributedLockProvider  lockProvider,
+        FlowEngine                engine,
+        ILogger                   logger,
+        CancellationToken         ct)
+    {
+        var signal = new ChildSignal
+        {
+            ParentNodeId      = child.ParentNodeId!,
+            ChildInstanceId   = child.InstanceId,
+            ChildStatus       = child.Status,
+            ChildOutput       = child.Output,
+            OccurredAt        = DateTimeOffset.UtcNow
+        };
+
+        // Try to directly resume the parent if unclaimed
+        var claimantId = $&quot;child-signal-{child.InstanceId}&quot;;
+        var claimed = await lockProvider.TryAcquireAsync(
+            child.ParentInstanceId!, claimantId,
+            TimeSpan.FromSeconds(30), ct);
+
+        if (claimed)
+        {
+            // We got the parent — resume it directly
+            // Pass claimantId so ResumeChildAsync can release this lock before re-acquiring
+            await engine.ResumeChildAsync(
+                child.ParentInstanceId!, signal, claimantId, ct);
+        }
+        else
+        {
+            // Parent is claimed by another server processing it.
+            // Enqueue the signal — parent will pick it up on next save/load cycle.
+            await stateStore.EnqueueChildSignalAsync(
+                child.ParentInstanceId!, signal, ct);
+            logger.LogDebug(
+                &quot;Child signal queued for parent {ParentId} node {NodeId}&quot;,
+                child.ParentInstanceId, child.ParentNodeId);
+        }
+    }
+}
+</code></pre>
+<hr />
+<h2>7. ExecutionSweepService</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public class ExecutionSweepService : BackgroundService
+{
+    private readonly IDistributedLockProvider _lockProvider;
+    private readonly FlowEngine               _engine;
+    private readonly FlowEngineOptions        _options;
+    private readonly ILogger&lt;ExecutionSweepService&gt; _logger;
+
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        // Stagger startup to avoid all servers sweeping simultaneously
+        await Task.Delay(TimeSpan.FromSeconds(Random.Shared.Next(1, 15)), ct);
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                var resumable = await _lockProvider.FindResumableInstanceIdsAsync(
+                    DateTimeOffset.UtcNow,
+                    _options.SweepBatchSize,
+                    ct);
+
+                foreach (var instanceId in resumable)
+                {
+                    // Fire and forget — each resumption runs independently
+                    _ = Task.Run(() =&gt; _engine.ResumeFromSweepAsync(instanceId, ct), ct);
+                }
+
+                if (resumable.Count &gt; 0)
+                    _logger.LogInformation(&quot;Sweep found {Count} resumable instances&quot;,
+                        resumable.Count);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogError(ex, &quot;Error during execution sweep&quot;);
+            }
+
+            await Task.Delay(_options.SweepInterval, ct);
+        }
+    }
+}
+</code></pre>
+<hr />
+<h2>8. LeaseRenewalService</h2>
+<p>
+<strong>Purpose:</strong> Prevents <code>ExecutionSweepService</code> on other nodes from reclaiming instances
+that are still actively executing locally (false &ldquo;orphaned&rdquo; detection).<br />
+<strong>Interval:</strong> <code>FlowEngineOptions.LeaseRenewalInterval</code> (default 13s).<br />
+<strong>Constraint:</strong> <code>LeaseRenewalInterval</code> &lt; <code>DefaultLeaseDuration / 2</code> (default: 13s &lt; 15s &check;).<br />
+<strong>Failure mode:</strong> If <code>RenewAsync</code> returns <code>false</code> (another node claimed the instance),
+the local <code>CancellationTokenSource</code> for that execution is cancelled immediately.
+</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public class LeaseRenewalService : BackgroundService
+{
+    private readonly IDistributedLockProvider _lockProvider;
+    private readonly FlowEngine               _engine;
+    private readonly FlowEngineOptions        _options;
+    private readonly ILogger&lt;LeaseRenewalService&gt; _logger;
+
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await Task.Delay(_options.LeaseRenewalInterval, ct);
+
+            foreach (var (instanceId, executionCts) in _engine.ActiveExecutions)
+            {
+                try
+                {
+                    var renewed = await _lockProvider.RenewAsync(
+                        instanceId,
+                        _options.ClaimantId,
+                        _options.DefaultLeaseDuration,
+                        ct);
+
+                    if (!renewed)
+                    {
+                        _logger.LogCritical(
+                            &quot;Failed to renew lease for {InstanceId} — &quot; +
+                            &quot;claim may have been stolen. Aborting execution.&quot;,
+                            instanceId);
+                        // Cancel the execution — engine loop will save state and exit
+                        executionCts.Cancel();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, &quot;Lease renewal error for {InstanceId}&quot;, instanceId);
+                }
+            }
+        }
+    }
+}
+</code></pre>
+<hr />
+<h2>9. FlowEngineOptions</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class FlowEngineOptions
+{
+    /// &lt;summary&gt;Unique identifier for this engine node. Defaults to a per-process GUID.&lt;/summary&gt;
+    public string ClaimantId { get; set; } = Guid.NewGuid().ToString(&quot;N&quot;);
+
+    /// &lt;summary&gt;How long a claim is valid before auto-expiry. Default 30s.&lt;/summary&gt;
+    public TimeSpan DefaultLeaseDuration { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// &lt;summary&gt;
+    /// How often LeaseRenewalService renews active execution leases.
+    /// Should be well under DefaultLeaseDuration. Default: 13 seconds.
+    /// &lt;/summary&gt;
+    public TimeSpan LeaseRenewalInterval { get; set; } = TimeSpan.FromSeconds(13);
+
+    /// &lt;summary&gt;How often ExecutionSweepService scans for resumable instances. Default: 30 seconds.&lt;/summary&gt;
+    public TimeSpan SweepInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// &lt;summary&gt;Maximum number of instances processed per sweep pass. Default: 50.&lt;/summary&gt;
+    public int SweepBatchSize { get; set; } = 50;
+
+    /// &lt;summary&gt;Maximum number of compiled Roslyn scripts kept in the expression cache. Default: 1000.&lt;/summary&gt;
+    public int ScriptCacheSize { get; set; } = 1000;
+}
+</code></pre>
+<hr />
+<h2>10. DI registration</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public static class FlowEngineServiceExtensions
+{
+    public static FlowEngineBuilder AddFlowEngine(
+        this IServiceCollection services,
+        Action&lt;FlowEngineOptions&gt;? configure = null)
+    {
+        var options = new FlowEngineOptions();
+        configure?.Invoke(options);
+        services.AddSingleton(options);
+
+        services.AddSingleton&lt;INodeExecutorRegistry, NodeExecutorRegistry&gt;();
+        services.AddSingleton&lt;IWorkflowRegistry,     InMemoryWorkflowRegistry&gt;();
+        services.AddSingleton&lt;IClientRegistry,       ClientRegistry&gt;();
+        services.AddSingleton&lt;FlowEngine&gt;();
+
+        services.AddHostedService&lt;ExecutionSweepService&gt;();
+        services.AddHostedService&lt;LeaseRenewalService&gt;();
+
+        return new FlowEngineBuilder(services);
+    }
+}
+
+public sealed class FlowEngineBuilder
+{
+    private readonly IServiceCollection _services;
+    internal FlowEngineBuilder(IServiceCollection services) =&gt; _services = services;
+
+    public FlowEngineBuilder UseStateStore&lt;T&gt;() where T : class, IExecutionStateStore
+    {
+        _services.AddSingleton&lt;IExecutionStateStore, T&gt;();
+        return this;
+    }
+
+    public FlowEngineBuilder UseLockProvider&lt;T&gt;() where T : class, IDistributedLockProvider
+    {
+        _services.AddSingleton&lt;IDistributedLockProvider, T&gt;();
+        return this;
+    }
+
+    public FlowEngineBuilder AddNodeExecutor&lt;T&gt;() where T : class, INodeExecutor
+    {
+        _services.AddSingleton&lt;INodeExecutor, T&gt;();
+        return this;
+    }
+
+    public FlowEngineBuilder UseWorkflowRegistry&lt;T&gt;() where T : class, IWorkflowRegistry
+    {
+        _services.AddSingleton&lt;IWorkflowRegistry, T&gt;();
+        return this;
+    }
+
+    /// &lt;summary&gt;
+    /// Register a named external client. The developer constructs the client
+    /// with all connection/auth/retry config using their own DI setup, then
+    /// hands it to FlowEngine as a named IFlowClient.
+    ///
+    /// Example:
+    ///   var httpClient = sp.GetRequiredService&amp;lt;IHttpClientFactory&amp;gt;()
+    ///                      .CreateClient(&quot;product-api&quot;);
+    ///   builder.AddClient(&quot;product-api&quot;, new ProductApiClient(httpClient));
+    ///   builder.AddClient(&quot;crm-db&quot;,      new EfCoreQueryClient&amp;lt;CrmContext&amp;gt;(sp));
+    ///   builder.AddClient(&quot;order-events&quot;,new ServiceBusMessageClient(sbClient));
+    ///   builder.AddClient(&quot;gpt4o&quot;,       new AzureOpenAiAgentClient(openAiClient));
+    ///   builder.AddClient(&quot;risk-engine&quot;, new FlowEngineHttpClient(httpClient, url));
+    /// &lt;/summary&gt;
+    public FlowEngineBuilder AddClient(string clientRef, IFlowClient client)
+    {
+        _services.AddSingleton&lt;IFlowClient&gt;(sp =&gt;
+        {
+            var registry = sp.GetRequiredService&lt;ClientRegistry&gt;();
+            registry.Register(client);
+            return client;
+        });
+        return this;
+    }
+
+    public FlowEngineBuilder UseCalendarProvider&lt;T&gt;()    where T : class, ICalendarProvider    { _services.AddSingleton&lt;ICalendarProvider, T&gt;();    return this; }
+    public FlowEngineBuilder UseCredentialStore&lt;T&gt;()     where T : class, ICredentialStore     { _services.AddSingleton&lt;ICredentialStore, T&gt;();     return this; }
+    public FlowEngineBuilder UseDocumentStore&lt;T&gt;()       where T : class, IDocumentStore       { _services.AddSingleton&lt;IDocumentStore, T&gt;();       return this; }
+    public FlowEngineBuilder UseTelemetry&lt;T&gt;()           where T : class, IFlowEngineTelemetry { _services.AddSingleton&lt;IFlowEngineTelemetry, T&gt;(); return this; }
+    public FlowEngineBuilder UseHumanTaskStore&lt;T&gt;()      where T : class, IHumanTaskStore      { _services.AddSingleton&lt;IHumanTaskStore, T&gt;();      return this; }
+}
+</code></pre>
+<hr />
+<h2>11. MigrateInstanceAsync / DeleteWorkflowVersionAsync</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Migrate a non-terminal instance to a different workflow version.
+/// nodeIdMap remaps CurrentNodeId when node IDs changed between versions.
+/// Throws if the target node does not exist in the target definition.
+/// Appends a "migration" history record.
+/// &lt;/summary&gt;
+public async Task&lt;ExecutionInstance&gt; MigrateInstanceAsync(
+    string                               instanceId,
+    string                               targetVersion,
+    IReadOnlyDictionary&lt;string, string&gt;? nodeIdMap = null,
+    CancellationToken                    ct         = default)
+{
+    var instance = await _stateStore.LoadAsync(instanceId, ct)
+        ?? throw new InstanceNotFoundException(instanceId);
+
+    if (IsTerminal(instance.Status))
+        throw new InvalidOperationException(
+            $&quot;Instance '{instanceId}' is in terminal state {instance.Status} and cannot be migrated.&quot;);
+
+    var targetDef = await _workflowRegistry.GetAsync(instance.WorkflowId, targetVersion, ct)
+        ?? throw new InvalidOperationException(
+            $&quot;Workflow '{instance.WorkflowId}@{targetVersion}' not found in registry.&quot;);
+
+    var resolvedNodeId = nodeIdMap != null
+        &amp;&amp; nodeIdMap.TryGetValue(instance.CurrentNodeId, out var mapped)
+            ? mapped
+            : instance.CurrentNodeId;
+
+    if (!targetDef.Nodes.ContainsKey(resolvedNodeId))
+        throw new InvalidOperationException(
+            $&quot;Node '{resolvedNodeId}' does not exist in '{instance.WorkflowId}@{targetVersion}'. &quot;
+            + &quot;Provide a nodeIdMap entry to remap it.&quot;);
+
+    var fromVersion = instance.WorkflowVersion;
+    instance.WorkflowVersion = targetVersion;
+    instance.CurrentNodeId   = resolvedNodeId;
+    instance.UpdatedAt       = DateTimeOffset.UtcNow;
+
+    instance.History.Add(new NodeExecutionRecord
+    {
+        NodeId      = resolvedNodeId,
+        NodeType    = &quot;migration&quot;,
+        NodeLabel   = $&quot;Migrated {fromVersion} → {targetVersion}&quot;,
+        StartedAt   = instance.UpdatedAt,
+        CompletedAt = instance.UpdatedAt,
+        Outcome     = DecisionOutcome.Match
+    });
+
+    await _stateStore.SaveAsync(instance, ct);
+    return instance;
+}
+
+/// &lt;summary&gt;
+/// Delete a workflow version. Throws if any Running or Suspended instances exist.
+/// Transitions Active → Draft first (registry requires Draft to allow deletion).
+/// &lt;/summary&gt;
+public async Task DeleteWorkflowVersionAsync(
+    string workflowId, string version, CancellationToken ct = default)
+{
+    // Block on Running
+    var running = await _stateStore.QueryAsync(new ExecutionQuery
+    {
+        WorkflowId = workflowId, WorkflowVersion = version,
+        Status = ExecStatus.Running, Take = 1
+    }, ct);
+    if (running.TotalCount &gt; 0)
+        throw new InvalidOperationException(
+            $&quot;Workflow '{workflowId}@{version}' has {running.TotalCount} running instance(s). Cannot delete.&quot;);
+
+    // Block on Suspended
+    var suspended = await _stateStore.QueryAsync(new ExecutionQuery
+    {
+        WorkflowId = workflowId, WorkflowVersion = version,
+        Status = ExecStatus.Suspended, Take = 1
+    }, ct);
+    if (suspended.TotalCount &gt; 0)
+        throw new InvalidOperationException(
+            $&quot;Workflow '{workflowId}@{version}' has {suspended.TotalCount} suspended instance(s). &quot;
+            + &quot;Use MigrateInstanceAsync to move them to a different version first.&quot;);
+
+    // Transition Active → Draft so registry allows deletion
+    var def = await _workflowRegistry.GetAsync(workflowId, version, ct);
+    if (def?.Status == DefinitionStatus.Active)
+        await _workflowRegistry.TransitionStatusAsync(workflowId, version, DefinitionStatus.Draft, ct);
+
+    await _workflowRegistry.DeleteAsync(workflowId, version, ct);
+}
+</code></pre>
+<hr />
+<h2>12. Supporting infrastructure interfaces</h2>
+
+<p>Note: These interfaces are now formally contracted in <code>FlowEngine-CoreSchema.md</code> §20.<br />
+The implementations below are for the engine build — use the CoreSchema contracts as the canonical reference.</p>
+<p>Define these implementations to allow the engine to compile:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public interface IWorkflowRegistry
+{
+    Task&lt;WorkflowDefinition?&gt; GetAsync(string id, string? version, CancellationToken ct);
+    Task SaveAsync(WorkflowDefinition definition, CancellationToken ct);
+    /// &lt;summary&gt;List all definitions matching optional filters. Used by admin/tooling.&lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
+        string? idFilter = null, DefinitionStatus? status = null,
+        CancellationToken ct = default);
+}
+
+public interface INodeExecutorRegistry
+{
+    INodeExecutor? Get(string nodeType);
+    void Register(INodeExecutor executor);
+}
+
+/// &lt;summary&gt;Default implementation — scans DI for all INodeExecutor registrations.&lt;/summary&gt;
+public sealed class NodeExecutorRegistry : INodeExecutorRegistry
+{
+    private readonly Dictionary&lt;string, INodeExecutor&gt; _executors;
+    public NodeExecutorRegistry(IEnumerable&lt;INodeExecutor&gt; executors)
+        =&gt; _executors = executors.ToDictionary(e =&gt; e.NodeType);
+    public INodeExecutor? Get(string nodeType)
+        =&gt; _executors.GetValueOrDefault(nodeType);
+    public void Register(INodeExecutor executor)
+        =&gt; _executors[executor.NodeType] = executor;
+}
+
+public sealed class InMemoryWorkflowRegistry : IWorkflowRegistry
+{
+    private readonly ConcurrentDictionary&lt;string, WorkflowDefinition&gt; _store = new();
+    public Task&lt;WorkflowDefinition?&gt; GetAsync(string id, string? version, CancellationToken ct)
+    {
+        // If version specified: exact match. If null: latest Active version.
+        var match = version != null
+            ? _store.GetValueOrDefault($&quot;{id}@{version}&quot;)
+            : _store.Values
+                .Where(d =&gt; d.Id == id &amp;&amp; d.Status == DefinitionStatus.Active)
+                .OrderByDescending(d =&gt; d.Version)
+                .FirstOrDefault();
+        return Task.FromResult(match);
+    }
+    public Task SaveAsync(WorkflowDefinition definition, CancellationToken ct)
+    {
+        _store[$&quot;{definition.Id}@{definition.Version}&quot;] = definition;
+        return Task.CompletedTask;
+    }
+    public Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
+        string? idFilter, DefinitionStatus? status, CancellationToken ct)
+    {
+        var q = _store.Values.AsEnumerable();
+        if (idFilter != null) q = q.Where(d =&gt; d.Id == idFilter);
+        if (status   != null) q = q.Where(d =&gt; d.Status == status);
+        return Task.FromResult&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt;(q.ToList());
+    }
+}
+</code></pre>
+<hr />
+<h2>13. Exceptions</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public class WorkflowNotFoundException     : Exception { public WorkflowNotFoundException(string id) : base($&quot;Workflow '{id}' not found&quot;) {} }
+public class WorkflowNotActiveException    : Exception { public WorkflowNotActiveException(string id, DefinitionStatus s) : base($&quot;Workflow '{id}' is {s}&quot;) {} }
+public class NodeExecutorNotFoundException : Exception { public NodeExecutorNotFoundException(string t) : base($&quot;No executor registered for node type '{t}'&quot;) {} }
+public class InstanceNotFoundException     : Exception { public InstanceNotFoundException(string id) : base($&quot;Instance '{id}' not found&quot;) {} }
+public class ConcurrencyException          : Exception { public ConcurrencyException(string id) : base($&quot;Concurrency conflict saving instance '{id}'&quot;) {} }
+public class MissingClientException        : Exception { public MissingClientException(string msg) : base(msg) {} }
+public class ClientValidationException     : Exception { public ClientValidationException(string msg, Exception inner) : base(msg, inner) {} }
+</code></pre>
+<hr />
+<hr />
+<h2>14. CancelAsync — implementation spec</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Cancel a running or suspended instance. Transitions to Cancelled (terminal).
+/// Closes any open HumanTasks. Cascades cancellation to all non-terminal child instances.
+/// &lt;/summary&gt;
+public async Task&lt;ExecutionInstance&gt; CancelAsync(
+    string instanceId, string reason, CancellationToken ct)
+{
+    // 1. Try to claim the instance (prevents race with active execution)
+    var claimed = await _lockProvider.TryAcquireAsync(
+        instanceId, _options.ClaimantId, _options.DefaultLeaseDuration, ct);
+
+    try
+    {
+        var instance = await _stateStore.LoadAsync(instanceId, ct)
+            ?? throw new InstanceNotFoundException(instanceId);
+
+        // 2. If already terminal, return as-is (idempotent)
+        if (IsTerminal(instance.Status))
+            return instance;
+
+        // 3. Transition to Cancelled
+        instance.Status      = ExecStatus.Cancelled;
+        instance.CompletedAt = DateTimeOffset.UtcNow;
+        instance.UpdatedAt   = DateTimeOffset.UtcNow;
+        instance.Error       = new ExecutionError
+        {
+            Code       = &quot;CANCELLED&quot;,
+            Message    = reason,
+            NodeId     = instance.CurrentNodeId,
+            OccurredAt = DateTimeOffset.UtcNow
+        };
+
+        // 4. Close any open HumanTasks for this instance
+        var taskStore = _services.GetService&lt;IHumanTaskStore&gt;();
+        if (taskStore != null)
+        {
+            var openTasks = await taskStore.GetByInstanceAsync(instanceId, ct);
+            foreach (var task in openTasks.Where(t =&gt;
+                t.Status is HumanTaskStatus.Open or HumanTaskStatus.InProgress))
+            {
+                task.Status = HumanTaskStatus.Cancelled;
+                await taskStore.SaveAsync(task, ct);
+            }
+        }
+
+        // 5. Clear pending wait so sweep service ignores this instance
+        instance.PendingWait = null;
+
+        // 6. Save, emit, then cascade cancel to children (best-effort)
+        await SaveWithRetryAsync(instance, _options.ClaimantId, ct);
+        EmitFinalEvent(instance);
+
+        var children = await _stateStore.GetChildrenAsync(instanceId, ct);
+        foreach (var child in children.Where(c =&gt; !IsTerminal(c.Status)))
+        {
+            try { await CancelAsync(child.InstanceId, &quot;Parent workflow cancelled&quot;, ct); }
+            catch { /* swallow — best-effort cascade */ }
+        }
+
+        return instance;
+    }
+    finally
+    {
+        if (claimed) await _lockProvider.ReleaseAsync(instanceId, _options.ClaimantId, ct);
+    }
+}
+</code></pre>
+<hr />
+<h2>15. HumanNodeExecutor — full behavior spec</h2>
+<p>The human node executor is the most stateful executor — it creates a HumanTask,<br />
+suspends the instance, and must handle re-execution on resumption without<br />
+creating duplicate tasks.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Human node executor. Creates a HumanTask and suspends the instance.
+/// On re-execution after resumption (sweep or direct resume), detects
+/// the existing task by (InstanceId, NodeId) and returns Match if quorum
+/// has been reached, or re-suspends if not yet reached.
+///
+/// Idempotency: if a HumanTask already exists for this (InstanceId, NodeId),
+/// the executor MUST NOT create a new one. This handles crash-recovery
+/// re-execution correctly.
+/// &lt;/summary&gt;
+public sealed class HumanNodeExecutor : INodeExecutor
+{
+    public string NodeType =&gt; &quot;human&quot;;
+
+    private readonly IHumanTaskStore _taskStore;
+    private readonly IFlowEngineTelemetry _telemetry;
+
+    public async Task&lt;NodeResult&gt; ExecuteAsync(
+        NodeDefinition node, ExecutionInstance instance,
+        IExecutionContext ctx, CancellationToken ct)
+    {
+        var config = node.Config.Deserialize&lt;HumanNodeConfig&gt;()!;
+
+        // ── Step 1: Check if a task already exists for this node ─────────────
+        // Handles crash-recovery re-execution — do not create a duplicate task.
+        var existingTasks = await _taskStore.GetByInstanceAsync(instance.InstanceId, ct);
+        var existing = existingTasks.FirstOrDefault(t =&gt; t.NodeId == node.Id);
+
+        if (existing != null)
+        {
+            // Task exists — check if quorum has been reached
+            if (existing.Status == HumanTaskStatus.Completed
+                &amp;&amp; existing.Responses.Count &gt;= existing.Quorum)
+            {
+                // Quorum reached — write response to context and return Match
+                WriteResponseToContext(existing, instance);
+                return new NodeResult { Outcome = DecisionOutcome.Match };
+            }
+
+            // Task exists but quorum not yet met — re-suspend with same wait descriptor
+            return new NodeResult
+            {
+                Outcome     = DecisionOutcome.Match,
+                PendingWait = BuildWaitDescriptor(existing, instance)
+            };
+        }
+
+        // ── Step 2: Resolve dynamic fields from context ───────────────────────
+        var title      = InterpolateTemplate(config.Title, ctx);
+        var assignedTo = ResolveAssignedTo(config.AssignedTo, ctx);
+        var dueAt      = config.DueIn != null
+            ? await ctx.ResolveDateTimeAsync(config.DueIn, ct)
+            : (DateTimeOffset?)null;
+
+        // ── Step 3: Create the HumanTask ──────────────────────────────────────
+        var taskId = Guid.NewGuid().ToString(&quot;N&quot;);
+        var task   = new HumanTask
+        {
+            TaskId      = taskId,
+            InstanceId  = instance.InstanceId,
+            NodeId      = node.Id,
+            WorkflowId  = instance.WorkflowId,
+            Title       = title,
+            AssignedTo  = assignedTo,
+            Channel     = config.Channel,
+            Notification= config.Notification,
+            FormSchema  = config.FormSchema,
+            VisibleContext = config.VisibleContext ?? new(),
+            Quorum      = config.Quorum,
+            Status      = HumanTaskStatus.Open,
+            CreatedAt   = DateTimeOffset.UtcNow,
+            DueAt       = dueAt,
+            Escalation  = config.Escalation,
+            ContextSnapshot = BuildContextSnapshot(config.VisibleContext, ctx)
+        };
+
+        await _taskStore.SaveAsync(task, ct);
+
+        // ── Step 4: If External channel, generate response token ──────────────
+        if (config.Channel == TaskChannel.External &amp;&amp; config.Notification != null)
+        {
+            var token = await _taskStore.GenerateResponseTokenAsync(taskId, ct);
+            // Token embedded in notification link by the notification service
+            _telemetry?.Emit(&quot;flow.task.created&quot;, new Dictionary&lt;string, object?&gt;
+            {
+                [&quot;taskId&quot;]      = taskId,
+                [&quot;instanceId&quot;]  = instance.InstanceId,
+                [&quot;assignedTo&quot;]  = assignedTo,
+                [&quot;channel&quot;]     = config.Channel.ToString(),
+                [&quot;responseToken&quot;] = token   // notification service reads this
+            });
+        }
+        else
+        {
+            _telemetry?.Emit(&quot;flow.task.created&quot;, new Dictionary&lt;string, object?&gt;
+            {
+                [&quot;taskId&quot;]     = taskId,
+                [&quot;instanceId&quot;] = instance.InstanceId,
+                [&quot;assignedTo&quot;] = assignedTo,
+                [&quot;channel&quot;]    = config.Channel.ToString()
+            });
+        }
+
+        // ── Step 5: Build WaitDescriptor and suspend ──────────────────────────
+        // Event name convention: &quot;humantask.{taskId}&quot; — SubmitResponseAsync
+        // calls engine.ResumeByInstanceIdAsync which bypasses event lookup.
+        // The WaitDescriptor here is purely informational for the sweep service
+        // to detect overdue tasks.
+        var waitDescriptor = new WaitDescriptor
+        {
+            EventName      = $&quot;humantask.{taskId}&quot;,
+            CorrelationKey = instance.InstanceId,
+            TimeoutAt      = dueAt,            // sweep detects overdue via this
+            OnTimeoutNodeId= null,             // escalation handled by task store sweep
+            MinSignalCount = 1
+        };
+
+        return new NodeResult
+        {
+            Outcome      = DecisionOutcome.Match,
+            PendingWait  = waitDescriptor,
+            HumanTaskId  = taskId
+        };
+    }
+
+    private static void WriteResponseToContext(HumanTask task, ExecutionInstance instance)
+    {
+        // Merge all quorum responses into context
+        // For Quorum=1: single response under _humanTaskResponse
+        // For Quorum&gt;1: array under _humanTaskResponses + consensus enum
+        if (task.Quorum == 1 &amp;&amp; task.Responses.Count == 1)
+        {
+            instance.Context.Store(&quot;_humanTaskResponse&quot;,
+                new JsonContextValue { Value = task.Responses[0].Values });
+        }
+        else
+        {
+            var allValues = task.Responses.Select(r =&gt; r.Values).ToList();
+            instance.Context.Store(&quot;_humanTaskResponses&quot;,
+                new JsonContextValue { Value = JsonSerializer.SerializeToElement(allValues) });
+            // Also set _humanTaskResponse to first response for simple edge checks
+            if (task.Responses.Count &gt; 0)
+                instance.Context.Store(&quot;_humanTaskResponse&quot;,
+                    new JsonContextValue { Value = task.Responses[0].Values });
+
+            // Compute consensus key for clean edge when predicates
+            // Values: &quot;unanimous&quot;, &quot;majority&quot;, &quot;any-denied&quot;, &quot;split&quot;
+            var decisions = task.Responses
+                .Select(r =&gt; r.Values.TryGetProperty(&quot;decision&quot;, out var d)
+                    ? d.GetString() : null)
+                .Where(d =&gt; d != null).ToList();
+
+            string consensus;
+            if (decisions.Count == 0)
+            {
+                consensus = &quot;split&quot;;
+            }
+            else if (decisions.All(d =&gt; d == decisions[0]))
+            {
+                consensus = &quot;unanimous&quot;;
+            }
+            else if (decisions.Any(d =&gt; d == &quot;denied&quot; || d == &quot;rejected&quot;))
+            {
+                consensus = &quot;any-denied&quot;;
+            }
+            else
+            {
+                var majorityDecision = decisions
+                    .GroupBy(x =&gt; x)
+                    .OrderByDescending(g =&gt; g.Count())
+                    .First();
+                consensus = majorityDecision.Count() &gt; task.Quorum / 2
+                    ? &quot;majority&quot; : &quot;split&quot;;
+            }
+
+            instance.Context.Store(&quot;_humanTaskConsensus&quot;,
+                new JsonContextValue { Value = JsonSerializer.SerializeToElement(consensus) });
+        }
+    }
+
+    private static string InterpolateTemplate(string template, IExecutionContext ctx)
+    {
+        // Replace {{$.context.x}} and {{$.entity.x}} with resolved values
+        return System.Text.RegularExpressions.Regex.Replace(
+            template, @&quot;\{\{(\$\.[^}]+)\}\}&quot;, m =&gt;
+            {
+                var val = ctx.Resolve(m.Groups[1].Value);
+                return val is JsonContextValue jv ? jv.Value.ToString() : &quot;&quot;;
+            });
+    }
+
+    private static string ResolveAssignedTo(string assignedTo, IExecutionContext ctx)
+    {
+        // Step 1: Apply template interpolation FIRST
+        // Handles patterns like &quot;role:{{$.context.requiredCounselTier}}-counsel&quot;
+        var interpolated = InterpolateTemplate(assignedTo, ctx);
+
+        // Step 2: If the interpolated result is a JSONPath, resolve it
+        if (interpolated.StartsWith(&quot;$.&quot;))
+            return ctx.ResolveAs&lt;string&gt;(interpolated) ?? interpolated;
+
+        return interpolated;
+    }
+
+    private static WaitDescriptor BuildWaitDescriptor(HumanTask task, ExecutionInstance instance)
+        =&gt; new WaitDescriptor
+        {
+            EventName      = $&quot;humantask.{task.TaskId}&quot;,
+            CorrelationKey = instance.InstanceId,
+            TimeoutAt      = task.DueAt,
+            MinSignalCount = 1
+        };
+
+    private static JsonElement BuildContextSnapshot(
+        List&lt;string&gt;? paths, IExecutionContext ctx)
+    {
+        if (paths == null || paths.Count == 0)
+            return JsonSerializer.SerializeToElement(new {});
+        var dict = paths.ToDictionary(
+            p =&gt; p,
+            p =&gt; ctx.Resolve(p) is JsonContextValue jv
+                    ? (object?)jv.Value.Deserialize&lt;object&gt;() : null);
+        return JsonSerializer.SerializeToElement(dict);
+    }
+}
+</code></pre>
+<h3>How SubmitResponseAsync wires back to the engine</h3>
+<p>The <code>IHumanTaskStore.SubmitResponseAsync</code> implementation calls<br />
+<code>engine.ResumeByInstanceIdAsync</code> directly when quorum is reached.<br />
+The <code>IHumanTaskStore</code> implementation therefore needs a reference to<br />
+<code>FlowEngine</code> — inject it via DI:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// In your IHumanTaskStore implementation constructor:
+public SqlHumanTaskStore(DbContext db, FlowEngine engine) { ... }
+
+// In SubmitResponseAsync, after quorum is reached:
+WriteResponseToContext(task, instance);  // writes $.context._humanTaskResponse
+await engine.ResumeByInstanceIdAsync(task.InstanceId, null, ct);
+</code></pre>
+<p>The <code>ResumeByInstanceIdAsync</code> call triggers the engine loop which re-executes<br />
+the human node. The executor finds the existing Completed task (Step 1 above),<br />
+writes the response to context, and returns <code>Match</code> — allowing edge evaluation<br />
+to proceed.</p>
+<hr />
+<h2>16. File State Store — minimal spec for first vertical slice</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Local filesystem state store for development and testing.
+/// Stores each ExecutionInstance as a JSON file named {instanceId}.json
+/// in the configured directory. NOT safe for multi-server deployments.
+///
+/// Paired with InMemory lock provider only.
+/// No infrastructure required — works immediately on any developer machine.
+/// &lt;/summary&gt;
+public sealed class FileExecutionStateStore : IExecutionStateStore
+{
+    private readonly string _directory;
+    private readonly SemaphoreSlim _lock = new(1, 1); // single-process file safety
+
+    public FileExecutionStateStore(string directory)
+    {
+        _directory = directory;
+        Directory.CreateDirectory(directory);
+    }
+
+    // ── Core CRUD ──────────────────────────────────────────────────────────────
+
+    public async Task&lt;ExecutionInstance?&gt; LoadAsync(string instanceId, CancellationToken ct)
+    {
+        var path = FilePath(instanceId);
+        if (!File.Exists(path)) return null;
+        var json = await File.ReadAllTextAsync(path, ct);
+        return JsonSerializer.Deserialize&lt;ExecutionInstance&gt;(json);
+    }
+
+    public async Task SaveAsync(ExecutionInstance instance, CancellationToken ct)
+    {
+        // Optimistic concurrency: read current version, fail if mismatch
+        await _lock.WaitAsync(ct);
+        try
+        {
+            var existing = await LoadAsync(instance.InstanceId, ct);
+            if (existing != null &amp;&amp; existing.Version != instance.Version - 1)
+                throw new ConcurrencyException(instance.InstanceId);
+            var json = JsonSerializer.Serialize(instance,
+                new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(FilePath(instance.InstanceId), json, ct);
+        }
+        finally { _lock.Release(); }
+    }
+
+    public Task DeleteAsync(string instanceId, CancellationToken ct)
+    {
+        var path = FilePath(instanceId);
+        if (File.Exists(path)) File.Delete(path);
+        return Task.CompletedTask;
+    }
+
+    // ── Signal lookup ──────────────────────────────────────────────────────────
+
+    public async Task&lt;ExecutionInstance?&gt; FindBySuspendedEventAsync(
+        string eventName, string correlationKey, CancellationToken ct)
+    {
+        // Linear scan — acceptable for dev/test with small instance counts
+        foreach (var file in Directory.GetFiles(_directory, &quot;*.json&quot;))
+        {
+            var inst = JsonSerializer.Deserialize&lt;ExecutionInstance&gt;(
+                await File.ReadAllTextAsync(file, ct));
+            if (inst?.Status == ExecStatus.Suspended
+                &amp;&amp; inst.PendingWait?.EventName == eventName
+                &amp;&amp; inst.PendingWait?.CorrelationKey == correlationKey)
+                return inst;
+        }
+        return null;
+    }
+
+    public async Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; FindTimedOutInstancesAsync(
+        DateTimeOffset cutoff, CancellationToken ct)
+    {
+        var results = new List&lt;ExecutionInstance&gt;();
+        foreach (var file in Directory.GetFiles(_directory, &quot;*.json&quot;))
+        {
+            var inst = JsonSerializer.Deserialize&lt;ExecutionInstance&gt;(
+                await File.ReadAllTextAsync(file, ct));
+            if (inst?.Status == ExecStatus.Suspended
+                &amp;&amp; inst.PendingWait?.TimeoutAt &lt;= cutoff)
+                results.Add(inst);
+        }
+        return results;
+    }
+
+    // ── Queries ────────────────────────────────────────────────────────────────
+
+    public async Task&lt;ExecutionQueryResult&gt; QueryAsync(
+        ExecutionQuery query, CancellationToken ct)
+    {
+        var all = new List&lt;ExecutionInstance&gt;();
+        foreach (var file in Directory.GetFiles(_directory, &quot;*.json&quot;))
+        {
+            var inst = JsonSerializer.Deserialize&lt;ExecutionInstance&gt;(
+                await File.ReadAllTextAsync(file, ct));
+            if (inst == null) continue;
+            if (query.WorkflowId    != null &amp;&amp; inst.WorkflowId    != query.WorkflowId)    continue;
+            if (query.CorrelationId != null &amp;&amp; inst.CorrelationId != query.CorrelationId) continue;
+            if (query.Status        != null &amp;&amp; inst.Status        != query.Status)        continue;
+            all.Add(inst);
+        }
+        all = all.OrderByDescending(i =&gt; i.UpdatedAt).ToList();
+        var page = all.Skip(query.Skip).Take(query.Take).ToList();
+        return new ExecutionQueryResult
+        {
+            Items      = page,
+            TotalCount = all.Count,
+            Skip       = query.Skip,
+            Take       = query.Take
+        };
+    }
+
+    public async Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; GetChildrenAsync(
+        string parentInstanceId, CancellationToken ct)
+    {
+        var results = new List&lt;ExecutionInstance&gt;();
+        foreach (var file in Directory.GetFiles(_directory, &quot;*.json&quot;))
+        {
+            var inst = JsonSerializer.Deserialize&lt;ExecutionInstance&gt;(
+                await File.ReadAllTextAsync(file, ct));
+            if (inst?.ParentInstanceId == parentInstanceId)
+                results.Add(inst);
+        }
+        return results;
+    }
+
+    // ── Child signals (stored in a separate sidecar file) ─────────────────────
+
+    public async Task EnqueueChildSignalAsync(
+        string parentInstanceId, ChildSignal signal, CancellationToken ct)
+    {
+        var path    = SignalPath(parentInstanceId);
+        var signals = File.Exists(path)
+            ? JsonSerializer.Deserialize&lt;List&lt;ChildSignal&gt;&gt;(
+                await File.ReadAllTextAsync(path, ct)) ?? new()
+            : new List&lt;ChildSignal&gt;();
+        signals.Add(signal);
+        await File.WriteAllTextAsync(path,
+            JsonSerializer.Serialize(signals), ct);
+    }
+
+    public async Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; DequeueChildSignalsAsync(
+        string parentInstanceId, CancellationToken ct)
+    {
+        var path = SignalPath(parentInstanceId);
+        if (!File.Exists(path)) return Array.Empty&lt;ChildSignal&gt;();
+        var signals = JsonSerializer.Deserialize&lt;List&lt;ChildSignal&gt;&gt;(
+            await File.ReadAllTextAsync(path, ct)) ?? new();
+        File.Delete(path);   // atomic dequeue for single-process use
+        return signals;
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private string FilePath(string instanceId)
+        =&gt; Path.Combine(_directory, $&quot;{instanceId}.json&quot;);
+
+    private string SignalPath(string instanceId)
+        =&gt; Path.Combine(_directory, $&quot;{instanceId}.signals.json&quot;);
+}
+</code></pre>
+<p>Register for dev/test:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">services.AddFlowEngine()
+    .UseStateStore&lt;FileExecutionStateStore&gt;(sp =&gt;
+        new FileExecutionStateStore(
+            Path.Combine(Path.GetTempPath(), &quot;flowengine-dev&quot;)))
+    .UseLockProvider&lt;InMemoryLockProvider&gt;()
+    .AddNodeExecutor&lt;FilterNodeExecutor&gt;()
+    .AddNodeExecutor&lt;StoreNodeExecutor&gt;()
+    .AddNodeExecutor&lt;OutputNodeExecutor&gt;()
+    .AddNodeExecutor&lt;CheckpointNodeExecutor&gt;();
+</code></pre>
+<hr />
+<h2>17. TimerNodeExecutor</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Suspends execution for a pure time delay. No external signal required.
+/// The sweep service resumes the instance when WaitDescriptor.TimeoutAt fires.
+///
+/// Key distinction from WaitNodeExecutor:
+///   wait node  — timeout emits Error (external signal didn't arrive in time)
+///   timer node — timeout IS the happy path; always emits Match after delay
+///
+/// The timer executor builds a WaitDescriptor with a synthetic event name
+/// that only the sweep service will ever match. The TimeoutAt IS the resume
+/// trigger — no ResumeAsync call needed from harness code.
+/// &lt;/summary&gt;
+public sealed class TimerNodeExecutor : INodeExecutor
+{
+    public string NodeType =&gt; &quot;timer&quot;;
+
+    private readonly ICalendarProvider      _calendar;
+    private readonly IFlowEngineTelemetry   _telemetry;
+
+    public TimerNodeExecutor(
+        ICalendarProvider    calendar,
+        IFlowEngineTelemetry telemetry)
+    {
+        _calendar  = calendar;
+        _telemetry = telemetry;
+    }
+
+    public async Task&lt;NodeResult&gt; ExecuteAsync(
+        NodeDefinition    node,
+        ExecutionInstance instance,
+        IExecutionContext  ctx,
+        CancellationToken ct)
+    {
+        var config = node.Config.Deserialize&lt;TimerNodeConfig&gt;()
+            ?? throw new InvalidOperationException(
+                $&quot;Timer node '{node.Id}' has missing or invalid config.&quot;);
+
+        // Resolve the delay to an absolute DateTimeOffset via ICalendarProvider
+        var resumeAt = await _calendar.ResolveAsync(
+            config.Delay, DateTimeOffset.UtcNow, ct);
+
+        // Synthetic event name — unique per instance+node so no collision across
+        // multiple timer nodes in the same workflow or parallel branches
+        var syntheticEvent = $&quot;timer.{instance.InstanceId}.{node.Id}&quot;;
+
+        _telemetry.Emit(&quot;flow.node.timer.suspended&quot;, new()
+        {
+            [&quot;instanceId&quot;] = instance.InstanceId,
+            [&quot;nodeId&quot;]     = node.Id,
+            [&quot;delay&quot;]      = config.Delay,
+            [&quot;resumeAt&quot;]   = resumeAt.ToString(&quot;O&quot;)
+        });
+
+        // Return PendingWait — engine saves state and suspends
+        // The sweep service calls ResumeFromSweepAsync when TimeoutAt &lt;= now
+        // Because TimeoutAt is the DESIRED resume time (not an error deadline),
+        // the sweep service must emit Match (not Error) on timer resumption.
+        // This is handled by ResumeFromSweepAsync: it checks if the suspended
+        // node type is &quot;timer&quot; and passes outcome = Match instead of Error.
+        return new NodeResult
+        {
+            Outcome     = DecisionOutcome.Match,
+            PendingWait = new WaitDescriptor
+            {
+                EventName      = syntheticEvent,
+                CorrelationKey = instance.InstanceId,  // unique — no collision
+                TimeoutAt      = resumeAt,
+                MinSignalCount = 1
+                // OnTimeoutNodeId intentionally null — timer always succeeds
+            }
+        };
+    }
+}
+</code></pre>
+<h3>Timer vs Wait — sweep service distinction</h3>
+<p>The sweep service's <code>ResumeFromSweepAsync</code> must distinguish timer timeout<br />
+(always Match) from wait timeout (Error). It does this by checking the node type:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// In ResumeFromSweepAsync (or the sweep loop):
+var definition = await _workflowRegistry.GetAsync(
+    instance.WorkflowId, instance.WorkflowVersion, ct);
+var currentNode = definition.Nodes[instance.CurrentNodeId];
+
+var isTimerTimeout = currentNode.Type == &quot;timer&quot;
+    &amp;&amp; instance.PendingWait?.TimeoutAt &lt;= DateTimeOffset.UtcNow;
+
+if (isTimerTimeout)
+{
+    // Timer delay elapsed — Match outcome, clear wait, advance
+    instance.PendingWait = null;
+    instance.Status      = ExecStatus.Running;
+    // signal context: no payload written (timer has no signal data)
+}
+else
+{
+    // Wait node timeout — Error outcome, write to context, take Error edge
+    instance.Context.Store(&quot;_timedOut&quot;, new JsonContextValue
+        { Value = JsonSerializer.SerializeToElement(true) });
+    // engine loop takes the Error edge
+}
+</code></pre>
+<p>Register alongside other executors:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">builder.AddNodeExecutor&lt;TimerNodeExecutor&gt;();
+</code></pre>
+<hr />
+<h2>18. CheckpointNodeExecutor</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// The only node executor that triggers a mid-loop SaveAsync.
+/// Returns ForceCheckpoint = true in NodeResult — the engine loop
+/// detects this flag at step 3k and calls SaveWithRetryAsync before
+/// advancing CurrentNodeId to the next node.
+///
+/// No config. No output. Always returns Match.
+/// Register alongside other executors:
+///   builder.AddNodeExecutor&amp;lt;CheckpointNodeExecutor&amp;gt;();
+/// &lt;/summary&gt;
+public sealed class CheckpointNodeExecutor : INodeExecutor
+{
+    public string NodeType =&gt; &quot;checkpoint&quot;;
+
+    public Task&lt;NodeResult&gt; ExecuteAsync(
+        NodeDefinition    node,
+        ExecutionInstance instance,
+        IExecutionContext  ctx,
+        CancellationToken ct)
+        =&gt; Task.FromResult(new NodeResult
+        {
+            Outcome         = DecisionOutcome.Match,
+            ForceCheckpoint = true
+        });
+}
+</code></pre>
+<hr />
+<h2>19. Post-implementation checklist</h2>
+<ul>
+<li>[ ] <code>FlowEngine.cs</code> compiles with zero node executors registered</li>
+<li>[ ] <code>StartAsync</code> creates instance, saves it, runs loop, returns completed/suspended instance</li>
+<li>[ ] Loop advances through multiple sequential synchronous nodes with NO intermediate saves</li>
+<li>[ ] Loop suspends correctly when a node returns <code>PendingWait != null</code></li>
+<li>[ ] Loop terminates correctly when an <code>output</code> node (no edges) is reached</li>
+<li>[ ] <code>MaxVisits</code> guard transitions to <code>CycleDetected</code> on breach</li>
+<li>[ ] Instance-level deadline transitions to <code>TimedOut</code> when breached</li>
+<li>[ ] <code>GlobalOnFailureNodeId</code> is taken when no edge matches an Error outcome</li>
+<li>[ ] Backward edges (nextNodeId referencing a previously visited node) work correctly</li>
+<li>[ ] <code>ResumeAsync</code> finds suspended instance, appends signal, writes <code>$.context._signal</code> and <code>$.context._signals</code>, resumes when MinSignalCount met</li>
+<li>[ ] <code>ResumeByInstanceIdAsync</code> works as direct resume path, writes same signal context keys</li>
+<li>[ ] <code>ResumeFromSweepAsync</code> handles all three sweep cases (crash recovery, timeout, pending signal)</li>
+<li>[ ] <code>ResumeChildAsync</code> stores child signal in context and resumes parent</li>
+<li>[ ] <code>SaveWithRetryAsync</code> handles <code>ConcurrencyException</code> with one reload+replay cycle</li>
+<li>[ ] Lease is released after save when status is Suspended or terminal</li>
+<li>[ ] <strong>Checkpoint</strong>: <code>ForceCheckpoint = true</code> triggers <code>SaveWithRetryAsync</code> at step 3k before advancing; claim NOT released; loop continues</li>
+<li>[ ] <strong>Checkpoint verify</strong>: after checkpoint save, <code>CurrentNodeId</code> equals nextNodeId so crash recovery resumes from AFTER the checkpoint</li>
+<li>[ ] <code>ChildSignalHandler</code> either resumes parent directly or enqueues signal</li>
+<li>[ ] <code>ExecutionSweepService</code> calls <code>FindResumableInstanceIdsAsync</code> and triggers resumption</li>
+<li>[ ] <code>LeaseRenewalService</code> cancels execution CTS if renewal fails</li>
+<li>[ ] <code>ValidateWorkflowDependenciesAsync</code> throws <code>MissingClientException</code> for unregistered clientRefs</li>
+<li>[ ] <code>ValidateWorkflowDependenciesAsync</code> throws <code>ClientValidationException</code> if <code>ValidateAsync</code> fails</li>
+<li>[ ] <code>BuildExecutionContext</code> returns a properly constructed <code>ExecutionContext</code></li>
+<li>[ ] <code>ExecutionContext.Resolve("$.engine.visits.{nodeId}")</code> returns correct visit count</li>
+<li>[ ] <code>ExecutionContext.Resolve("$.engine.visits._total")</code> returns sum of all visits</li>
+<li>[ ] <code>ExecutionContext.Store()</code> throws on <code>$.engine.*</code> writes</li>
+<li>[ ] <code>WhenEvaluator</code> correctly resolves <code>$.engine.visits.n-review &gt;= 3</code> style predicates</li>
+<li>[ ] <code>FaultInstanceAsync</code> sets Status, CompletedAt, Error, and emits telemetry event</li>
+<li>[ ] <code>IsTerminal</code> returns true for all 5 terminal statuses</li>
+<li>[ ] <code>ICalendarProvider</code> default parses ISO 8601 durations correctly</li>
+<li>[ ] <code>ICredentialStore</code> default reads from environment variables</li>
+<li>[ ] <code>IDocumentStore</code> default reads/writes from local filesystem</li>
+<li>[ ] All interfaces have default implementations registered in DI</li>
+<li>[ ] All default implementations are replaceable via <code>FlowEngineBuilder</code> methods</li>
+<li>[ ] <code>CheckpointNodeExecutor</code> registered via <code>builder.AddNodeExecutor&lt;CheckpointNodeExecutor&gt;()</code></li>
+<li>[ ] <strong>TimerNodeExecutor</strong>: resolves delay via <code>ICalendarProvider.ResolveAsync</code></li>
+<li>[ ] <strong>TimerNodeExecutor</strong>: builds WaitDescriptor with synthetic event name <code>"timer.{instanceId}.{nodeId}"</code></li>
+<li>[ ] <strong>Timer sweep</strong>: <code>ResumeFromSweepAsync</code> detects timer node type and emits <code>Match</code> (not <code>Error</code>) on timeout</li>
+<li>[ ] <strong>Timer vs Wait</strong>: wait timeout → Error edge; timer timeout → Match edge — distinct behavior confirmed</li>
+<li>[ ] <strong>CancelAsync</strong>: transitions to Cancelled, closes open HumanTasks, clears PendingWait, releases lock</li>
+<li>[ ] <strong>CancelAsync</strong>: idempotent — returns as-is if already terminal</li>
+<li>[ ] <strong>HumanNodeExecutor</strong>: creates HumanTask with resolved title, assignedTo, dueAt</li>
+<li>[ ] <strong>HumanNodeExecutor</strong>: on re-execution after crash, finds existing task by (InstanceId, NodeId), does NOT create duplicate</li>
+<li>[ ] <strong>HumanNodeExecutor</strong>: when existing task is Completed and quorum reached, writes <code>$.context._humanTaskResponse</code> and returns Match</li>
+<li>[ ] <strong>HumanNodeExecutor</strong>: External channel emits <code>flow.task.created</code> with responseToken for notification service</li>
+<li>[ ] <strong>HumanNodeExecutor</strong>: Quorum &gt; 1 writes all responses to <code>$.context._humanTaskResponses</code> array</li>
+<li>[ ] <strong>SubmitResponseAsync</strong>: validates responseToken for External channel</li>
+<li>[ ] <strong>SubmitResponseAsync</strong>: validates formValues against FormSchema before accepting</li>
+<li>[ ] <strong>SubmitResponseAsync</strong>: idempotent — ignores duplicate submissions from same respondent</li>
+<li>[ ] <strong>SubmitResponseAsync</strong>: calls engine.ResumeByInstanceIdAsync when quorum reached</li>
+<li>[ ] <strong>FileStateStore</strong>: optimistic concurrency via Version counter</li>
+<li>[ ] <strong>FileStateStore</strong>: linear scan for FindBySuspendedEventAsync (acceptable for dev/test)</li>
+<li>[ ] <strong>FileStateStore</strong>: sidecar .signals.json files for child signal queue</li>
+<li>[ ] <strong>FileStateStore</strong> + <strong>InMemoryLockProvider</strong> forms a zero-infrastructure dev stack</li>
+<li>[ ] <code>dotnet build</code> — zero errors, zero warnings</li>
+<li>[ ] Unit tests cover: happy path end-to-end, MaxVisits breach, deadline breach,<br />
+      no matching edge, retry exhaustion, suspension and resumption,<br />
+      concurrency retry, child signal direct and queued paths,<br />
+<code>$.engine.visits</code> resolution, <code>WhenEvaluator</code> with engine namespace,<br />
+      checkpoint mid-loop save (verify CurrentNodeId is nextNodeId after save),<br />
+      crash recovery re-execution (verify sync chain re-runs from last saved node),<br />
+      missing client throws MissingClientException before execution starts,<br />
+      CancelAsync closes HumanTasks and is idempotent,<br />
+      HumanNodeExecutor crash-recovery idempotency (no duplicate tasks),<br />
+      SubmitResponseAsync quorum logic and engine resume</li>
+</ul>
+<hr />
+<h2>20. ExecutionContext — concrete implementation</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Concrete implementation of IExecutionContext. Constructed per-node-execution
+/// by the engine loop via BuildExecutionContext(). Scoped to a single node run.
+/// &lt;/summary&gt;
+internal sealed class ExecutionContext : IExecutionContext
+{
+    private readonly WorkflowDefinition _definition;
+    private readonly IServiceProvider   _services;
+    private readonly ICalendarProvider  _calendar;
+
+    public ExecutionInstance Instance { get; }
+    public IServiceProvider  Services =&gt; _services;
+    public ILogger Logger =&gt; _services.GetRequiredService&lt;ILogger&lt;ExecutionContext&gt;&gt;();
+    public int TotalVisitCount =&gt; Instance.NodeVisitCounts.Values.Sum();
+    public int GetVisitCount(string nodeId)
+        =&gt; Instance.NodeVisitCounts.GetValueOrDefault(nodeId, 0);
+
+    public ContextValue? Resolve(string jsonPath)
+    {
+        if (string.IsNullOrWhiteSpace(jsonPath))
+            throw new ArgumentException(&quot;Path cannot be empty&quot;, nameof(jsonPath));
+
+        return jsonPath switch
+        {
+            var p when p == &quot;$.engine&quot;
+                =&gt; SerialiseEngine(),
+            var p when p.StartsWith(&quot;$.engine.visits.&quot;)
+                =&gt; ResolveVisit(p[&quot;$.engine.visits.&quot;.Length..]),
+            var p when p.StartsWith(&quot;$.engine.&quot;)
+                =&gt; ResolveEngineMeta(p[&quot;$.engine.&quot;.Length..]),
+            &quot;$.entity&quot;
+                =&gt; Instance.Context.Entity,
+            var p when p.StartsWith(&quot;$.entity&quot;)
+                =&gt; ResolveJsonPath(Instance.Context.Entity, p[&quot;$.entity&quot;.Length..]),
+            var p when p.StartsWith(&quot;$.params.&quot;)
+                =&gt; ResolveFromDict(Instance.Context.Params, p[&quot;$.params.&quot;.Length..]),
+            var p when p.StartsWith(&quot;$.context.&quot;)
+                =&gt; ResolveFromDict(Instance.Context.Context, p[&quot;$.context.&quot;.Length..]),
+            _ =&gt; throw new ArgumentException(
+                $&quot;Unrecognised namespace: '{jsonPath}'. &quot; +
+                &quot;Valid: $.entity, $.params, $.context, $.engine&quot;)
+        };
+    }
+
+    public T? ResolveAs&lt;T&gt;(string jsonPath)
+    {
+        var value = Resolve(jsonPath);
+        if (value is null or NullContextValue) return default;
+        if (value is JsonContextValue jv) return jv.Value.Deserialize&lt;T&gt;();
+        throw new InvalidCastException(
+            $&quot;Cannot convert {value.GetType().Name} to {typeof(T).Name}&quot;);
+    }
+
+    public void Store(string key, ContextValue value)
+    {
+        if (key.StartsWith(&quot;$.engine&quot;))
+            throw new InvalidOperationException(&quot;$.engine namespace is read-only.&quot;);
+        Instance.Context.Store(key, value);
+    }
+
+    public Task&lt;Credential?&gt; GetCredentialAsync(string credentialRef, CancellationToken ct)
+        =&gt; _services.GetRequiredService&lt;ICredentialStore&gt;().GetAsync(credentialRef, ct);
+
+    public Task&lt;Stream&gt; GetDocumentAsync(DocumentContextValue doc, CancellationToken ct)
+        =&gt; _services.GetRequiredService&lt;IDocumentStore&gt;().OpenReadAsync(doc.StoreRef, ct);
+
+    public Task&lt;DateTimeOffset&gt; ResolveDateTimeAsync(string expression, CancellationToken ct)
+        =&gt; _calendar.ResolveAsync(expression, DateTimeOffset.UtcNow, ct);
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private ContextValue ResolveVisit(string nodeId)
+    {
+        var count = nodeId == &quot;_total&quot; ? TotalVisitCount
+                    : Instance.NodeVisitCounts.GetValueOrDefault(nodeId, 0);
+        return new JsonContextValue { Value = JsonSerializer.SerializeToElement(count) };
+    }
+
+    private ContextValue? ResolveEngineMeta(string key) =&gt; key switch
+    {
+        &quot;instanceId&quot;      =&gt; Wrap(Instance.InstanceId),
+        &quot;workflowId&quot;      =&gt; Wrap(Instance.WorkflowId),
+        &quot;workflowVersion&quot; =&gt; Wrap(Instance.WorkflowVersion),
+        &quot;status&quot;          =&gt; Wrap(Instance.Status.ToString()),
+        &quot;currentNodeId&quot;   =&gt; Wrap(Instance.CurrentNodeId),
+        &quot;correlationId&quot;   =&gt; Instance.CorrelationId != null
+                                 ? Wrap(Instance.CorrelationId) : new NullContextValue(),
+        &quot;parentInstanceId&quot;=&gt; Instance.ParentInstanceId != null
+                                 ? Wrap(Instance.ParentInstanceId) : new NullContextValue(),
+        &quot;createdAt&quot;       =&gt; Wrap(Instance.CreatedAt.ToString(&quot;O&quot;)),
+        &quot;totalVisits&quot;     =&gt; Wrap(TotalVisitCount),
+        _ =&gt; null
+    };
+
+    private static JsonContextValue Wrap(object value)
+        =&gt; new() { Value = JsonSerializer.SerializeToElement(value) };
+
+    private static ContextValue? ResolveFromDict(
+        IDictionary&lt;string, ContextValue&gt;? dict, string key)
+    {
+        if (dict == null) return null;
+        var dot = key.IndexOf('.');
+        if (dot &lt; 0) return dict.GetValueOrDefault(key);
+        var head = key[..dot];
+        var tail = key[(dot + 1)..];
+        if (!dict.TryGetValue(head, out var parent)) return null;
+        return ResolveJsonPath(parent, &quot;.&quot; + tail);
+    }
+
+    private static ContextValue? ResolveJsonPath(ContextValue? value, string subPath)
+    {
+        if (value is not JsonContextValue jv || string.IsNullOrEmpty(subPath)) return value;
+        var node     = JsonNode.Parse(jv.Value.GetRawText());
+        var selected = node?.SelectSingleNode(&quot;$&quot; + subPath);
+        if (selected == null) return null;
+        return new JsonContextValue { Value = JsonSerializer.SerializeToElement(selected) };
+    }
+
+    private ContextValue SerialiseEngine()
+        =&gt; new JsonContextValue { Value = JsonSerializer.SerializeToElement(new
+            {
+                instanceId    = Instance.InstanceId,
+                workflowId    = Instance.WorkflowId,
+                currentNodeId = Instance.CurrentNodeId,
+                status        = Instance.Status.ToString(),
+                visits        = Instance.NodeVisitCounts,
+                totalVisits   = TotalVisitCount
+            })};
+}
+</code></pre>
+<hr />
+<h2>21. SaveWithRetryAsync</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Up to 3 attempts. On ConcurrencyException, reload fresh state and propagate our
+// changes before retrying. Last attempt lets the exception propagate.
+private async Task SaveWithRetryAsync(
+    ExecutionInstance instance,
+    string            claimantId,
+    CancellationToken ct)
+{
+    const int maxRetries = 3;
+    for (var i = 0; i &lt; maxRetries; i++)
+    {
+        try
+        {
+            await _stateStore.SaveAsync(instance, ct);
+            return;
+        }
+        catch (ConcurrencyException) when (i &lt; maxRetries - 1)
+        {
+            var fresh = await _stateStore.LoadAsync(instance.InstanceId, ct);
+            if (fresh == null) return;
+
+            // Propagate our changes to the fresh snapshot
+            fresh.Status          = instance.Status;
+            fresh.CurrentNodeId   = instance.CurrentNodeId;
+            fresh.UpdatedAt       = instance.UpdatedAt;
+            fresh.CompletedAt     = instance.CompletedAt;
+            fresh.Output          = instance.Output;
+            fresh.Error           = instance.Error;
+            fresh.PendingWait     = instance.PendingWait;
+            fresh.Context         = instance.Context;
+            fresh.NodeVisitCounts = instance.NodeVisitCounts;
+            fresh.History         = instance.History;
+            fresh.ClaimedBy       = claimantId;
+            instance = fresh;
+        }
+    }
+    await _stateStore.SaveAsync(instance, ct); // last attempt — let it throw
+}
+</code></pre>
+<hr />
+<h2>22. Engine helper methods and missing interfaces</h2>
+<h3>Helper methods on FlowEngine</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// ── BuildExecutionContext ──────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Factory. Creates a scoped ExecutionContext for a single node execution.
+/// Called immediately before ExecuteWithRetryAsync and WhenEvaluator.
+/// &lt;/summary&gt;
+private IExecutionContext BuildExecutionContext(
+    ExecutionInstance instance, WorkflowDefinition definition)
+    =&gt; new Impl.ExecutionContext(
+        instance,
+        _services,
+        _services.GetRequiredService&lt;ICredentialStore&gt;(),
+        _services.GetRequiredService&lt;IDocumentStore&gt;(),
+        _services.GetRequiredService&lt;ICalendarProvider&gt;(),
+        _logger);
+
+// ── FaultInstanceAsync ─────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Transitions the instance to Faulted and populates the Error field.
+/// Does NOT save — caller is responsible for saving in Phase 4.
+/// &lt;/summary&gt;
+// Does NOT save — caller is responsible for saving in Phase 4.
+private static Task FaultInstanceAsync(
+    ExecutionInstance instance,
+    string            code,
+    string            message,
+    string            nodeId)
+{
+    instance.Status      = ExecStatus.Faulted;
+    instance.CompletedAt = DateTimeOffset.UtcNow;
+    instance.UpdatedAt   = DateTimeOffset.UtcNow;
+    instance.Error       = new ExecutionError
+    {
+        Code       = code,
+        Message    = message,
+        NodeId     = nodeId,
+        OccurredAt = DateTimeOffset.UtcNow
+    };
+    return Task.CompletedTask;
+}
+
+// ── AdvancePastCurrentNodeAsync ───────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Advances CurrentNodeId past the current (wait/timer/human) node by evaluating
+/// its edges with the given outcome. Called before ExecuteLoopAsync on resume so the
+/// loop does not re-execute the suspension node — it starts at the next node instead.
+/// On no matching edge: faults the instance.
+/// &lt;/summary&gt;
+private async Task AdvancePastCurrentNodeAsync(
+    ExecutionInstance instance, DecisionOutcome outcome, CancellationToken ct)
+{
+    var definition = await _workflowRegistry.GetAsync(
+        instance.WorkflowId, instance.WorkflowVersion, ct);
+    if (definition == null) return;
+    if (!definition.Nodes.TryGetValue(instance.CurrentNodeId, out var node)) return;
+
+    var ctx = BuildExecutionContext(instance, definition);
+
+    foreach (var edge in node.Edges)
+    {
+        var outcomeMatches = edge.On == null
+            || edge.On.Count == 0
+            || edge.On.Contains(outcome);
+        if (!outcomeMatches) continue;
+
+        if (edge.When != null)
+        {
+            var whenMet = await _whenEvaluator.EvaluateAsync(edge.When, ctx, ct);
+            if (!whenMet) continue;
+        }
+
+        instance.CurrentNodeId = edge.NextNodeId;
+        instance.PendingWait   = null;
+        instance.Status        = ExecStatus.Running;
+        instance.UpdatedAt     = DateTimeOffset.UtcNow;
+        return;
+    }
+
+    // No matching edge found
+    await FaultInstanceAsync(instance, &quot;NO_MATCHING_EDGE&quot;,
+        $&quot;No matching edge found for outcome '{outcome}' on node '{instance.CurrentNodeId}'&quot;,
+        instance.CurrentNodeId);
+}
+
+// ── AppendSignalToContext ─────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Writes signal payload to context:
+///   _signal  — most recent payload (convenience for MinSignalCount=1)
+///   _signals — append-only array of all received payloads
+/// If the payload contains human-task response keys, promotes them to named entries:
+///   _humanTaskResponse, _humanTaskResponses, _humanTaskConsensus
+/// &lt;/summary&gt;
+private static void AppendSignalToContext(ExecutionInstance instance, JsonElement? signalPayload)
+{
+    if (!signalPayload.HasValue) return;
+
+    instance.Context.Store(&quot;_signal&quot;,
+        new JsonContextValue { Value = signalPayload.Value });
+
+    var existing = instance.Context.Context.TryGetValue(&quot;_signals&quot;, out var sv)
+        ? sv as JsonContextValue : null;
+    var arr = existing?.Value.Deserialize&lt;List&lt;JsonElement&gt;&gt;() ?? new();
+    arr.Add(signalPayload.Value);
+    instance.Context.Store(&quot;_signals&quot;,
+        new JsonContextValue { Value = JsonSerializer.SerializeToElement(arr) });
+
+    // Promote human-task response keys when present
+    if (signalPayload.Value.ValueKind == JsonValueKind.Object)
+    {
+        foreach (var contextKey in new[]
+        {
+            HumanTaskContextKeys.Response,
+            HumanTaskContextKeys.Responses,
+            HumanTaskContextKeys.Consensus
+        })
+        {
+            if (signalPayload.Value.TryGetProperty(contextKey, out var prop)
+                &amp;&amp; prop.ValueKind != JsonValueKind.Undefined)
+            {
+                instance.Context.Store(contextKey,
+                    prop.ValueKind == JsonValueKind.Null
+                        ? new NullContextValue()
+                        : new JsonContextValue { Value = prop });
+            }
+        }
+    }
+}
+
+// ── IsTerminal ────────────────────────────────────────────────────────────────
+
+private static bool IsTerminal(ExecStatus status) =&gt; status is
+    ExecStatus.Completed   or
+    ExecStatus.Faulted     or
+    ExecStatus.Cancelled   or
+    ExecStatus.TimedOut    or
+    ExecStatus.CycleDetected;
+
+// ── ResumeFromSweepAsync ──────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Called by ExecutionSweepService for crashed/timed-out/accumulated-signal instances.
+/// Three distinct cases — see inline.
+/// &lt;/summary&gt;
+internal async Task ResumeFromSweepAsync(string instanceId, CancellationToken ct)
+{
+    var instance = await _stateStore.LoadAsync(instanceId, ct);
+    if (instance == null || IsTerminal(instance.Status)) return;
+
+    // Case 1: Running with expired claim — server crashed; re-execute from saved state.
+    // Node executors must be idempotent; use idempotencyKey on integration nodes.
+    if (instance.Status == ExecStatus.Running)
+    {
+        await ExecuteLoopAsync(instance, ct);
+        return;
+    }
+
+    if (instance.Status != ExecStatus.Suspended || instance.PendingWait == null)
+        return;
+
+    var now = DateTimeOffset.UtcNow;
+
+    // Case 2: Accumulated enough signals (push path missed it)
+    if (instance.PendingWait.ReceivedSignals.Count &gt;= instance.PendingWait.MinSignalCount)
+    {
+        await AdvancePastCurrentNodeAsync(instance, DecisionOutcome.Match, ct);
+        await _stateStore.SaveAsync(instance, ct);
+        await ExecuteLoopAsync(instance, ct);
+        return;
+    }
+
+    // Case 3: Wait timeout
+    if (instance.PendingWait.TimeoutAt.HasValue &amp;&amp; instance.PendingWait.TimeoutAt.Value &lt;= now)
+    {
+        var definition = await _workflowRegistry.GetAsync(
+            instance.WorkflowId, instance.WorkflowVersion, ct);
+
+        string? nodeType = null;
+        if (definition != null
+            &amp;&amp; definition.Nodes.TryGetValue(instance.CurrentNodeId, out var node))
+            nodeType = node.Type;
+
+        // Timer node: delay expiry is the intended path → Match (not an error)
+        if (nodeType == &quot;timer&quot;)
+        {
+            await AdvancePastCurrentNodeAsync(instance, DecisionOutcome.Match, ct);
+            await _stateStore.SaveAsync(instance, ct);
+            await ExecuteLoopAsync(instance, ct);
+            return;
+        }
+
+        // Wait/human node timeout — jump to OnTimeoutNodeId or transition to TimedOut
+        var onTimeoutNodeId = instance.PendingWait.OnTimeoutNodeId;
+        instance.PendingWait = null;
+
+        if (onTimeoutNodeId != null)
+        {
+            instance.Status        = ExecStatus.Running;
+            instance.CurrentNodeId = onTimeoutNodeId;
+            instance.UpdatedAt     = DateTimeOffset.UtcNow;
+            await _stateStore.SaveAsync(instance, ct);
+            await ExecuteLoopAsync(instance, ct);
+        }
+        else
+        {
+            instance.Status      = ExecStatus.TimedOut;
+            instance.CompletedAt = DateTimeOffset.UtcNow;
+            instance.UpdatedAt   = DateTimeOffset.UtcNow;
+            instance.Error       = new ExecutionError
+            {
+                Code       = &quot;WAIT_TIMEOUT&quot;,
+                Message    = $&quot;Wait node timed out at {now}&quot;,
+                NodeId     = instance.CurrentNodeId,
+                OccurredAt = now
+            };
+            await _stateStore.SaveAsync(instance, ct);
+            EmitFinalEvent(instance);
+        }
+    }
+}
+
+// ── ResumeChildAsync ──────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Called by ChildSignalHandler after it has claimed the parent lock.
+/// Enqueues the child signal, releases the child-signal lock, then runs the loop.
+/// childSignalClaimantId is the claimant ID used by ChildSignalHandler so it can be released.
+/// &lt;/summary&gt;
+internal async Task ResumeChildAsync(
+    string            parentInstanceId,
+    ChildSignal       signal,
+    string            childSignalClaimantId,
+    CancellationToken ct = default)
+{
+    // Enqueue the signal so loop/parallel executors can read it via GetChildrenAsync
+    await _stateStore.EnqueueChildSignalAsync(parentInstanceId, signal, ct);
+
+    // Release the lock acquired by ChildSignalHandler so we can re-acquire with our ClaimantId
+    await _lockProvider.ReleaseAsync(parentInstanceId, childSignalClaimantId, ct);
+
+    var parent = await _stateStore.LoadAsync(parentInstanceId, ct);
+    if (parent == null || IsTerminal(parent.Status)) return;
+
+    // Transition Suspended → Running so the loop continues
+    if (parent.Status == ExecStatus.Suspended)
+    {
+        parent.Status    = ExecStatus.Running;
+        parent.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    await ExecuteLoopAsync(parent, ct);
+}
+
+// ── Telemetry ─────────────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Emit a structured event via the injected IFlowEngineTelemetry (no-op when null).
+/// &lt;/summary&gt;
+private void EmitEvent(string eventName, ExecutionInstance instance,
+    NodeDefinition? node = null, NodeResult? result = null,
+    double? durationMs = null)
+{
+    if (_telemetry == null) return;
+    var tags = new Dictionary&lt;string, object?&gt;
+    {
+        [&quot;instanceId&quot;] = instance.InstanceId,
+        [&quot;workflowId&quot;] = instance.WorkflowId,
+        [&quot;status&quot;]     = instance.Status.ToString()
+    };
+    if (node   != null) tags[&quot;nodeId&quot;]   = node.Id;
+    if (node   != null) tags[&quot;nodeType&quot;]  = node.Type;
+    if (result != null) tags[&quot;outcome&quot;]   = result.Outcome.ToString();
+    if (durationMs.HasValue) tags[&quot;durationMs&quot;] = durationMs;
+    _telemetry.Emit(eventName, tags);
+}
+
+private void EmitFinalEvent(ExecutionInstance instance)
+{
+    var eventName = instance.Status switch
+    {
+        ExecStatus.Completed     =&gt; &quot;flow.instance.completed&quot;,
+        ExecStatus.Faulted       =&gt; &quot;flow.instance.faulted&quot;,
+        ExecStatus.TimedOut      =&gt; &quot;flow.instance.timed_out&quot;,
+        ExecStatus.Cancelled     =&gt; &quot;flow.instance.cancelled&quot;,
+        ExecStatus.CycleDetected =&gt; &quot;flow.instance.faulted&quot;,
+        ExecStatus.Suspended     =&gt; &quot;flow.instance.suspended&quot;,
+        ExecStatus.Running       =&gt; &quot;flow.instance.running&quot;,
+        _                        =&gt; &quot;flow.instance.completed&quot;
+    };
+    EmitEvent(eventName, instance);
+}
+</code></pre>
+<hr />
+<h3>Missing interfaces (define in FlowEngine.Core/Abstractions/)</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Resolves duration/date expressions to absolute DateTimeOffset values.
+/// Supports ISO 8601, business-day-aware, and calendar-relative expressions.
+/// Default implementation (DefaultCalendarProvider) supports ISO 8601 only.
+/// Register a custom implementation for business-day awareness.
+/// &lt;/summary&gt;
+public interface ICalendarProvider
+{
+    /// &lt;summary&gt;
+    /// Resolve a duration or date expression relative to a base time.
+    /// Supported formats (default implementation):
+    ///   &quot;PT4H&quot;          — ISO 8601 duration added to baseTime
+    ///   &quot;P3D&quot;           — ISO 8601 duration
+    ///   &quot;2bd&quot;           — 2 business days (requires custom implementation)
+    ///   &quot;startDate+30d&quot; — named context date + offset (requires custom impl)
+    /// &lt;/summary&gt;
+    Task&lt;DateTimeOffset&gt; ResolveAsync(
+        string         expression,
+        DateTimeOffset baseTime,
+        CancellationToken ct = default);
+}
+
+public sealed class DefaultCalendarProvider : ICalendarProvider
+{
+    public Task&lt;DateTimeOffset&gt; ResolveAsync(
+        string expression, DateTimeOffset baseTime, CancellationToken ct)
+    {
+        // Parse ISO 8601 duration only. Throws FormatException for unsupported formats.
+        var duration = System.Xml.XmlConvert.ToTimeSpan(expression);
+        return Task.FromResult(baseTime.Add(duration));
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ICredentialStore / Credential / DefaultCredentialStore
+//
+// Canonical definitions live in FlowEngine-CoreSchema.md § ICredentialStore.
+// Do not redefine here. The merged Credential class (with all fields for
+// api-key, bearer, basic, oauth2-client, and custom types) and the structured
+// FLOWENGINE_CRED_{REF}_{FIELD} environment variable format are the
+// authoritative contract.
+//
+// Summary of environment variable format for quick reference:
+//   FLOWENGINE_CRED_{REF}_TYPE          required — credential type
+//   FLOWENGINE_CRED_{REF}_KEY           api-key / bearer token / password
+//   FLOWENGINE_CRED_{REF}_SECRET        oauth2-client secret / basic password
+//   FLOWENGINE_CRED_{REF}_KEYHEADER     api-key: header name (e.g. X-API-Key)
+//   FLOWENGINE_CRED_{REF}_KEYQUERYPARAM api-key: query param name
+//   FLOWENGINE_CRED_{REF}_TOKENENDPOINT oauth2-client: token URL
+//   FLOWENGINE_CRED_{REF}_CLIENTID      oauth2-client: client ID
+//   FLOWENGINE_CRED_{REF}_SCOPE         oauth2-client: scope string
+// ──────────────────────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Opens a read stream for a document stored externally.
+/// Referenced by DocumentContextValue.StoreRef.
+/// Default implementation treats StoreRef as a file path.
+/// Register a custom implementation for Azure Blob, S3, etc.
+/// &lt;/summary&gt;
+public interface IDocumentStore
+{
+    Task&lt;Stream&gt; OpenReadAsync(string storeRef, CancellationToken ct = default);
+    Task&lt;DocumentContextValue&gt; StoreAsync(
+        Stream        content,
+        string        fileName,
+        string        contentType,
+        CancellationToken ct = default);
+}
+
+public sealed class LocalFileDocumentStore : IDocumentStore
+{
+    private readonly string _basePath;
+    public LocalFileDocumentStore(string basePath)
+    {
+        _basePath = basePath;
+        Directory.CreateDirectory(basePath); // ensure directory exists on first use
+    }
+
+    public Task&lt;Stream&gt; OpenReadAsync(string storeRef, CancellationToken ct)
+        =&gt; Task.FromResult&lt;Stream&gt;(
+            File.OpenRead(Path.Combine(_basePath, storeRef)));
+
+    public async Task&lt;DocumentContextValue&gt; StoreAsync(
+        Stream content, string fileName, string contentType, CancellationToken ct)
+    {
+        var id   = Guid.NewGuid().ToString(&quot;N&quot;) + Path.GetExtension(fileName);
+        var path = Path.Combine(_basePath, id);
+        await using var fs = File.Create(path);
+        await content.CopyToAsync(fs, ct);
+        return new DocumentContextValue
+        {
+            StoreRef    = id,
+            FileName    = fileName,
+            ContentType = contentType,
+            SizeBytes   = fs.Length,
+            StoredAt    = DateTimeOffset.UtcNow
+        };
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Abstraction over OpenTelemetry ActivitySource / ILogger structured events.
+/// Decouples the engine from a specific OTel SDK version.
+/// Default implementation uses ILogger structured logging.
+/// Register a custom implementation to emit OTel spans/events directly.
+/// &lt;/summary&gt;
+public interface IFlowEngineTelemetry
+{
+    void Emit(string eventName, Dictionary&lt;string, object?&gt; tags);
+}
+
+public sealed class LoggerFlowEngineTelemetry : IFlowEngineTelemetry
+{
+    private readonly ILogger _logger;
+    public LoggerFlowEngineTelemetry(ILogger&lt;FlowEngine&gt; logger) =&gt; _logger = logger;
+    public void Emit(string eventName, Dictionary&lt;string, object?&gt; tags)
+        =&gt; _logger.LogInformation(&quot;{Event} {@Tags}&quot;, eventName, tags);
+}
+</code></pre>
+<h3>DI registration additions</h3>
+<p>Add these default registrations to <code>FlowEngineServiceExtensions.AddFlowEngine()</code>:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Default implementations — all replaceable via builder methods
+services.AddSingleton&lt;ICalendarProvider,    DefaultCalendarProvider&gt;();
+services.AddSingleton&lt;ICredentialStore,     DefaultCredentialStore&gt;();
+services.AddSingleton&lt;IDocumentStore&gt;(sp =&gt;
+    new LocalFileDocumentStore(
+        Path.Combine(Path.GetTempPath(), &quot;flowengine-documents&quot;)));
+services.AddSingleton&lt;IFlowEngineTelemetry, LoggerFlowEngineTelemetry&gt;();
+</code></pre>
+<p>Add corresponding builder methods to <code>FlowEngineBuilder</code>:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public FlowEngineBuilder UseCalendarProvider&lt;T&gt;()  where T : class, ICalendarProvider  { _services.AddSingleton&lt;ICalendarProvider, T&gt;(); return this; }
+public FlowEngineBuilder UseCredentialStore&lt;T&gt;()   where T : class, ICredentialStore   { _services.AddSingleton&lt;ICredentialStore, T&gt;();  return this; }
+public FlowEngineBuilder UseDocumentStore&lt;T&gt;()     where T : class, IDocumentStore     { _services.AddSingleton&lt;IDocumentStore, T&gt;();    return this; }
+public FlowEngineBuilder UseTelemetry&lt;T&gt;()         where T : class, IFlowEngineTelemetry { _services.AddSingleton&lt;IFlowEngineTelemetry, T&gt;(); return this; }
+</code></pre>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('theme');
+  if (stored) html.setAttribute('data-theme', stored);
+  toggle.textContent = html.getAttribute('data-theme') === 'light' ? '🌙' : '☀️';
+  toggle.addEventListener('click', () => {
+    const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    toggle.textContent = next === 'light' ? '🌙' : '☀️';
+  });
+})();
+</script>
+
+</body>
+</html>

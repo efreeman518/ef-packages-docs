@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowEngine — Connectors &amp; Agent Governance</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--text2:#c9d1d9;--muted:#8b949e;
+    --teal:#1D9E75;--amber:#EF9F27;--coral:#D85A30;--blue:#378ADD;
+    --purple:#7F77DD;--green:#3FB950;
+    --code-bg:#161b22;--inline-code-color:#EF9F27;
+    --h1-span-color:#1D9E75;
+    --th-bg:var(--bg3);
+    --tr-hover:rgba(255,255,255,.02);
+    --callout-teal-bg:rgba(29,158,117,.08);--callout-teal-fg:#b8e8d6;
+    --callout-amber-bg:rgba(239,159,39,.08);--callout-amber-fg:#f5d898;
+    --callout-blue-bg:rgba(55,138,221,.08);--callout-blue-fg:#a8ccee;
+    --arch-color:var(--muted);
+    --node-card-bg:var(--bg2);
+    --canvas-top:rgba(29,158,117,.08);
+    --canvas-bottom:rgba(55,138,221,.06);
+    --content-surface:rgba(22,27,34,.96);
+    --content-border:rgba(139,148,158,.28);
+    --content-shadow:0 28px 72px rgba(0,0,0,.32);
+    --content-max:920px;
+  }
+  [data-theme="light"] {
+    --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;
+    --text:#1f2328;--text2:#36454f;--muted:#656d76;
+    --teal:#1a7f64;--amber:#b45309;--coral:#bc4c00;--blue:#0969da;
+    --purple:#6e40c9;--green:#1a7f37;
+    --code-bg:#f6f8fa;--inline-code-color:#b45309;
+    --h1-span-color:#1a7f64;
+    --th-bg:#eaeef2;
+    --tr-hover:rgba(0,0,0,.02);
+    --callout-teal-bg:rgba(26,127,100,.08);--callout-teal-fg:#1a7f64;
+    --callout-amber-bg:rgba(180,83,9,.08);--callout-amber-fg:#b45309;
+    --callout-blue-bg:rgba(9,105,218,.08);--callout-blue-fg:#0969da;
+    --arch-color:#36454f;
+    --node-card-bg:#ffffff;
+    --canvas-top:rgba(26,127,100,.05);
+    --canvas-bottom:rgba(9,105,218,.04);
+    --content-surface:rgba(255,255,255,.94);
+    --content-border:rgba(208,215,222,.95);
+    --content-shadow:0 24px 56px rgba(31,35,40,.08);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;overflow-x:hidden;}
+  body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;transition:background .2s,color .2s;overflow-x:hidden;padding:0 clamp(12px,2.8vw,32px) 56px;}
+
+  .doc-header{width:min(100%,var(--content-max));max-width:var(--content-max);background:var(--bg2);border:1px solid var(--content-border);padding:40px 64px 36px;position:relative;overflow:hidden;margin:16px auto 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header-badge{display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;}
+  .header-back{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:3px;transition:color .15s,border-color .15s;}
+  .header-back:hover{color:var(--text);border-color:var(--muted);}
+  .doc-header h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;}
+  .doc-header h1 span{color:var(--h1-span-color);}
+  .doc-header .tagline{font-size:15px;font-weight:300;color:var(--muted);max-width:640px;line-height:1.6;margin-bottom:0;}
+  .theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;margin-left:auto;}
+  .theme-toggle:hover{background:var(--border);color:var(--text);}
+
+  .content{width:min(100%,var(--content-max));max-width:var(--content-max);margin:20px auto 0;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  h2{font-size:22px;font-weight:600;color:var(--text);margin:52px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);letter-spacing:-.01em;}
+  h2:first-child{margin-top:0;}
+  h3{font-size:16px;font-weight:600;color:var(--text);margin:28px 0 8px;}
+  h4{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--teal);margin:20px 0 6px;letter-spacing:.02em;}
+  p{margin-bottom:12px;color:var(--text2);}
+  ul,ol{margin:0 0 12px 1.4rem;color:var(--text2);}
+  li{margin-bottom:4px;}
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0;}
+  strong{color:var(--text);font-weight:600;}
+  blockquote{border-left:3px solid var(--border);padding:8px 16px;margin:12px 0;color:var(--muted);font-style:italic;}
+  blockquote p{color:var(--muted);}
+
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--inline-code-color);}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;overflow-x:auto;margin:12px 0 18px;position:relative;}
+  pre code{background:none;border:none;padding:0;color:var(--text);font-size:12.5px;line-height:1.65;}
+  .lang-tag{position:absolute;top:8px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 18px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{background:var(--th-bg);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:8px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--tr-hover);}
+
+  .callout{border-radius:6px;padding:13px 17px;margin:14px 0;border-left:3px solid;font-size:14px;line-height:1.65;}
+  .callout-teal{background:var(--callout-teal-bg);border-color:var(--teal);color:var(--callout-teal-fg);}
+  .callout-amber{background:var(--callout-amber-bg);border-color:var(--amber);color:var(--callout-amber-fg);}
+  .callout-blue{background:var(--callout-blue-bg);border-color:var(--blue);color:var(--callout-blue-fg);}
+  .callout strong{color:inherit;font-weight:600;}
+  .callout code{background:rgba(127,119,221,.1);border-color:var(--border);color:inherit;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+  @media (max-width:768px){
+    body{padding:0 12px 32px;}
+    .doc-header{padding:24px 20px 20px;margin-top:12px;border-radius:20px;}
+    .doc-header h1{font-size:22px;}
+    .content{margin-top:16px;padding:24px 18px;border-radius:20px;}
+    pre{font-size:12px;padding:14px 16px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Connectors &amp; Agent Governance</div>
+    <a class="header-back" href="FlowEngine-Design-Doc.html">← Tech Doc</a>
+    <a class="header-back" href="../FlowEngine-README.md" style="margin-left:4px;">← README</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀️</button>
+  </div>
+  <h1><span>Flow</span>Engine — Connectors &amp; Agent Governance</h1>
+  <p class="tagline">Ready-made client packages (HTTP, Service Bus, SQL), agent content filtering, prompt versioning, cost telemetry, and custom client patterns.</p>
+</div>
+
+<div class="content">
+
+<h2 id="toc">Contents</h2>
+<ul>
+  <li><a href="#client-concurrency">Client Concurrency Limits</a></li>
+  <li><a href="#clients-http">HTTP Client (<code>EF.FlowEngine.Clients.Http</code>)</a></li>
+  <li><a href="#clients-servicebus">Service Bus Client (<code>EF.FlowEngine.Clients.ServiceBus</code>)</a></li>
+  <li><a href="#clients-openai">OpenAI / Azure AI Client (<code>EF.FlowEngine.Clients.OpenAI</code>)</a></li>
+  <li><a href="#clients-sql">SQL Query Clients (<code>EF.FlowEngine.Clients.Sql</code>)</a></li>
+  <li><a href="#custom-clients">Custom Client Patterns</a></li>
+  <li><a href="#agent-governance">Agent Governance</a>
+    <ul>
+      <li><a href="#content-filtering">Content Filtering</a></li>
+      <li><a href="#prompt-versioning">Prompt Versioning</a></li>
+      <li><a href="#telemetry">Telemetry &amp; Cost Tracking</a></li>
+    </ul>
+  </li>
+</ul>
+
+<hr>
+
+<h2 id="client-concurrency">Client Concurrency Limits</h2>
+<p>All <code>IFlowClient</code> implementations can declare a <code>ConcurrencyLimit</code> property. When non-null, <code>ClientRegistry</code> automatically wraps the client in a process-local semaphore — no executor changes needed. Every call to the client (from any parallel loop branch, parallel node, or concurrent workflow) must acquire a slot before proceeding and releases it when done, even on cancellation or exception.</p>
+
+<h3>When to use</h3>
+<div class="table-wrap"><table>
+  <tr><th>Scenario</th><th>Recommended limit</th></tr>
+  <tr><td>Client wraps a non-thread-safe resource (e.g. raw <code>DbContext</code>)</td><td><code>1</code></td></tr>
+  <tr><td>External API with a documented rate limit (e.g. 10 req/s)</td><td><code>N</code> matching the limit</td></tr>
+  <tr><td>Database connection pool protection</td><td>Fraction of pool size (e.g. pool/2)</td></tr>
+  <tr><td>Thread-safe client, no external constraint</td><td><code>null</code> (default — no semaphore)</td></tr>
+</table></div>
+
+<h3>Usage</h3>
+<p>Override <code>ConcurrencyLimit</code> in your client implementation:</p>
+<pre><span class="lang-tag">csharp</span><code>public class MyApiClient : IRequestResponseClient
+{
+    public string ClientRef        => "rate-limited-api";
+    public int?   ConcurrencyLimit => 5;   // at most 5 concurrent calls in this process
+
+    public Task ValidateAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public async Task&lt;ClientResponse&gt; ExecuteAsync(ClientRequest request, CancellationToken ct)
+    {
+        // semaphore already acquired by the registry wrapper before this is called
+        var response = await _http.PostAsJsonAsync("/api/call", request.Body, ct);
+        return new ClientResponse { StatusCode = (int)response.StatusCode, ... };
+    }
+}
+</code></pre>
+
+<p>Or set it on a built-in client that supports it — for example <code>EfQueryClient&lt;TContext&gt;</code> exposes a constructor overload that sets the limit.</p>
+
+<div class="callout callout-amber">
+  <strong>Process-local only.</strong> The semaphore lives in the current process. In a multi-node deployment each host enforces its own limit independently — total concurrent calls across the cluster can reach <em>limit × node-count</em>. For strict cluster-wide throttling, a future <code>IDistributedConcurrencyLimiter</code> extension point (backed by a Redis counter or similar distributed primitive) will replace or supplement this mechanism.
+</div>
+
+<div class="callout callout-blue">
+  <strong>Interaction with <code>MaxConcurrency</code> on loop/parallel nodes.</strong> The loop node's <code>maxConcurrency</code> controls how many child workflows are spawned simultaneously. <code>ConcurrencyLimit</code> on a client controls how many of those children can call that specific client at the same time. Both limits apply independently — you can have 20 parallel branches with a client limit of 3, meaning 17 branches wait for a slot while 3 are calling the client.
+</div>
+
+<hr>
+
+<h2 id="clients-http">HTTP Client</h2>
+<p>Package: <code>EF.FlowEngine.Clients.Http</code></p>
+<p><code>ResilientHttpFlowClient</code> wraps an <code>HttpClient</code> with the <code>Microsoft.Extensions.Http.Resilience</code> standard pipeline (retry + circuit breaker + hedging). Implements <code>IFlowClient</code> / <code>IRequestResponseClient</code>.</p>
+
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
+    .AddResilientHttpClient(
+        clientRef:   "payment-api",
+        baseAddress: new Uri("https://payments.internal/"),
+        configure:   pipeline =>
+        {
+            // Customize the resilience pipeline (optional)
+            pipeline.AddRetry(new HttpRetryStrategyOptions
+            {
+                MaxRetryAttempts = 3,
+                Delay = TimeSpan.FromMilliseconds(500),
+                BackoffType = DelayBackoffType.Exponential
+            });
+        });
+</code></pre>
+
+<p>Uses the same <code>clientRef</code> naming convention as all other FlowEngine clients — reference it in workflow nodes as <code>"clientRef": "payment-api"</code>.</p>
+
+<h3>Default resilience pipeline</h3>
+<p>When no <code>configure</code> delegate is provided, the standard <code>Microsoft.Extensions.Http.Resilience</code> pipeline applies:</p>
+<ul>
+  <li>Retry: up to 3 attempts, exponential backoff, jitter</li>
+  <li>Circuit breaker: opens after 10 failures in 30 s, stays open for 30 s</li>
+  <li>Timeout: 30 s per attempt</li>
+</ul>
+
+<div class="callout callout-blue">
+  <strong>Tip:</strong> The HTTP-level resilience pipeline and FlowEngine's workflow-level <code>circuitBreakerPolicy</code> / <code>retryPolicy</code> are independent layers. The HTTP pipeline guards individual HTTP calls; the workflow policy guards node execution attempts. Both can coexist — size timeouts and thresholds accordingly.
+</div>
+
+<hr>
+
+<h2 id="clients-servicebus">Service Bus Client</h2>
+<p>Package: <code>EF.FlowEngine.Clients.ServiceBus</code></p>
+<p><code>ServiceBusMessageClient</code> implements <code>IMessageClient</code> and <code>IFlowClient</code>. Supports <code>FireAndForget</code> and <code>RequestReply</code> delivery modes. <code>RequestReply</code> uses <code>PendingWait</code> (correlation ID on the reply queue) to suspend and resume the workflow instance.</p>
+
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
+    // Simple — resolves ServiceBusClient from DI
+    .AddServiceBusClient(
+        clientRef:        "order-events",
+        topicOrQueueName: "orders");
+
+    // Or provide the ServiceBusClient directly
+    .AddServiceBusClient(
+        clientRef:         "order-events",
+        serviceBusClient:  new ServiceBusClient(connectionString),
+        topicOrQueueName:  "orders",
+        replyQueueName:    "orders-reply");   // required for RequestReply
+</code></pre>
+
+<h3>Workflow usage</h3>
+<pre><span class="lang-tag">json</span><code>// FireAndForget — publish and move on
+{
+  "type": "message",
+  "config": {
+    "clientRef":      "order-events",
+    "subject":        "order.completed",
+    "body":           { "orderId": "$.entity.OrderId", "total": "$.context.orderTotal" },
+    "deliveryMode":   "FireAndForget",
+    "idempotencyKey": "$.entity.OrderId + '-complete'"
+  }
+}
+
+// RequestReply — publish and suspend until reply arrives
+{
+  "type": "message",
+  "config": {
+    "clientRef":      "payment-processor",
+    "subject":        "payment.requested",
+    "body":           { "amount": "$.context.orderTotal", "customerId": "$.entity.CustomerId" },
+    "deliveryMode":   "RequestReply",
+    "replyEventName": "payment.completed",
+    "replyTimeout":   "PT5M",
+    "idempotencyKey": "$.entity.OrderId + '-payment'"
+  }
+}
+</code></pre>
+
+<h3>Message properties</h3>
+<p>The <code>subject</code> is written as the Service Bus message <code>Subject</code> property. The <code>body</code> object is JSON-serialized as the message body. Use the <code>properties</code> map in the node config to set additional application properties on the Service Bus message.</p>
+
+<hr>
+
+<h2 id="clients-openai">OpenAI / Azure AI Client</h2>
+<p>Package: <code>EF.FlowEngine.Clients.OpenAI</code></p>
+<p><code>OpenAIAgentClient</code> implements <code>IAgentClient</code> backed by <code>Microsoft.Extensions.AI</code> <code>IChatClient</code>. Works with any ME.AI-compatible provider: OpenAI, Azure OpenAI, Microsoft Foundry, Ollama, and more. Emits token usage telemetry via <code>IFlowEngineTelemetry</code>.</p>
+
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code>// OpenAI
+var openAIClient = new OpenAIClient(builder.Configuration["OpenAI:ApiKey"]!);
+builder.Services.AddFlowEngine()
+    .AddOpenAIAgentClient(
+        clientRef:  "gpt4o",
+        chatClient: openAIClient.AsChatClient("gpt-4o"),
+        modelName:  "gpt-4o");   // stored in telemetry; not used for routing
+
+// Azure OpenAI
+var azureClient = new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential());
+builder.Services.AddFlowEngine()
+    .AddOpenAIAgentClient(
+        clientRef:  "azure-gpt4",
+        chatClient: azureClient.AsChatClient("gpt-4o-deployment"),
+        modelName:  "gpt-4o");
+
+// Any IChatClient — Ollama, Semantic Kernel, Microsoft Agent Framework, etc.
+builder.Services.AddFlowEngine()
+    .AddOpenAIAgentClient(
+        clientRef:  "local-llm",
+        chatClient: new OllamaChatClient(new Uri("http://localhost:11434"), "llama3"),
+        modelName:  "llama3");
+</code></pre>
+
+<h3>How prompts are built</h3>
+<p>The executor renders <code>AgentNodeConfig.promptTemplate</code> by resolving <code>{{key}}</code> tokens against the node's <code>input</code> mapping (JSONPath → value), then constructs a <code>UserChatMessage</code>. The <code>IChatClient</code> receives:</p>
+<ul>
+  <li>A <code>UserChatMessage</code> with the rendered prompt text</li>
+  <li><code>ChatOptions.ResponseFormat = ChatResponseFormat.Json</code> when <code>outputSchema</code> is set</li>
+  <li>A cancellation token governed by <code>AgentNodeConfig.timeoutMs</code></li>
+</ul>
+
+<h3>Token usage</h3>
+<p>After each call, <code>OpenAIAgentClient</code> reads <code>ChatResponse.Usage</code> and emits input/output/total token counts via <code>IFlowEngineTelemetry</code>. These appear as tags on the <code>flow.agent.completed</code> event. Configure per-model rates in <code>FlowEngineOptions.AgentModelRates</code> to get <code>estimatedCostUsd</code> in telemetry.</p>
+
+<div class="callout callout-teal">
+  <strong>ME.AI 10.0 API notes:</strong> Uses <code>IChatClient.GetResponseAsync</code> (not the preview-era <code>CompleteAsync</code>). Token counts are typed as <code>long?</code> from <code>ChatResponse.Usage</code>. Model name is passed at construction time rather than read from <code>IChatClient.Metadata</code> (removed in 10.0).
+</div>
+
+<hr>
+
+<h2 id="clients-sql">SQL Query Clients</h2>
+<p>Package: <code>EF.FlowEngine.Clients.Sql</code></p>
+<p>Two implementations of <code>IQueryClient</code> for SQL Server data sources. Both translate a <code>FilterSet</code> into a query against a relational database — one via EF Core (typed, startup-registered), the other via raw ADO.NET (dynamic, UI-configurable).</p>
+
+<h3>EfQueryClient&lt;TContext&gt;</h3>
+<p>Typed EF Core client. Use when you have a <code>DbContext</code> for the target database and want compile-time safety and full EF Core feature support. Must be registered in code at startup — it requires a compile-time generic type parameter.</p>
+<pre><span class="lang-tag">csharp</span><code>// Register in Program.cs (Dashboard.UI or production worker)
+flowEngineBuilder.AddClient(sp =&gt;
+    new EfQueryClient&lt;CrmDbContext&gt;(
+        clientRef:   "crm-query",
+        factory:     sp.GetRequiredService&lt;IDbContextFactory&lt;CrmDbContext&gt;&gt;(),
+        typeMap:     CrmDbContext.EntityTypeMap,    // IReadOnlyDictionary&lt;string, Type&gt;
+        setResolver: (db, entity) =&gt; entity.ToLowerInvariant() switch {
+            "customer" =&gt; db.Customers,
+            "order"    =&gt; db.Orders,
+            _          =&gt; null
+        }));
+
+// EntityTypeMap on the DbContext — maps entityType names to CLR types
+public static IReadOnlyDictionary&lt;string, Type&gt; EntityTypeMap =
+    new Dictionary&lt;string, Type&gt;(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Customer"] = typeof(Customer),
+        ["Order"]    = typeof(Order),
+    };
+</code></pre>
+<p>The client applies <code>FilterBuilder&lt;T&gt;.ProcessFilterSet(query.FilterSet)</code> via reflection using the resolved CLR type, then handles all result modes (Count, Any, First, All, Page).</p>
+
+<div class="callout callout-teal">
+  <strong>Parallel branches — why <code>IDbContextFactory&lt;T&gt;</code> is required.</strong>
+  <code>DbContext</code> is not thread-safe. When <code>EfQueryClient&lt;TContext&gt;</code> is invoked from parallel workflow branches
+  (each running on its own thread-pool thread), every call internally invokes <code>factory.CreateDbContext()</code>,
+  which produces a fresh, independent context instance. This is safe. If you inject a <code>DbContext</code> directly —
+  whether singleton <em>or</em> scoped — concurrent branches will throw
+  <code>InvalidOperationException: A second operation was started on this context…</code>.
+  The engine does not create a new DI scope per branch, so a scoped <code>DbContext</code> is still shared across all branches.
+  Always register with <code>AddPooledDbContextFactory&lt;T&gt;</code> and resolve <code>IDbContextFactory&lt;T&gt;</code> at client construction.
+  <br><br>
+  If you cannot use a factory (e.g. a legacy client wrapping a non-thread-safe resource), set <code>ConcurrencyLimit = 1</code>
+  on the client — the registry will serialize all calls through a semaphore. This is a safety net, not a substitute for proper
+  thread safety: serialized calls to a shared <code>DbContext</code> still accumulate change-tracker state across callers.
+  Prefer <code>IDbContextFactory&lt;T&gt;</code>. See <a href="#client-concurrency">Client Concurrency Limits</a>.
+</div>
+
+<h3>AdHocSqlQueryClient</h3>
+<p>Dynamic SQL client for ad-hoc access to any SQL Server table by connection string and an entity-name → <code>schema.Table</code> map. Translates <code>FilterSet</code> predicates to parameterized SQL WHERE clauses at runtime. No EF Core or compile-time types required — results are returned as <code>Dictionary&lt;string, object?&gt;</code> rows.</p>
+<pre><span class="lang-tag">csharp</span><code>// Registered in code:
+flowEngineBuilder.AddClient(
+    new AdHocSqlQueryClient(
+        clientRef:     "legacy-query",
+        connectionString: config["LegacyDb:ConnectionString"],
+        entityTableMap: new Dictionary&lt;string, string&gt; {
+            ["Invoice"]  = "dbo.Invoices",
+            ["LineItem"] = "dbo.InvoiceLines",
+        }));
+
+// Or added at runtime via the Dashboard Client Registry page (/clients).
+// Persisted to clientconfigs.json and reloaded on restart.
+</code></pre>
+
+<p>Supported filter operations: <code>eq</code>, <code>neq</code>, <code>gt</code>, <code>lt</code>, <code>gte</code>, <code>lte</code>, <code>contains</code> (LIKE), <code>startswith</code> (LIKE), <code>endswith</code> (LIKE), <code>in</code>, <code>nin</code> (NOT IN), <code>isnull</code>, <code>isnotnull</code>. Case sensitivity is respected via <code>LOWER()</code> wrapping when <code>CaseSensitive: false</code>.</p>
+
+<div class="callout callout-amber">
+  <strong>Choose the right client:</strong> Prefer <code>EfQueryClient&lt;TContext&gt;</code> for production — it uses EF Core's query pipeline, respects navigation properties, and gives compile-time type safety. Use <code>AdHocSqlQueryClient</code> for dev/prototyping, legacy databases you can't model in EF Core, or UI-added query clients where the developer cannot redeploy.
+</div>
+
+<hr>
+
+<h2 id="custom-clients">Custom Client Patterns</h2>
+<p>All FlowEngine client interfaces are simple to implement. Register via <code>.AddClient(name, instance)</code> or <code>.AddClient&lt;T&gt;()</code> (DI-resolved).</p>
+
+<h3>IQueryClient</h3>
+<pre><span class="lang-tag">csharp</span><code>public class MyQueryClient : IQueryClient
+{
+    public string ClientRef => "my-query";
+
+    public Task ValidateAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public Type? ResolveEntityType(string entityTypeName) => entityTypeName.ToLower() switch
+    {
+        "record" =&gt; typeof(MyRecord),
+        _        =&gt; null
+    };
+
+    public async Task&lt;QueryResult&gt; QueryAsync(DataSourceQuery query, CancellationToken ct)
+    {
+        // query.EntityType   — entity name string
+        // query.FilterSet    — structured filter predicates
+        // query.OrderBy      — sort column + direction
+        // query.Skip / Take  — paging
+        // query.ResultMode   — Count | Any | First | All | Page
+
+        var results = await MyStore.QueryAsync(query, ct);
+
+        return new QueryResult
+        {
+            Items      = results.Items,
+            TotalCount = results.Total,
+            Outcome    = DecisionOutcome.Match
+        };
+    }
+}
+</code></pre>
+
+<h3>IAgentClient</h3>
+<pre><span class="lang-tag">csharp</span><code>public class MyCustomAgentClient : IAgentClient
+{
+    public string ClientRef => "my-agent";
+
+    public Task ValidateAsync(CancellationToken ct = default)
+    {
+        // Called before the first workflow execution that uses this client
+        // Throw to fail fast with a clear message
+        return Task.CompletedTask;
+    }
+
+    public async Task&lt;AgentResponse&gt; InvokeAsync(AgentRequest request, CancellationToken ct)
+    {
+        // request.Prompt          — rendered prompt template
+        // request.IdempotencyKey  — forwarded from AgentNodeConfig
+        // request.OutputSchema    — JSON Schema string (if set)
+
+        var result = await MyAiService.CallAsync(request.Prompt, ct);
+
+        return new AgentResponse
+        {
+            Output    = JsonSerializer.SerializeToElement(result),
+            Succeeded = true,
+            Outcome   = DecisionOutcome.Match,
+            TokensUsed = result.TotalTokens
+        };
+    }
+}
+
+// Register
+builder.Services.AddFlowEngine()
+    .AddClient("my-agent", new MyCustomAgentClient());
+</code></pre>
+
+<h3>IMessageClient</h3>
+<pre><span class="lang-tag">csharp</span><code>public class MyMessageClient : IMessageClient
+{
+    public string ClientRef => "my-bus";
+
+    public Task ValidateAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task SendAsync(MessageRequest request, CancellationToken ct)
+    {
+        // FireAndForget — publish and return
+        return MyBusClient.PublishAsync(request.Subject, request.Body, ct);
+    }
+
+    public Task&lt;string&gt; SendAndWaitAsync(MessageRequest request, CancellationToken ct)
+    {
+        // RequestReply — return a correlation key that identifies the pending reply
+        // Engine suspends the instance; harness calls engine.ResumeAsync when reply arrives
+        return MyBusClient.PublishWithCorrelationAsync(request.Subject, request.Body, ct);
+    }
+}
+</code></pre>
+
+<h3>IRequestResponseClient</h3>
+<pre><span class="lang-tag">csharp</span><code>public class MyApiClient : IRequestResponseClient
+{
+    public string ClientRef => "my-api";
+
+    public Task ValidateAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public async Task&lt;IntegrationResponse&gt; CallAsync(IntegrationRequest request, CancellationToken ct)
+    {
+        var httpResponse = await _http.PostAsJsonAsync("/api/call", request.Body, ct);
+        return new IntegrationResponse
+        {
+            StatusCode = (int)httpResponse.StatusCode,
+            Body       = await httpResponse.Content.ReadFromJsonAsync&lt;JsonElement&gt;(ct)
+        };
+    }
+}
+</code></pre>
+
+<hr>
+
+<h2 id="agent-governance">Agent Governance</h2>
+
+<h2 id="content-filtering">Content Filtering</h2>
+<p>Register a named <code>IContentFilter</code> to run pre/post checks on every agent call that references it by name.</p>
+
+<h3>IContentFilter contract</h3>
+<pre><span class="lang-tag">csharp</span><code>public interface IContentFilter
+{
+    string Name { get; }
+
+    // Called before the LLM — receives the rendered prompt
+    Task&lt;ContentFilterResult&gt; FilterInputAsync(string prompt, CancellationToken ct = default);
+
+    // Called after the LLM — receives the raw text response
+    Task&lt;ContentFilterResult&gt; FilterOutputAsync(string response, CancellationToken ct = default);
+}
+
+public sealed class ContentFilterResult
+{
+    public bool    IsAllowed           { get; init; }
+    public string? ReplacementContent  { get; init; }  // stored as output if IsAllowed = false
+    public string? Reason              { get; init; }  // recorded in NodeExecutionRecord.Error
+}
+</code></pre>
+
+<h3>Example — Azure AI Content Safety</h3>
+<pre><span class="lang-tag">csharp</span><code>public class AzureContentSafetyFilter : IContentFilter
+{
+    private readonly ContentSafetyClient _client;
+
+    public string Name => "azure-content-safety";
+
+    public AzureContentSafetyFilter(ContentSafetyClient client) => _client = client;
+
+    public async Task&lt;ContentFilterResult&gt; FilterInputAsync(string prompt, CancellationToken ct)
+    {
+        var analysis = await _client.AnalyzeTextAsync(new AnalyzeTextOptions(prompt), ct);
+        var blocked  = analysis.Value.CategoriesAnalysis.Any(c => c.Severity &gt;= 4);
+        return new ContentFilterResult
+        {
+            IsAllowed = !blocked,
+            Reason    = blocked ? "Prompt flagged by Azure Content Safety" : null
+        };
+    }
+
+    public async Task&lt;ContentFilterResult&gt; FilterOutputAsync(string response, CancellationToken ct)
+    {
+        var analysis = await _client.AnalyzeTextAsync(new AnalyzeTextOptions(response), ct);
+        var blocked  = analysis.Value.CategoriesAnalysis.Any(c => c.Severity &gt;= 4);
+        return new ContentFilterResult
+        {
+            IsAllowed          = !blocked,
+            ReplacementContent = blocked ? "[Content filtered]" : null,
+            Reason             = blocked ? "Response flagged by Azure Content Safety" : null
+        };
+    }
+}
+
+// Register
+builder.Services.AddSingleton&lt;IContentFilter, AzureContentSafetyFilter&gt;();
+</code></pre>
+
+<h3>Using in a workflow node</h3>
+<pre><span class="lang-tag">json</span><code>{
+  "type": "agent",
+  "config": {
+    "clientRef":           "gpt4o",
+    "promptTemplate":      "Summarise this document: {{$.context.documentText}}",
+    "contentFilterPolicy": "azure-content-safety"
+  }
+}
+</code></pre>
+
+<h3>Filter execution flow</h3>
+<ol>
+  <li>Engine resolves the named <code>IContentFilter</code> from DI by <code>Name</code></li>
+  <li><code>FilterInputAsync(renderedPrompt)</code> — if <code>IsAllowed: false</code>, node short-circuits with <code>DecisionOutcome.Error</code>. <code>ReplacementContent</code> (if set) is stored as the node output.</li>
+  <li>LLM call proceeds normally</li>
+  <li><code>FilterOutputAsync(responseText)</code> — if <code>IsAllowed: false</code>, same short-circuit applies. Blocked response text is not stored.</li>
+</ol>
+
+<div class="callout callout-amber">
+  <strong>Registration required:</strong> If <code>contentFilterPolicy</code> names a filter that is not registered in DI, the node faults at execution time with a descriptive error. Register all referenced filters before the application starts.
+</div>
+
+<hr>
+
+<h2 id="prompt-versioning">Prompt Versioning</h2>
+<p>Set <code>AgentNodeConfig.promptVersion</code> to a label string. The value is recorded in <code>NodeExecutionRecord.Metadata["promptVersion"]</code> for every invocation of that node — enabling prompt A/B analysis and rollback tracking without changing the workflow definition ID or version.</p>
+
+<pre><span class="lang-tag">json</span><code>{
+  "type": "agent",
+  "config": {
+    "clientRef":      "gpt4o",
+    "promptTemplate": "Classify the risk tier of this loan application: {{$.entity.Summary}}",
+    "promptVersion":  "v3.2-risk-classify"
+  }
+}
+</code></pre>
+
+<p>Query execution history grouped by <code>promptVersion</code> to compare outcomes, latency, and token usage across prompt iterations:</p>
+<pre><span class="lang-tag">csharp</span><code>var records = instance.History
+    .Where(r => r.NodeId == "n-classify-risk" &amp;&amp; r.Metadata.ContainsKey("promptVersion"))
+    .GroupBy(r => r.Metadata["promptVersion"])
+    .Select(g => new
+    {
+        PromptVersion = g.Key,
+        AvgLatencyMs  = g.Average(r => int.Parse(r.Metadata.GetValueOrDefault("latencyMs", "0"))),
+        SuccessRate   = g.Count(r => r.Outcome == DecisionOutcome.Match) / (double)g.Count()
+    });
+</code></pre>
+
+<hr>
+
+<h2 id="telemetry">Telemetry &amp; Cost Tracking</h2>
+<p><code>AgentNodeExecutor</code> emits a <code>flow.agent.completed</code> event via <code>IFlowEngineTelemetry</code> after every agent call. The event carries structured tags for OTel, custom metrics, and cost reporting.</p>
+
+<h3>Telemetry tags</h3>
+<div class="table-wrap"><table>
+  <tr><th>Tag</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>nodeId</code></td><td><code>string</code></td><td>Node ID in the workflow graph</td></tr>
+  <tr><td><code>clientRef</code></td><td><code>string</code></td><td>Name of the registered <code>IAgentClient</code></td></tr>
+  <tr><td><code>promptHash</code></td><td><code>string</code></td><td>SHA-256 (first 16 chars) of the rendered prompt — for prompt change detection</td></tr>
+  <tr><td><code>latencyMs</code></td><td><code>long</code></td><td>End-to-end call latency in milliseconds</td></tr>
+  <tr><td><code>tokensUsed</code></td><td><code>int?</code></td><td>Total tokens consumed (input + output)</td></tr>
+  <tr><td><code>promptVersion</code></td><td><code>string?</code></td><td>Value of <code>AgentNodeConfig.promptVersion</code></td></tr>
+  <tr><td><code>estimatedCostUsd</code></td><td><code>decimal?</code></td><td>Computed from <code>FlowEngineOptions.AgentModelRates</code> × token counts</td></tr>
+</table></div>
+
+<p>These same tags are written to <code>NodeResult.Metadata</code> and persisted in <code>NodeExecutionRecord.Metadata</code> — queryable in the history without an OTel collector.</p>
+
+<h3>Per-model cost rates</h3>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine(options =>
+{
+    options.AgentModelRates["gpt-4o"] = new ModelCostRate
+    {
+        InputCostPerToken  = 0.000005m,   // $5.00 / 1M input tokens
+        OutputCostPerToken = 0.000015m    // $15.00 / 1M output tokens
+    };
+
+    options.AgentModelRates["gpt-4o-mini"] = new ModelCostRate
+    {
+        InputCostPerToken  = 0.00000015m,
+        OutputCostPerToken = 0.00000060m
+    };
+});
+</code></pre>
+
+<p>The model name is set at client registration time via <code>modelName</code> parameter on <code>AddOpenAIAgentClient</code>. If a model name has no entry in <code>AgentModelRates</code>, <code>estimatedCostUsd</code> is emitted as <code>null</code>.</p>
+
+<h3>Custom IFlowEngineTelemetry</h3>
+<pre><span class="lang-tag">csharp</span><code>public class MyTelemetry : IFlowEngineTelemetry
+{
+    private readonly ILogger&lt;MyTelemetry&gt; _logger;
+    private readonly IMeterFactory        _meters;
+
+    public MyTelemetry(ILogger&lt;MyTelemetry&gt; logger, IMeterFactory meters)
+    {
+        _logger = logger;
+        _meters = meters;
+    }
+
+    public void RecordEvent(string eventName, IReadOnlyDictionary&lt;string, object?&gt; tags)
+    {
+        if (eventName == "flow.agent.completed")
+        {
+            var latency = tags.GetValueOrDefault("latencyMs") as long? ?? 0;
+            var cost    = tags.GetValueOrDefault("estimatedCostUsd") as decimal?;
+            var model   = tags.GetValueOrDefault("clientRef")?.ToString();
+
+            _logger.LogInformation(
+                "Agent {Client} completed in {LatencyMs}ms, est. cost ${Cost:F6}",
+                model, latency, cost);
+        }
+    }
+}
+
+// Register
+builder.Services.AddFlowEngine()
+    .UseTelemetry&lt;MyTelemetry&gt;();
+</code></pre>
+
+<div class="callout callout-teal">
+  <strong>OTel integration:</strong> Pipe <code>IFlowEngineTelemetry</code> events into <code>System.Diagnostics.ActivitySource</code> or <code>System.Diagnostics.Metrics.Meter</code> to export to Azure Monitor, Datadog, Jaeger, or any OTel-compatible collector.
+</div>
+
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(stored);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
+</script>
+
+</body>
+</html>

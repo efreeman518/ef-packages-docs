@@ -1,0 +1,2386 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowEngine — Core Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  /* ── Dark theme (default) ───────────────────────────────────────────────── */
+  :root {
+    --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;--border:#30363d;
+    --text:#e6edf3;--text2:#c9d1d9;--muted:#8b949e;
+    --teal:#1D9E75;--amber:#EF9F27;--coral:#D85A30;--blue:#378ADD;
+    --purple:#7F77DD;--green:#3FB950;
+    --code-bg:#161b22;--inline-code-color:#EF9F27;
+    --h1-span-color:#1D9E75;
+    --th-bg:var(--bg3);
+    --tr-hover:rgba(255,255,255,.02);
+    --callout-teal-bg:rgba(29,158,117,.08);--callout-teal-fg:#b8e8d6;
+    --callout-amber-bg:rgba(239,159,39,.08);--callout-amber-fg:#f5d898;
+    --callout-blue-bg:rgba(55,138,221,.08);--callout-blue-fg:#a8ccee;
+        --arch-color:var(--muted);
+        --node-card-bg:var(--bg2);
+        --canvas-top:rgba(29,158,117,.08);
+        --canvas-bottom:rgba(55,138,221,.06);
+        --content-surface:rgba(22,27,34,.96);
+        --content-border:rgba(139,148,158,.28);
+        --content-shadow:0 28px 72px rgba(0,0,0,.32);
+        --content-max:920px;
+  }
+  /* ── Light theme ─────────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;--border:#d0d7de;
+    --text:#1f2328;--text2:#36454f;--muted:#656d76;
+    --teal:#1a7f64;--amber:#b45309;--coral:#bc4c00;--blue:#0969da;
+    --purple:#6e40c9;--green:#1a7f37;
+    --code-bg:#f6f8fa;--inline-code-color:#b45309;
+    --h1-span-color:#1a7f64;
+    --th-bg:#eaeef2;
+    --tr-hover:rgba(0,0,0,.02);
+    --callout-teal-bg:rgba(26,127,100,.08);--callout-teal-fg:#1a7f64;
+    --callout-amber-bg:rgba(180,83,9,.08);--callout-amber-fg:#b45309;
+    --callout-blue-bg:rgba(9,105,218,.08);--callout-blue-fg:#0969da;
+        --arch-color:#36454f;
+        --node-card-bg:#ffffff;
+        --canvas-top:rgba(26,127,100,.05);
+        --canvas-bottom:rgba(9,105,218,.04);
+        --content-surface:rgba(255,255,255,.94);
+        --content-border:rgba(208,215,222,.95);
+        --content-shadow:0 24px 56px rgba(31,35,40,.08);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;overflow-x:hidden;}
+    body{background:radial-gradient(circle at top right,var(--canvas-top) 0,transparent 32%),radial-gradient(circle at bottom left,var(--canvas-bottom) 0,transparent 28%),var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:15px;line-height:1.75;transition:background .2s,color .2s;overflow-x:hidden;padding:0 clamp(12px,2.8vw,32px) 56px;}
+
+  /* ── Header ─────────────────────────────────────────────────────────────── */
+    .doc-header{width:min(100%,var(--content-max));max-width:var(--content-max);background:var(--bg2);border:1px solid var(--content-border);padding:40px 64px 36px;position:relative;overflow:hidden;margin:16px auto 0;border-radius:24px;box-shadow:0 18px 44px rgba(0,0,0,.18);}
+  .doc-header::before{content:'';position:absolute;top:-60px;right:-60px;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(29,158,117,.12) 0%,transparent 70%);pointer-events:none;}
+  .header-top{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .header-badge{display:inline-block;background:rgba(29,158,117,.15);border:1px solid rgba(29,158,117,.3);color:var(--teal);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:3px;}
+  .header-back{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:3px;transition:color .15s,border-color .15s;}
+  .header-back:hover{color:var(--text);border-color:var(--muted);}
+  .doc-header h1{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px;}
+  .doc-header h1 span{color:var(--h1-span-color);}
+  .doc-header .tagline{font-size:15px;font-weight:300;color:var(--muted);max-width:640px;line-height:1.6;margin-bottom:0;}
+  .theme-toggle{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s;flex-shrink:0;margin-left:auto;}
+  .theme-toggle:hover{background:var(--border);color:var(--text);}
+
+  /* ── Content ─────────────────────────────────────────────────────────────── */
+    .content{width:min(100%,var(--content-max));max-width:var(--content-max);margin:20px auto 0;padding:clamp(32px,3vw,48px) clamp(24px,3.8vw,56px);background-color:var(--content-surface);background-image:linear-gradient(180deg,rgba(255,255,255,.035) 0%,transparent 22%);border:1px solid var(--content-border);border-radius:24px;box-shadow:var(--content-shadow);}
+
+  /* ── Typography ──────────────────────────────────────────────────────────── */
+  h2{font-size:22px;font-weight:600;color:var(--text);margin:52px 0 16px;padding-bottom:10px;border-bottom:1px solid var(--border);letter-spacing:-.01em;}
+  h2:first-child{margin-top:0;}
+  h3{font-size:16px;font-weight:600;color:var(--text);margin:28px 0 8px;}
+  h4{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;color:var(--teal);margin:20px 0 6px;letter-spacing:.02em;}
+  p{margin-bottom:12px;color:var(--text2);}
+  ul,ol{margin:0 0 12px 1.4rem;color:var(--text2);}
+  li{margin-bottom:4px;}
+  li p{margin-bottom:4px;}
+  a{color:var(--teal);text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--border);margin:36px 0;}
+  strong{color:var(--text);font-weight:600;}
+  blockquote{border-left:3px solid var(--border);padding:8px 16px;margin:12px 0;color:var(--muted);font-style:italic;}
+  blockquote p{color:var(--muted);}
+
+  /* ── Code ────────────────────────────────────────────────────────────────── */
+  code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--inline-code-color);}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:18px 20px;overflow-x:auto;margin:12px 0 18px;position:relative;}
+  pre code{background:none;border:none;padding:0;color:var(--text);font-size:12.5px;line-height:1.65;}
+  .lang-tag{position:absolute;top:8px;right:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+
+  /* ── Tables ──────────────────────────────────────────────────────────────── */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0 18px;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{background:var(--th-bg);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:8px 14px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:var(--tr-hover);}
+
+  /* ── Callouts ────────────────────────────────────────────────────────────── */
+  .callout{border-radius:6px;padding:13px 17px;margin:14px 0;border-left:3px solid;font-size:14px;line-height:1.65;}
+  .callout-teal{background:var(--callout-teal-bg);border-color:var(--teal);color:var(--callout-teal-fg);}
+  .callout-amber{background:var(--callout-amber-bg);border-color:var(--amber);color:var(--callout-amber-fg);}
+  .callout-blue{background:var(--callout-blue-bg);border-color:var(--blue);color:var(--callout-blue-fg);}
+  .callout strong{color:inherit;font-weight:600;}
+  .callout code{background:rgba(127,119,221,.1);border-color:var(--border);color:inherit;}
+
+  /* ── Divider ─────────────────────────────────────────────────────────────── */
+  .divider{height:1px;background:var(--border);margin:40px 0;}
+
+  ::-webkit-scrollbar{width:6px;height:6px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px;}
+
+    /* ── Responsive breakpoints ─────────────────────────────────────────────── */
+    @media (min-width: 769px) and (max-width: 1023px) {
+        .doc-header{padding:28px 32px 24px;}
+        .doc-header h1{font-size:24px;}
+        .content{padding:32px 28px;border-radius:22px;}
+    }
+
+    @media (min-width: 1024px) and (max-width: 1439px) {
+        .content{padding:40px 36px;}
+    }
+
+    @media (min-width: 1440px) {
+        body{padding:0 clamp(18px,3vw,40px) 64px;}
+    }
+
+    @media (max-width: 768px) {
+        body{padding:0 12px 32px;}
+        .doc-header{padding:24px 20px 20px;margin-top:12px;border-radius:20px;}
+        .doc-header h1{font-size:22px;}
+        .content{margin-top:16px;padding:24px 18px;border-radius:20px;}
+        pre{font-size:12px;padding:14px 16px;}
+    }
+</style>
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Core Reference</div>
+    <a class="header-back" href="FlowEngine-Design-Doc.html">← Tech Doc</a>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀️</button>
+  </div>
+    <h1><span>Flow</span>Engine — Core Schema Reference</h1>
+    <p class="tagline">Reference for ExecutionInstance, IExecutionStateStore, and the foundational interfaces used by the runtime and provider packages.</p>
+</div>
+<div class="content">
+<h2><code>ExecutionInstance</code> + <code>IExecutionStateStore</code></h2>
+<p>This document describes the foundational runtime types and interfaces used by<br />
+node executors, state store implementations, and engine services. Changes in<br />
+this area affect cross-package compatibility.</p>
+<hr />
+<h2>1. ExecutionInstance</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Represents a single running (or completed/suspended) execution of a
+/// workflow definition. Persisted to the state store after every state
+/// transition. Immutable fields are set at creation and never changed.
+/// &lt;/summary&gt;
+public sealed class ExecutionInstance
+{
+    // ── Identity ──────────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;Globally unique execution identifier. GUID, set at creation.&lt;/summary&gt;
+    public string InstanceId { get; init; }
+
+    /// &lt;summary&gt;ID of the workflow definition being executed.&lt;/summary&gt;
+    public string WorkflowId { get; init; }
+
+    /// &lt;summary&gt;
+    /// Exact semantic version of the workflow definition at the time this
+    /// instance was created. Pinned so definition changes don't affect
+    /// in-flight executions.
+    /// &lt;/summary&gt;
+    public string WorkflowVersion { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional correlation identifier supplied by the caller. Used to
+    /// associate this instance with an external entity (e.g. OrderId,
+    /// ApplicationId). Indexed in the state store for efficient lookup.
+    /// &lt;/summary&gt;
+    public string? CorrelationId { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional parent instance ID when this instance was spawned as a
+    /// child (loop iteration, sub-workflow, parallel branch).
+    /// Null for root instances.
+    /// &lt;/summary&gt;
+    public string? ParentInstanceId { get; init; }
+
+    /// &lt;summary&gt;
+    /// The node ID in the parent instance that spawned this child.
+    /// Used to signal the parent when this child completes.
+    /// &lt;/summary&gt;
+    public string? ParentNodeId { get; init; }
+
+    // ── Status ────────────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;Current execution status. See ExecStatus enum.&lt;/summary&gt;
+    public ExecStatus Status { get; set; }
+
+    /// &lt;summary&gt;
+    /// ID of the node currently being executed (Running) or the node
+    /// at which execution is suspended (Suspended).
+    /// &lt;/summary&gt;
+    public string CurrentNodeId { get; set; }
+
+    /// &lt;summary&gt;
+    /// For loop/parallel nodes: how many times the current node has been
+    /// visited. Checked against WorkflowNode.MaxVisits to prevent infinite
+    /// cycles. Keyed by node ID.
+    /// &lt;/summary&gt;
+    public Dictionary&lt;string, int&gt; NodeVisitCounts { get; set; } = new();
+
+    // ── Timing ────────────────────────────────────────────────────────────────
+
+    public DateTimeOffset CreatedAt    { get; init; }
+    public DateTimeOffset UpdatedAt    { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// &lt;summary&gt;
+    /// Optional hard deadline for the entire instance. When reached,
+    /// the engine transitions Status to TimedOut and executes
+    /// WorkflowDefinition.OnDeadline (if defined).
+    /// &lt;/summary&gt;
+    public DateTimeOffset? Deadline { get; init; }
+
+    // ── Context ───────────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// The live execution context. Grows as nodes execute.
+    /// Three reserved top-level keys:
+    ///   $.entity  — the primary entity passed at invocation (read-only)
+    ///   $.params  — parameters passed at invocation (read-only)
+    ///   $.context — mutable dictionary written by store/compute/integration
+    ///               nodes via their storeAs config
+    ///
+    /// Values are ContextValue — a discriminated union supporting
+    /// JSON primitives, document references, and typed entity snapshots.
+    /// &lt;/summary&gt;
+    public ContextDictionary Context { get; set; } = new();
+
+    // ── Async / Wait ──────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Populated when Status = Suspended. Describes what external event
+    /// or signal will resume this instance.
+    /// &lt;/summary&gt;
+    public WaitDescriptor? PendingWait { get; set; }
+
+    /// &lt;summary&gt;
+    /// For human task nodes: the ID of the open HumanTask record in
+    /// the IHumanTaskStore. Null when not at a human node.
+    /// &lt;/summary&gt;
+    public string? PendingHumanTaskId { get; set; }
+
+    // ── Output / Error ────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Set when Status = Completed. The value produced by the terminal
+    /// output node.
+    /// &lt;/summary&gt;
+    public ContextValue? Output { get; set; }
+
+    /// &lt;summary&gt;
+    /// Set when Status = Faulted or TimedOut. Full error detail including
+    /// the node that failed and the exception chain.
+    /// &lt;/summary&gt;
+    public ExecutionError? Error { get; set; }
+
+    // ── Observability ─────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Arbitrary key/value tags for filtering, grouping, and dashboards.
+    /// Examples: { &quot;region&quot;: &quot;US-EAST&quot;, &quot;priority&quot;: &quot;high&quot;, &quot;tenant&quot;: &quot;acme&quot; }
+    /// Set at invocation time and/or by store nodes during execution.
+    /// Indexed in the state store.
+    /// &lt;/summary&gt;
+    public Dictionary&lt;string, string&gt; Tags { get; set; } = new();
+
+    /// &lt;summary&gt;
+    /// Full immutable audit trail. One record appended per node execution.
+    /// Never modified after append — only appended to.
+    /// &lt;/summary&gt;
+    public List&lt;NodeExecutionRecord&gt; History { get; set; } = new();
+
+    // ── Distributed Execution ─────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Opaque identifier of the server instance currently processing this
+    /// execution (e.g. hostname + PID, or a startup GUID). Set when a
+    /// server claims the instance; cleared when the instance is suspended
+    /// or reaches a terminal state.
+    ///
+    /// The claim mechanism is intentionally abstract — implementations may
+    /// use database row locks, Redis SET NX, blob leases, Cosmos ETags,
+    /// or any other atomic primitive appropriate to the state store backend.
+    /// The IDistributedLockProvider interface (see below) decouples the
+    /// locking strategy from the state store.
+    /// &lt;/summary&gt;
+    public string? ClaimedBy { get; set; }
+
+    /// &lt;summary&gt;When the claim was acquired.&lt;/summary&gt;
+    public DateTimeOffset? ClaimedAt { get; set; }
+
+    /// &lt;summary&gt;
+    /// When the claim automatically expires. If a server dies mid-execution
+    /// without releasing its claim, the sweep service will reclaim the
+    /// instance after this time. Must be renewed periodically by the
+    /// executing server via IDistributedLockProvider.RenewAsync.
+    /// &lt;/summary&gt;
+    public DateTimeOffset? ClaimExpiresAt { get; set; }
+
+    // ── Optimistic Concurrency ────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Monotonically increasing version counter. Incremented by the state store
+    /// on every successful save. Used for optimistic concurrency control —
+    /// a save that presents a stale Version throws ConcurrencyException.
+    /// &lt;/summary&gt;
+    public long Version { get; set; } = 0;
+}
+</code></pre>
+<hr />
+<h2>2. ExecStatus</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public enum ExecStatus
+{
+    /// &lt;summary&gt;Actively executing a node synchronously.&lt;/summary&gt;
+    Running,
+
+    /// &lt;summary&gt;
+    /// Paused at a Wait, Timer, or Human node. Awaiting an external signal,
+    /// webhook, elapsed duration, or human task completion. The instance is
+    /// persisted and will be resumed by the engine when the trigger fires.
+    /// For timer nodes the sweep service resumes automatically when TimeoutAt
+    /// elapses — no external call required.
+    /// &lt;/summary&gt;
+    Suspended,
+
+    /// &lt;summary&gt;
+    /// Reached a terminal Output node. Output field is populated.
+    /// This is a terminal status — no further transitions.
+    /// &lt;/summary&gt;
+    Completed,
+
+    /// &lt;summary&gt;
+    /// An unhandled error occurred and no onFailure path was available
+    /// or the failure node itself failed. Error field is populated.
+    /// Terminal status.
+    /// &lt;/summary&gt;
+    Faulted,
+
+    /// &lt;summary&gt;
+    /// Explicitly cancelled by a caller via the engine API.
+    /// Terminal status.
+    /// &lt;/summary&gt;
+    Cancelled,
+
+    /// &lt;summary&gt;
+    /// The instance-level Deadline was reached before completion,
+    /// OR a Wait node's timeout expired with no onTimeout path.
+    /// Error field is populated. Terminal status.
+    /// &lt;/summary&gt;
+    TimedOut,
+
+    /// &lt;summary&gt;
+    /// A node's MaxVisits limit was reached (cycle guard triggered).
+    /// Error field is populated. Terminal status.
+    /// &lt;/summary&gt;
+    CycleDetected
+}
+</code></pre>
+<h3>ExecStatus state transition diagram</h3>
+<pre><code>                    ┌─────────────────────────────────────────────────┐
+                    │              StartAsync()                       │
+                    ▼                                                 │
+              ┌──────────┐                                            │
+              │ Running  │◄──── ResumeAsync() / ResumeByInstanceId() ┤
+              └────┬─────┘                                            │
+                   │                                                  │
+       ┌───────────┼────────────────────────────┐                     │
+       │           │                            │                     │
+       ▼           ▼                            ▼                     │
+  ┌─────────┐ ┌──────────┐              ┌────────────┐               │
+  │Suspended│ │ Faulted  │              │  Completed │               │
+  └────┬────┘ │(terminal)│              │ (terminal) │               │
+       │      └──────────┘              └────────────┘               │
+       │                                                              │
+       ├─── ResumeAsync() ────────────────────────────────────────────┘
+       │
+       ├─── CancelAsync() ──────────► Cancelled (terminal)
+       │
+       └─── Sweep: deadline/timeout ─► TimedOut (terminal)
+                                    ─► CycleDetected (terminal, MaxVisits)
+
+Valid transitions:
+  Running   → Suspended     (wait / human / timer node reached)
+  Running   → Completed     (output node reached)
+  Running   → Faulted       (unhandled error, no failure path)
+  Running   → TimedOut      (instance deadline breached)
+  Running   → CycleDetected (MaxVisits exceeded on a node)
+  Running   → Cancelled     (CancelAsync called)
+  Suspended → Running       (ResumeAsync / sweep reclaim / timer elapsed)
+  Suspended → Cancelled     (CancelAsync called)
+  Suspended → TimedOut      (wait timeout, sweep detected)
+
+Note — timer vs wait on sweep resume:
+  timer node + TimeoutAt reached → resumed with Match outcome (delay was the intent)
+  wait  node + TimeoutAt reached → resumed with Error outcome (signal didn't arrive)
+
+Terminal states (no further transitions):
+  Completed · Faulted · Cancelled · TimedOut · CycleDetected
+</code></pre>
+<pre><code>
+---
+
+## 3. ContextValue — discriminated union
+
+```csharp
+/// &lt;summary&gt;
+/// A value in the execution context. Supports all types nodes can
+/// produce or consume. Serializes cleanly to/from JSON for state
+/// store persistence.
+/// &lt;/summary&gt;
+[JsonPolymorphic(TypeDiscriminatorPropertyName = &quot;$type&quot;)]
+[JsonDerivedType(typeof(JsonContextValue),     &quot;json&quot;)]
+[JsonDerivedType(typeof(DocumentContextValue), &quot;document&quot;)]
+[JsonDerivedType(typeof(NullContextValue),     &quot;null&quot;)]
+public abstract class ContextValue { }
+
+/// &lt;summary&gt;JSON-serializable scalar or object value.&lt;/summary&gt;
+public sealed class JsonContextValue : ContextValue
+{
+    public JsonElement Value { get; init; }
+}
+
+/// &lt;summary&gt;
+/// Reference to a binary document (PDF, DOCX, image, etc.) stored
+/// externally. The engine passes the reference through context without
+/// loading the bytes. Nodes that need the content resolve it via
+/// IDocumentStore.
+/// &lt;/summary&gt;
+public sealed class DocumentContextValue : ContextValue
+{
+    /// &lt;summary&gt;Opaque reference into the document store (URL, blob path, etc.).&lt;/summary&gt;
+    public string   StoreRef    { get; init; }
+    public string   FileName    { get; init; }
+    public string   ContentType { get; init; }
+    public long     SizeBytes   { get; init; }
+    public DateTimeOffset StoredAt { get; init; }
+}
+
+/// &lt;summary&gt;Explicit null — distinguishable from absent key.&lt;/summary&gt;
+public sealed class NullContextValue : ContextValue { }
+
+/// &lt;summary&gt;
+/// The top-level context container. Provides typed access to the three
+/// reserved namespaces and the mutable context dictionary.
+/// &lt;/summary&gt;
+public sealed class ContextDictionary
+{
+    public ContextValue?                     Entity  { get; set; }  // $.entity
+    public Dictionary&lt;string, ContextValue&gt;? Params  { get; set; }  // $.params
+    public Dictionary&lt;string, ContextValue&gt;  Context { get; set; } = new(); // $.context
+
+    // ── $.engine namespace note ──────────────────────────────────────────────
+    // The $.engine.* namespace is NOT stored in this dictionary.
+    // It is synthesised at resolution time by the concrete IExecutionContext
+    // implementation from the live ExecutionInstance fields (NodeVisitCounts,
+    // Status, etc.). It is read-only and cannot be written via Store().
+    //
+    // Paths handled by IExecutionContext.Resolve() dispatcher:
+    //   $.entity        → this.Entity
+    //   $.params.x      → this.Params[&quot;x&quot;]
+    //   $.context.x     → this.Context[&quot;x&quot;]
+    //   $.engine.*      → synthesised (never stored here)
+
+    /// &lt;summary&gt;
+    /// Resolve a JSONPath expression against this context.
+    /// Supports $.entity, $.params.x, $.context.x
+    /// Returns null if path not found.
+    /// NOTE: $.engine.* paths are NOT resolved here — they are resolved
+    /// by the concrete IExecutionContext.Resolve() implementation which
+    /// has access to the live ExecutionInstance. This method handles only
+    /// the three stored namespaces.
+    /// &lt;/summary&gt;
+    public ContextValue? Resolve(string jsonPath)
+    {
+        // Concrete implementation — not a placeholder.
+        // Parses namespace prefix and dispatches to Entity, Params, or Context dict.
+        // See IExecutionContext in section 18 for the full resolver including $.engine.
+        throw new NotSupportedException(
+            &quot;ContextDictionary.Resolve is a stub for documentation. &quot; +
+            &quot;Use IExecutionContext.Resolve() from node executors.&quot;);
+    }
+
+    /// &lt;summary&gt;Write a value to $.context[key].&lt;/summary&gt;
+    public void Store(string key, ContextValue value) =&gt; Context[key] = value;
+}
+</code></pre>
+<hr />
+<h2>4. WaitDescriptor</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Describes the condition under which a Suspended instance will be resumed.
+/// Persisted as part of the ExecutionInstance.
+/// &lt;/summary&gt;
+public sealed class WaitDescriptor
+{
+    /// &lt;summary&gt;
+    /// The event or signal name the engine listens for.
+    /// Examples: &quot;approval.received&quot;, &quot;payment.webhook&quot;, &quot;training.completed&quot;
+    /// &lt;/summary&gt;
+    public string EventName { get; init; }
+
+    /// &lt;summary&gt;
+    /// Value used to correlate an incoming event to this specific instance.
+    /// A JSONPath expression evaluated against the context at suspend time.
+    /// Example: &quot;$.entity.OrderId&quot; → &quot;ORD-1234&quot;
+    /// Stored as the resolved value (not the expression).
+    /// &lt;/summary&gt;
+    public string CorrelationKey { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional. If set, the instance transitions to TimedOut if no
+    /// signal arrives by this time. ISO 8601 duration resolved to
+    /// absolute DateTimeOffset at suspend time.
+    /// &lt;/summary&gt;
+    public DateTimeOffset? TimeoutAt { get; init; }
+
+    /// &lt;summary&gt;
+    /// Node to execute on timeout. If null and TimeoutAt is set,
+    /// the instance transitions to TimedOut (terminal).
+    /// &lt;/summary&gt;
+    public string? OnTimeoutNodeId { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional. Minimum number of matching events to accumulate before
+    /// resuming. Supports the &quot;accumulate N signals&quot; pattern.
+    /// Default: 1 (resume on first matching event).
+    /// &lt;/summary&gt;
+    public int MinSignalCount { get; init; } = 1;
+
+    /// &lt;summary&gt;
+    /// Accumulated signals received so far. Engine appends to this
+    /// list as matching events arrive. When Count &gt;= MinSignalCount,
+    /// the instance resumes. Available in context as $.context._signals.
+    /// &lt;/summary&gt;
+    public List&lt;JsonElement&gt; ReceivedSignals { get; set; } = new();
+}
+</code></pre>
+<hr />
+<h2>5. NodeExecutionRecord</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Immutable audit record for a single node execution.
+/// Appended to ExecutionInstance.History. Never modified after creation.
+/// &lt;/summary&gt;
+public sealed class NodeExecutionRecord
+{
+    public string          NodeId       { get; init; }
+    public string          NodeType     { get; init; }
+    public string          NodeLabel    { get; init; }
+    public DateTimeOffset  StartedAt    { get; init; }
+    public DateTimeOffset? CompletedAt  { get; init; }
+
+    /// &lt;summary&gt;The outcome emitted by the node executor.&lt;/summary&gt;
+    public DecisionOutcome Outcome      { get; init; }
+
+    /// &lt;summary&gt;
+    /// The branch label taken (edge label in the workflow definition).
+    /// Null for nodes with no branching (store, compute, transform, output).
+    /// &lt;/summary&gt;
+    public string?         BranchTaken  { get; init; }
+
+    /// &lt;summary&gt;
+    /// The context key written if the node had storeAs set.
+    /// &lt;/summary&gt;
+    public string?         StoredAs     { get; init; }
+
+    /// &lt;summary&gt;
+    /// Snapshot of the value produced by this node (before storage).
+    /// Truncated for large values — full value is in the context.
+    /// &lt;/summary&gt;
+    public ContextValue?   OutputSnapshot { get; init; }
+
+    /// &lt;summary&gt;
+    /// For integration/fetch nodes: the HTTP status code returned.
+    /// &lt;/summary&gt;
+    public int?            HttpStatusCode { get; init; }
+
+    /// &lt;summary&gt;
+    /// For retry-enabled nodes: which attempt this record represents.
+    /// 1 = first attempt.
+    /// &lt;/summary&gt;
+    public int             AttemptNumber { get; init; } = 1;
+
+    /// &lt;summary&gt;Error detail if this attempt failed.&lt;/summary&gt;
+    public ExecutionError? Error        { get; init; }
+
+    /// &lt;summary&gt;Wall-clock duration of this node execution.&lt;/summary&gt;
+    public TimeSpan        Duration     =&gt; CompletedAt.HasValue
+                                           ? CompletedAt.Value - StartedAt
+                                           : TimeSpan.Zero;
+}
+</code></pre>
+<hr />
+<h2>6. DecisionOutcome</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// The common outcome vocabulary emitted by all node executors.
+/// Edges in the workflow definition use these values to determine
+/// which branch to follow.
+/// &lt;/summary&gt;
+public enum DecisionOutcome
+{
+    /// &lt;summary&gt;Condition positively satisfied / operation succeeded.&lt;/summary&gt;
+    Match,
+
+    /// &lt;summary&gt;Condition explicitly not satisfied (e.g. filter returned 0 results).&lt;/summary&gt;
+    NoMatch,
+
+    /// &lt;summary&gt;
+    /// Could not determine — data was missing, null, or ambiguous.
+    /// Distinct from NoMatch: NoMatch means &quot;definitely not&quot;, Unknown
+    /// means &quot;couldn't tell&quot;.
+    /// &lt;/summary&gt;
+    Unknown,
+
+    /// &lt;summary&gt;
+    /// An exception or external error occurred during node execution.
+    /// Retry policy (if configured) fires before this outcome is emitted.
+    /// &lt;/summary&gt;
+    Error,
+
+    /// &lt;summary&gt;
+    /// No specific branch condition matched. Taken by a default/fallback
+    /// edge when all other conditions evaluated to NoMatch or Unknown.
+    /// &lt;/summary&gt;
+    Default
+}
+</code></pre>
+<hr />
+<h2>7. ExecutionError</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class ExecutionError
+{
+    public string  Code      { get; init; }  // machine-readable — see error code table below
+    public string  Message   { get; init; }  // human-readable
+    public string  NodeId    { get; init; }  // which node caused this
+    public string? Detail    { get; init; }  // stack trace or API error body
+    public DateTimeOffset OccurredAt { get; init; }
+}
+</code></pre>
+<p><strong>Known error codes:</strong></p>
+<table>
+<thead><tr><th>Code</th><th>When raised</th></tr></thead>
+<tbody>
+<tr><td><code>NODE_EXECUTION_TIMEOUT</code></td><td>Node exceeded its per-node <code>executionTimeout</code></td></tr>
+<tr><td><code>MAX_VISITS_EXCEEDED</code></td><td>Node exceeded its <code>maxVisits</code> limit &rarr; instance transitions to <code>CycleDetected</code></td></tr>
+<tr><td><code>NO_MATCHING_EDGE</code></td><td>Node completed but no edge matched the outcome (and no <code>GlobalOnFailureNodeId</code>)</td></tr>
+<tr><td><code>MISSING_CLIENT</code></td><td>A node referenced a <code>clientRef</code> that was not registered</td></tr>
+<tr><td><code>WORKFLOW_NOT_FOUND</code></td><td>A <code>workflow</code> or <code>loop</code> node referenced a definition that doesn&apos;t exist</td></tr>
+<tr><td><code>INSTANCE_DEADLINE_EXCEEDED</code></td><td>The instance-level <code>Deadline</code> was reached</td></tr>
+<tr><td><code>WAIT_TIMEOUT</code></td><td>A <code>wait</code> node&apos;s timeout elapsed with no signal and no <code>onTimeoutNodeId</code></td></tr>
+<tr><td><code>CONCURRENCY_ERROR</code></td><td>Optimistic concurrency conflict on state store save &mdash; sweep service will retry</td></tr>
+<tr><td><code>EXECUTION_FAULT</code></td><td>Unhandled exception inside a node executor</td></tr>
+</tbody>
+</table>
+<hr />
+<h2>8. HumanTask</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// A work item created when execution reaches a Human node.
+/// Stored in IHumanTaskStore, separate from IExecutionStateStore.
+/// The engine suspends the instance and creates a HumanTask; when a
+/// human submits a response the engine resumes the instance.
+/// &lt;/summary&gt;
+public sealed class HumanTask
+{
+    public string  TaskId       { get; init; }
+    public string  InstanceId   { get; init; }
+    public string  NodeId       { get; init; }
+    public string  WorkflowId   { get; init; }
+
+    /// &lt;summary&gt;Human-readable title. May include resolved context values.&lt;/summary&gt;
+    public string  Title        { get; init; }
+    public string? Description  { get; init; }
+
+    /// &lt;summary&gt;
+    /// Who this task is assigned to. Three formats:
+    ///   &quot;user:alice@company.com&quot;         — specific user
+    ///   &quot;role:finance-approvers&quot;          — any member of a role
+    ///   resolved string from context     — dynamic at runtime
+    /// &lt;/summary&gt;
+    public string  AssignedTo   { get; init; }
+
+    /// &lt;summary&gt;
+    /// Channel determines how the assignee is notified and how they respond.
+    ///   Internal: task appears in the FlowEngine task queue UI/API
+    ///   External: engine sends a notification (email, SMS, Teams, etc.)
+    ///             with a tokenized response link
+    /// &lt;/summary&gt;
+    public TaskChannel Channel  { get; init; }
+
+    /// &lt;summary&gt;
+    /// For External channel: how to notify the assignee.
+    /// &lt;/summary&gt;
+    public NotificationConfig? Notification { get; init; }
+
+    /// &lt;summary&gt;
+    /// JSON Schema defining the form the human must complete.
+    /// The submitted values are validated against this schema before
+    /// the engine resumes. Simplest case: { &quot;approved&quot;: { &quot;type&quot;: &quot;boolean&quot; } }
+    /// &lt;/summary&gt;
+    public string  FormSchema   { get; init; }
+
+    /// &lt;summary&gt;
+    /// Context snapshot provided to the reviewer. The workflow definition
+    /// controls which context keys are visible — avoids leaking sensitive data.
+    /// Defined as a list of JSONPath expressions to include.
+    /// &lt;/summary&gt;
+    public List&lt;string&gt; VisibleContext { get; init; } = new();
+
+    /// &lt;summary&gt;
+    /// For multi-approver scenarios. Task stays open until Response count
+    /// reaches Quorum. All responses are available in context.
+    /// Default: 1.
+    /// &lt;/summary&gt;
+    public int Quorum { get; init; } = 1;
+
+    /// &lt;summary&gt;Responses received so far.&lt;/summary&gt;
+    public List&lt;HumanTaskResponse&gt; Responses { get; set; } = new();
+
+    public HumanTaskStatus Status  { get; set; }
+    public DateTimeOffset CreatedAt { get; init; }
+    public DateTimeOffset? DueAt   { get; init; }
+    public DateTimeOffset? CompletedAt { get; set; }
+
+    /// &lt;summary&gt;
+    /// Escalation config. If DueAt is reached without Quorum responses,
+    /// the task is reassigned or escalated rather than timing out.
+    /// &lt;/summary&gt;
+    public EscalationConfig? Escalation { get; init; }
+
+    /// &lt;summary&gt;
+    /// Context snapshot provided to the reviewer, built from
+    /// HumanNodeConfig.VisibleContext paths at task creation time.
+    /// &lt;/summary&gt;
+    public JsonElement ContextSnapshot { get; init; }
+}
+
+/// &lt;summary&gt;
+/// Context keys written by HumanNodeExecutor on quorum completion.
+/// See section 16 (Signal context conventions) for full table.
+///
+/// Quorum = 1:
+///   $.context._humanTaskResponse   — submitted form values (JsonElement)
+///
+/// Quorum &gt; 1 (additionally):
+///   $.context._humanTaskResponses  — array of all respondents' form values
+///   $.context._humanTaskConsensus  — &quot;unanimous&quot; | &quot;majority&quot; | &quot;any-denied&quot; | &quot;split&quot;
+///
+/// The consensus value is computed by HumanNodeExecutor.WriteResponseToContext()
+/// and reflects whether all, most, any-denied, or no clear majority emerged
+/// from the quorum responses. Used in edge when predicates:
+///   &quot;$.context._humanTaskConsensus == 'unanimous'&quot;
+/// &lt;/summary&gt;
+public static class HumanTaskContextKeys
+{
+    public const string Response   = &quot;_humanTaskResponse&quot;;
+    public const string Responses  = &quot;_humanTaskResponses&quot;;
+    public const string Consensus  = &quot;_humanTaskConsensus&quot;;
+}
+
+public sealed class HumanTaskResponse
+{
+    public string       RespondedBy { get; init; }
+    public DateTimeOffset RespondedAt { get; init; }
+    /// &lt;summary&gt;The form values submitted, validated against FormSchema.&lt;/summary&gt;
+    public JsonElement  Values      { get; init; }
+    /// &lt;summary&gt;Optional secure token used for external channel response links.&lt;/summary&gt;
+    public string?      ResponseToken { get; init; }
+}
+
+public enum HumanTaskStatus { Open, InProgress, Completed, Escalated, Cancelled }
+public enum TaskChannel     { Internal, External }
+
+public sealed class NotificationConfig
+{
+    public string   Via      { get; init; }  // &quot;email&quot;, &quot;sms&quot;, &quot;teams&quot;, &quot;slack&quot;, &quot;webhook&quot;
+    public string   To       { get; init; }  // address/handle — may be JSONPath expression
+    public string?  Template { get; init; }  // named message template
+    public Dictionary&lt;string, string&gt;? TemplateData { get; init; }
+}
+
+public sealed class EscalationConfig
+{
+    /// &lt;summary&gt;ISO 8601 duration after DueAt before escalation fires.&lt;/summary&gt;
+    public string  After        { get; init; }   // e.g. &quot;PT4H&quot;
+    public string  ReassignTo   { get; init; }   // same format as AssignedTo
+    public bool    NotifyOriginal { get; init; } = true;
+}
+</code></pre>
+<hr />
+<h2>9. RetryPolicy</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Retry configuration for async nodes (integration, fetch, wait, workflow).
+/// Defined in the node config; evaluated by the engine before emitting
+/// an Error outcome.
+/// &lt;/summary&gt;
+public sealed class RetryPolicy
+{
+    public int         MaxAttempts   { get; init; } = 3;
+    public BackoffType Backoff       { get; init; } = BackoffType.Exponential;
+    public TimeSpan    InitialDelay  { get; init; } = TimeSpan.FromSeconds(1);
+    public TimeSpan    MaxDelay      { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// &lt;summary&gt;
+    /// Which DecisionOutcomes trigger a retry. Typically [Error].
+    /// Can include [Unknown] for ambiguous responses.
+    /// &lt;/summary&gt;
+    public List&lt;DecisionOutcome&gt; RetryOn { get; init; } = [DecisionOutcome.Error];
+
+    /// &lt;summary&gt;
+    /// For integration nodes: which HTTP status codes trigger a retry.
+    /// If empty, all Error outcomes are retried regardless of status code.
+    /// &lt;/summary&gt;
+    public List&lt;int&gt; RetryOnHttpStatus { get; init; } = [429, 500, 502, 503, 504];
+}
+
+public enum BackoffType { Fixed, Linear, Exponential, ExponentialWithJitter }
+</code></pre>
+<hr />
+<h2>10. IDistributedLockProvider</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Pluggable distributed lock/lease abstraction. Decouples the locking
+/// strategy from the state store implementation — any backend can be
+/// paired with any lock provider.
+///
+/// The engine uses this interface to:
+///   1. Claim an instance before executing it (prevents duplicate execution)
+///   2. Renew the claim while executing (prevents expiry during long work)
+///   3. Release the claim when suspending or reaching a terminal state
+///   4. Find instances whose claims have expired (crashed server recovery)
+///
+/// Implementations ship as separate packages and are registered alongside
+/// the state store:
+///
+///   EF.FlowEngine.Locks.Sql          — advisory locks or optimistic UPDATE WHERE
+///   EF.FlowEngine.Locks.Redis        — SET NX EX (atomic, TTL-based)
+///   EF.FlowEngine.Locks.AzureBlob    — Azure Blob Storage lease API
+///   EF.FlowEngine.Locks.Cosmos       — conditional ETag write
+///   EF.FlowEngine.Locks.AzureTable   — entity ETag conditional replace
+///   EF.FlowEngine.Locks.InMemory     — ConcurrentDictionary (single process only)
+///
+/// The File state store uses InMemory locks (dev/test only — not safe for
+/// multi-server deployments).
+/// &lt;/summary&gt;
+public interface IDistributedLockProvider
+{
+    /// &lt;summary&gt;
+    /// Attempt to acquire an exclusive claim on an instance.
+    ///
+    /// Must be implemented as a single atomic operation. If the instance
+    /// is already claimed by another server with a valid (non-expired)
+    /// claim, returns false immediately without blocking.
+    ///
+    /// The implementation is responsible for writing ClaimedBy,
+    /// ClaimedAt, and ClaimExpiresAt to the persisted instance, OR
+    /// maintaining these in a separate lock record — whichever is natural
+    /// for the backing store.
+    /// &lt;/summary&gt;
+    /// &lt;param name=&quot;instanceId&quot;&gt;The instance to claim.&lt;/param&gt;
+    /// &lt;param name=&quot;claimantId&quot;&gt;
+    ///   This server's unique identity. Should be stable for the lifetime
+    ///   of the server process (e.g. Environment.MachineName + PID, or a
+    ///   startup GUID stored in DI as a singleton).
+    /// &lt;/param&gt;
+    /// &lt;param name=&quot;leaseDuration&quot;&gt;
+    ///   How long the claim is valid before it auto-expires.
+    ///   Recommended: 30–60 seconds. Must be longer than the lease
+    ///   renewal interval (see RenewAsync).
+    /// &lt;/param&gt;
+    /// &lt;returns&gt;True if the claim was acquired; false if already held.&lt;/returns&gt;
+    Task&lt;bool&gt; TryAcquireAsync(
+        string    instanceId,
+        string    claimantId,
+        TimeSpan  leaseDuration,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Extend the claim expiry. Called by the engine's heartbeat service
+    /// every leaseDuration/2 while the instance is actively executing.
+    ///
+    /// Returns false if the claim has already expired (another server may
+    /// have reclaimed the instance). The engine must treat a false return
+    /// as a fatal condition for that execution — stop processing, do not
+    /// save state.
+    /// &lt;/summary&gt;
+    Task&lt;bool&gt; RenewAsync(
+        string    instanceId,
+        string    claimantId,
+        TimeSpan  leaseDuration,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Explicitly release the claim. Called when the instance is saved
+    /// in a Suspended or terminal state. After release, any server can
+    /// claim the instance.
+    ///
+    /// Must be a no-op if the claim has already expired or was claimed
+    /// by a different claimant.
+    /// &lt;/summary&gt;
+    Task ReleaseAsync(
+        string    instanceId,
+        string    claimantId,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Return IDs of instances whose claims have expired (server died)
+    /// OR which have no claim and are in a resumable state.
+    ///
+    /// Called by the background sweep service (typically every 30s).
+    /// Results are used to reclaim and resume orphaned instances.
+    ///
+    /// &quot;Resumable&quot; means:
+    ///   - Status = Running with ClaimExpiresAt in the past (crashed server)
+    ///   - Status = Suspended with WaitDescriptor.TimeoutAt in the past
+    ///   - Status = Suspended with ReceivedSignals.Count &gt;= MinSignalCount
+    ///     (signal arrived but push path didn't resume it)
+    /// &lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;string&gt;&gt; FindResumableInstanceIdsAsync(
+        DateTimeOffset now,
+        int            batchSize,
+        CancellationToken ct = default);
+}
+</code></pre>
+<h3>Implementation notes per backend</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Atomic primitive</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Redis</strong></td>
+<td><code>SET key claimantId NX PX ttlMs</code></td>
+<td>Natural TTL; renew with <code>SET key claimantId XX PX ttlMs</code>. Fast and simple.</td>
+</tr>
+<tr>
+<td><strong>Azure Blob</strong></td>
+<td>Blob lease API (<code>AcquireLease</code>, <code>RenewLease</code>, <code>ReleaseLease</code>)</td>
+<td>Native lease duration 15–60s. One blob per instance or one blob for the lock table.</td>
+</tr>
+<tr>
+<td><strong>SQL</strong></td>
+<td><code>UPDATE ... SET ClaimedBy=@id WHERE ClaimedBy IS NULL OR ClaimExpiresAt &lt; NOW()</code></td>
+<td>Single statement; affected rows = 1 means success. Use <code>UPDLOCK</code> hint on SQL Server.</td>
+</tr>
+<tr>
+<td><strong>CosmosDB</strong></td>
+<td>Conditional replace with ETag + claim fields in the document</td>
+<td>Fits naturally with the existing optimistic concurrency model.</td>
+</tr>
+<tr>
+<td><strong>Azure Table</strong></td>
+<td>ETags on the entity, conditional replace</td>
+<td>Same pattern as CosmosDB.</td>
+</tr>
+<tr>
+<td><strong>InMemory</strong></td>
+<td><code>ConcurrentDictionary.TryAdd</code> + <code>DateTimeOffset</code> expiry check</td>
+<td>Single process only. <code>FindResumableInstanceIdsAsync</code> scans the dictionary.</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2>11. IExecutionStateStore</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Pluggable persistence layer for ExecutionInstance objects.
+/// All methods are async and cancellation-token aware.
+///
+/// Implementations must guarantee:
+///   - SaveAsync is atomic per instance (no partial writes)
+///   - LoadAsync returns the most recently saved state
+///   - FindBySuspendedEventAsync uses an index on (EventName, CorrelationKey)
+///   - QueryAsync supports cursor-based pagination via the skip/take pattern
+///
+/// Implementations ship as separate packages:
+///   EF.FlowEngine.StateStore.File        (dev/test — no infrastructure)
+///   EF.FlowEngine.StateStore.Sql         (SQL Server, Postgres, SQLite via EF Core)
+///   EF.FlowEngine.StateStore.Redis       (StackExchange.Redis)
+///   EF.FlowEngine.StateStore.Cosmos      (Azure Cosmos DB SDK v3)
+///   EF.FlowEngine.StateStore.AzureTable  (Azure Table Storage SDK v12)
+/// &lt;/summary&gt;
+public interface IExecutionStateStore
+{
+    // ── Core CRUD ─────────────────────────────────────────────────────────────
+
+    Task&lt;ExecutionInstance?&gt;  LoadAsync(string instanceId,
+                                         CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Persist the instance. Implementations must use optimistic concurrency
+    /// to prevent lost updates in concurrent environments. Use the
+    /// <code>long Version</code> field on <code>ExecutionInstance</code> (incremented on every
+    /// successful save); throw <code>ConcurrencyException</code> on version mismatch.
+    /// &lt;/summary&gt;
+    Task                      SaveAsync(ExecutionInstance instance,
+                                         CancellationToken ct = default);
+
+    Task                      DeleteAsync(string instanceId,
+                                           CancellationToken ct = default);
+
+    // ── Signal / Resume ───────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Find the suspended instance waiting for the given event + correlation key.
+    /// Must use an index for efficient lookup — this is called on every
+    /// incoming webhook/event. Returns null if no matching instance found.
+    /// &lt;/summary&gt;
+    Task&lt;ExecutionInstance?&gt;  FindBySuspendedEventAsync(
+        string eventName,
+        string correlationKey,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Find all instances suspended with a deadline at or before the given
+    /// cutoff. Called by the engine's deadline-sweep background service
+    /// (typically runs every 30s).
+    /// &lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; FindTimedOutInstancesAsync(
+        DateTimeOffset cutoff,
+        CancellationToken ct = default);
+
+    // ── Observability Queries ─────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Flexible query for the observability layer and admin UI.
+    /// All filter parameters are optional (null = no filter on that field).
+    /// Results are ordered by UpdatedAt descending.
+    /// &lt;/summary&gt;
+    Task&lt;ExecutionQueryResult&gt; QueryAsync(
+        ExecutionQuery query,
+        CancellationToken ct = default);
+
+    // ── Child Instance Management ─────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Return all child instances of a given parent.
+    /// Used by loop/parallel nodes to check completion status.
+    /// &lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; GetChildrenAsync(
+        string parentInstanceId,
+        CancellationToken ct = default);
+
+    // ── Child signal queue ────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Enqueue a child-completion signal for a parent instance that is
+    /// currently claimed by another server and cannot be resumed directly.
+    ///
+    /// Called by ChildSignalHandler when TryAcquireAsync on the parent fails.
+    /// The parent's next load cycle (or the sweep service) will call
+    /// DequeueChildSignalsAsync to process pending signals.
+    ///
+    /// Implementations must store signals durably alongside the instance
+    /// so they survive process restarts.
+    /// &lt;/summary&gt;
+    Task EnqueueChildSignalAsync(
+        string      parentInstanceId,
+        ChildSignal signal,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Retrieve and atomically remove all pending child signals for a
+    /// parent instance. Called by the engine immediately after loading
+    /// a parent instance, before executing the next node.
+    ///
+    /// Returns an empty list if no signals are pending — never null.
+    /// &lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; DequeueChildSignalsAsync(
+        string parentInstanceId,
+        CancellationToken ct = default);
+}
+
+// ── Child signal ──────────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Carries the result of a child instance (loop item, sub-workflow,
+/// parallel branch) to its parent. Enqueued when the parent is claimed
+/// by another server; dequeued by the parent on its next execution cycle.
+/// &lt;/summary&gt;
+public sealed class ChildSignal
+{
+    /// &lt;summary&gt;
+    /// The node ID in the parent workflow that spawned this child and
+    /// is waiting for its completion.
+    /// &lt;/summary&gt;
+    public string         ParentNodeId      { get; init; }
+
+    /// &lt;summary&gt;The InstanceId of the child that completed.&lt;/summary&gt;
+    public string         ChildInstanceId   { get; init; }
+
+    /// &lt;summary&gt;Terminal status the child reached.&lt;/summary&gt;
+    public ExecStatus     ChildStatus       { get; init; }
+
+    /// &lt;summary&gt;
+    /// The output produced by the child's terminal Output node.
+    /// Null if the child faulted or was cancelled without producing output.
+    /// &lt;/summary&gt;
+    public ContextValue?  ChildOutput       { get; init; }
+
+    public DateTimeOffset OccurredAt        { get; init; }
+}
+
+// ── Query model ───────────────────────────────────────────────────────────────
+
+public sealed class ExecutionQuery
+{
+    public string?       WorkflowId     { get; init; }
+    public string?       CorrelationId  { get; init; }
+    public ExecStatus?   Status         { get; init; }
+    public string?       TagKey         { get; init; }   // filter by tag presence
+    public string?       TagValue       { get; init; }   // filter by tag value (requires TagKey)
+    public DateTimeOffset? CreatedAfter { get; init; }
+    public DateTimeOffset? CreatedBefore{ get; init; }
+    public DateTimeOffset? UpdatedAfter { get; init; }
+    public string?       ParentInstanceId { get; init; }
+
+    // Pagination
+    public int  Skip  { get; init; } = 0;
+    public int  Take  { get; init; } = 50;    // max 500
+
+    // Optional: include full History in results (expensive — default false)
+    public bool IncludeHistory { get; init; } = false;
+}
+
+public sealed class ExecutionQueryResult
+{
+    public IReadOnlyList&lt;ExecutionInstance&gt; Items      { get; init; }
+    public int                              TotalCount { get; init; }
+    public bool                             HasMore    =&gt; Skip + Items.Count &lt; TotalCount;
+    public int                              Skip       { get; init; }
+    public int                              Take       { get; init; }
+}
+</code></pre>
+<hr />
+<h2>12. IHumanTaskStore</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Separate store for HumanTask records. Decoupled from the execution
+/// state store so human task UIs can query tasks independently without
+/// loading full execution instances.
+/// &lt;/summary&gt;
+public interface IHumanTaskStore
+{
+    Task&lt;HumanTask?&gt;              LoadAsync(string taskId, CancellationToken ct = default);
+    Task                          SaveAsync(HumanTask task, CancellationToken ct = default);
+
+    /// &lt;summary&gt;Find open tasks assigned to a specific user or role.&lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetAssignedToAsync(
+        string assignee,                       // &quot;user:x&quot; or &quot;role:y&quot;
+        HumanTaskStatus? status = null,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Find all open tasks for a given instance.
+    /// Used when cancelling an instance to close its open tasks.
+    /// &lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetByInstanceAsync(
+        string instanceId,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;Find tasks past their DueAt that have not been completed.&lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; FindOverdueAsync(
+        DateTimeOffset cutoff,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Submit a human response and resume the associated execution instance.
+    /// This is the primary entry point for both Internal (task queue UI) and
+    /// External (tokenized response link) channel completions.
+    ///
+    /// Implementation must:
+    ///   1. Load the HumanTask by taskId
+    ///   2. If channel = External, validate responseToken matches
+    ///      HumanTaskResponse.ResponseToken; throw UnauthorizedAccessException if not
+    ///   3. Validate formValues against HumanTask.FormSchema; throw
+    ///      ValidationException if schema fails
+    ///   4. Append a HumanTaskResponse to HumanTask.Responses
+    ///   5. If Responses.Count &gt;= HumanTask.Quorum:
+    ///        a. Set HumanTask.Status = Completed, HumanTask.CompletedAt = UtcNow
+    ///        b. Write the submitted form values to $.context._humanTaskResponse
+    ///           on the ExecutionInstance (merge all quorum responses if Quorum &gt; 1)
+    ///        c. Call engine.ResumeByInstanceIdAsync(HumanTask.InstanceId, ...)
+    ///           to re-enter the execution loop
+    ///   6. If Responses.Count &lt; HumanTask.Quorum:
+    ///        a. Save the partial response; do NOT resume yet
+    ///   7. SaveAsync the updated HumanTask
+    ///
+    /// Must be idempotent per (taskId, respondedBy) — duplicate submissions
+    /// from the same respondent are ignored.
+    /// &lt;/summary&gt;
+    Task&lt;HumanTask&gt; SubmitResponseAsync(
+        string        taskId,
+        string?       responseToken,   // null for Internal channel
+        JsonElement   formValues,
+        string        respondedBy,     // &quot;user:alice@company.com&quot;
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Generate a secure one-time response token for External channel tasks.
+    /// The token is stored on HumanTaskResponse.ResponseToken and included
+    /// in the notification link. Validated in SubmitResponseAsync.
+    /// &lt;/summary&gt;
+    Task&lt;string&gt; GenerateResponseTokenAsync(
+        string taskId,
+        CancellationToken ct = default);
+}
+</code></pre>
+<hr />
+<h2>13. IFlowClient — unified external client hierarchy</h2>
+<p>All external integrations — REST APIs, databases, message buses, AI agents,<br />
+remote workflow engines — are registered as named <code>IFlowClient</code> implementations.<br />
+The developer constructs and configures clients in their own DI setup and<br />
+registers them with FlowEngine by name. FlowEngine never owns connection<br />
+strings, credentials, or SDK configuration.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Base interface for all registered external clients.
+/// All clients have a stable reference name and a validation method.
+/// Clients are registered at startup and resolved by name at node execution time.
+/// &lt;/summary&gt;
+public interface IFlowClient
+{
+    /// &lt;summary&gt;
+    /// The stable name used to reference this client from workflow node config.
+    /// Examples: &quot;crm-db&quot;, &quot;payment-api&quot;, &quot;order-events&quot;, &quot;gpt4o&quot;, &quot;risk-engine&quot;
+    /// Must be unique within the FlowEngine instance.
+    /// &lt;/summary&gt;
+    string ClientRef { get; }
+
+    /// &lt;summary&gt;
+    /// Called by ValidateWorkflowDependenciesAsync before any instance starts.
+    /// Validate connectivity, credentials, and required schema/config.
+    /// Throw a descriptive exception if validation fails.
+    /// Implementations should be fast (probe, not full warmup).
+    /// &lt;/summary&gt;
+    Task ValidateAsync(CancellationToken ct = default);
+}
+
+// ── Capability interfaces — implement one or more per client ─────────────────
+
+/// &lt;summary&gt;
+/// Request/response semantics: REST APIs, gRPC, internal HTTP services.
+/// Used by the integration and fetch node executors.
+/// &lt;/summary&gt;
+public interface IRequestResponseClient : IFlowClient
+{
+    Task&lt;ClientResponse&gt; ExecuteAsync(ClientRequest request, CancellationToken ct);
+}
+
+/// &lt;summary&gt;
+/// Typed data queries against a structured data source.
+/// Uses FilterBuilder FilterSet as the query language.
+/// Implementations: EF Core DbContext, Cosmos DB, Elasticsearch, in-memory.
+/// Used by the query node executor.
+/// &lt;/summary&gt;
+public interface IQueryClient : IFlowClient
+{
+    Task&lt;QueryResult&gt; QueryAsync(DataSourceQuery query, CancellationToken ct);
+
+    /// &lt;summary&gt;
+    /// Map entity type name string to a CLR type for FilterBuilder compilation.
+    /// Example: &quot;Order&quot; → typeof(Order)
+    /// &lt;/summary&gt;
+    Type? ResolveEntityType(string entityTypeName);
+}
+
+/// &lt;summary&gt;
+/// Fire-and-forget or request-reply messaging.
+/// Implementations: Azure Service Bus, Event Grid, SQS, Kafka, RabbitMQ.
+/// Used by the message node executor.
+/// &lt;/summary&gt;
+public interface IMessageClient : IFlowClient
+{
+    Task&lt;MessageResult&gt; SendAsync(MessageRequest request, CancellationToken ct);
+}
+
+/// &lt;summary&gt;
+/// AI agent, LLM, or agent workflow invocation.
+/// Implementations: Azure OpenAI, Microsoft Foundry, LangChain agent, Semantic Kernel, Microsoft Agent Framework.
+/// Used by the agent node executor.
+/// &lt;/summary&gt;
+public interface IAgentClient : IFlowClient
+{
+    Task&lt;AgentResponse&gt; InvokeAsync(AgentRequest request, CancellationToken ct);
+}
+
+/// &lt;summary&gt;
+/// Remote FlowEngine instance — cross-engine workflow invocation.
+/// Implementations: FlowEngineHttpClient (calls /workflows/{id}/execute endpoint).
+/// Used by the workflow node executor when clientRef is set.
+/// &lt;/summary&gt;
+public interface IFlowEngineClient : IFlowClient
+{
+    Task&lt;RemoteInstanceRef&gt; StartAsync(RemoteWorkflowRequest request, CancellationToken ct);
+    Task&lt;RemoteInstanceRef&gt; GetStatusAsync(string instanceId, CancellationToken ct);
+    Task&lt;RemoteInstanceRef&gt; ResumeAsync(string instanceId, string eventName,
+        string correlationKey, JsonElement? payload, CancellationToken ct);
+}
+</code></pre>
+<hr />
+<h2>14. IClientRegistry</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Registry of all named IFlowClient instances.
+/// Populated at startup via FlowEngineBuilder.AddClient().
+/// Resolved by node executors at execution time.
+/// &lt;/summary&gt;
+public interface IClientRegistry
+{
+    /// &lt;summary&gt;
+    /// Retrieve a client by ref. Returns null if not registered.
+    /// &lt;/summary&gt;
+    IFlowClient? Get(string clientRef);
+
+    /// &lt;summary&gt;
+    /// Retrieve a client by ref and cast to a capability interface.
+    /// Returns null if not registered or does not implement T.
+    /// &lt;/summary&gt;
+    T? GetAs&lt;T&gt;(string clientRef) where T : class, IFlowClient;
+
+    /// &lt;summary&gt;
+    /// All registered clients. Used by ValidateWorkflowDependenciesAsync.
+    /// &lt;/summary&gt;
+    IReadOnlyList&lt;IFlowClient&gt; All { get; }
+}
+
+/// &lt;summary&gt;Default implementation — ConcurrentDictionary keyed by ClientRef.&lt;/summary&gt;
+public sealed class ClientRegistry : IClientRegistry
+{
+    private readonly ConcurrentDictionary&lt;string, IFlowClient&gt; _clients = new();
+
+    public void Register(IFlowClient client)
+        =&gt; _clients[client.ClientRef] = client;
+
+    public IFlowClient? Get(string clientRef)
+        =&gt; _clients.GetValueOrDefault(clientRef);
+
+    public T? GetAs&lt;T&gt;(string clientRef) where T : class, IFlowClient
+        =&gt; _clients.GetValueOrDefault(clientRef) as T;
+
+    public IReadOnlyList&lt;IFlowClient&gt; All
+        =&gt; _clients.Values.ToList();
+}
+</code></pre>
+<hr />
+<h2>15. Client request/response types</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// ── IRequestResponseClient ────────────────────────────────────────────────────
+
+public sealed class ClientRequest
+{
+    /// &lt;summary&gt;HTTP method or operation name. Default &quot;GET&quot;.&lt;/summary&gt;
+    public string   Method      { get; init; } = &quot;GET&quot;;
+    /// &lt;summary&gt;URL or path. Supports {{$.context.x}} interpolation.&lt;/summary&gt;
+    public string   Url         { get; init; }
+    public JsonElement? Body    { get; init; }
+    public Dictionary&lt;string, string&gt;? Headers { get; init; }
+    public string?  IdempotencyKey { get; init; }
+    public int      TimeoutMs   { get; init; } = 10_000;
+}
+
+public sealed class ClientResponse
+{
+    public int         StatusCode  { get; init; }
+    public bool        IsSuccess   =&gt; StatusCode &gt;= 200 &amp;&amp; StatusCode &lt; 300;
+    public JsonElement Body        { get; init; }
+    public Dictionary&lt;string, string&gt;? Headers { get; init; }
+    public DecisionOutcome Outcome { get; init; }
+}
+
+// ── IQueryClient ──────────────────────────────────────────────────────────────
+
+public sealed class DataSourceQuery
+{
+    public string         ClientRef  { get; init; }
+    public string         EntityType { get; init; }
+    public FilterSet      FilterSet  { get; init; }
+    public QueryResultMode ResultMode { get; init; }
+    public int?           Take       { get; init; }
+    public int?           Skip       { get; init; }
+    public List&lt;SortSpec&gt;? OrderBy   { get; init; }
+    /// &lt;summary&gt;
+    /// Passed to FilterBuilder as params1 for TestValueParam resolution.
+    /// Allows filter conditions to reference values resolved from context.
+    /// &lt;/summary&gt;
+    public Dictionary&lt;string, object?&gt;? Params { get; init; }
+}
+
+public enum QueryResultMode { First, All, Count, Any, Page }
+
+public sealed class SortSpec
+{
+    public string Property  { get; init; }
+    public string Direction { get; init; } = &quot;asc&quot;; // &quot;asc&quot; | &quot;desc&quot;
+}
+
+public sealed class QueryResult
+{
+    public QueryResultMode         Mode       { get; init; }
+    public object?                 FirstItem  { get; init; }  // Mode = First
+    public IReadOnlyList&lt;object&gt;?  Items      { get; init; }  // Mode = All | Page
+    public int?                    Count      { get; init; }  // Mode = Count
+    public bool?                   Any        { get; init; }  // Mode = Any
+    public int?                    TotalCount { get; init; }  // Mode = Page
+    public bool                    HasMore    { get; init; }  // Mode = Page
+
+    public bool IsEmpty =&gt; Mode switch
+    {
+        QueryResultMode.Any   =&gt; Any == false,
+        QueryResultMode.Count =&gt; Count == 0,
+        QueryResultMode.First =&gt; FirstItem == null,
+        _                     =&gt; (Items?.Count ?? 0) == 0
+    };
+
+    /// &lt;summary&gt;
+    /// Convenience: emit Match for Any=true/Count&gt;0/First!=null/Items.Count&gt;0,
+    /// NoMatch for the inverse, Error if an exception was set.
+    /// &lt;/summary&gt;
+    public DecisionOutcome Outcome { get; init; }
+}
+
+// ── IMessageClient ────────────────────────────────────────────────────────────
+
+public sealed class MessageRequest
+{
+    public string      Subject      { get; init; }
+    public JsonElement Body         { get; init; }
+    public Dictionary&lt;string, string&gt;? Properties { get; init; }
+    public string?     CorrelationId { get; init; }
+    public string?     ReplyTo      { get; init; }
+    /// &lt;summary&gt;
+    /// FireAndForget: send and continue.
+    /// RequestReply: send then suspend, resume when reply arrives on CorrelationId.
+    /// &lt;/summary&gt;
+    public MessageDeliveryMode DeliveryMode { get; init; } = MessageDeliveryMode.FireAndForget;
+}
+
+public enum MessageDeliveryMode { FireAndForget, RequestReply }
+
+public sealed class MessageResult
+{
+    public bool        Sent        { get; init; }
+    public string?     MessageId   { get; init; }
+    public string?     CorrelationId { get; init; }
+    public DecisionOutcome Outcome { get; init; }
+    /// &lt;summary&gt;Set when DeliveryMode = RequestReply. Used to build WaitDescriptor.&lt;/summary&gt;
+    public WaitDescriptor? PendingWait { get; init; }
+}
+
+// ── IAgentClient ──────────────────────────────────────────────────────────────
+
+public sealed class AgentRequest
+{
+    /// &lt;summary&gt;
+    /// Prompt template. Supports {{$.context.x}} interpolation.
+    /// The IAgentClient implementation resolves interpolations before calling the agent.
+    /// &lt;/summary&gt;
+    public string  PromptTemplate { get; init; }
+    /// &lt;summary&gt;Input values resolved from context. Available in prompt template.&lt;/summary&gt;
+    public Dictionary&lt;string, object?&gt; Input { get; init; } = new();
+    /// &lt;summary&gt;
+    /// Optional JSON Schema for structured output validation.
+    /// If set, the IAgentClient validates the agent response against this schema.
+    /// &lt;/summary&gt;
+    public string? OutputSchema   { get; init; }
+    public int     TimeoutMs      { get; init; } = 60_000;
+}
+
+public sealed class AgentResponse
+{
+    public JsonElement     Output     { get; init; }
+    public bool            Succeeded  { get; init; }
+    public string?         Error      { get; init; }
+    public int?            TokensUsed { get; init; }
+    public DecisionOutcome Outcome    { get; init; }
+}
+
+// ── IFlowEngineClient ─────────────────────────────────────────────────────────
+
+public sealed class RemoteWorkflowRequest
+{
+    public string   WorkflowId    { get; init; }
+    public string?  Version       { get; init; }
+    public JsonElement? Entity    { get; init; }
+    public Dictionary&lt;string, JsonElement&gt;? Params { get; init; }
+    public string?  CorrelationId { get; init; }
+    public bool     WaitForCompletion { get; init; } = false;
+}
+
+public sealed class RemoteInstanceRef
+{
+    public string      InstanceId  { get; init; }
+    public ExecStatus  Status      { get; init; }
+    public JsonElement? Output     { get; init; }
+    public string?     Error       { get; init; }
+    public DecisionOutcome Outcome { get; init; }
+}
+</code></pre>
+<hr />
+<h2>16. Signal context conventions</h2>
+<p>When <code>ResumeAsync</code> is called with a signal payload, the engine writes<br />
+to reserved context keys before re-entering the execution loop.</p>
+<p><strong>Complete reference — all reserved context keys:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Written by</th>
+<th>When</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$.context._signal</code></td>
+<td>Engine (ResumeAsync)</td>
+<td>Any signal/resume</td>
+<td>Most recent signal payload — overwritten on each resume</td>
+</tr>
+<tr>
+<td><code>$.context._signals</code></td>
+<td>Engine (ResumeAsync)</td>
+<td>MinSignalCount &gt; 1</td>
+<td>Append-only array of all received payloads</td>
+</tr>
+<tr>
+<td><code>$.context._humanTaskResponse</code></td>
+<td>HumanNodeExecutor</td>
+<td>Human task quorum reached</td>
+<td>First/only respondent's validated form values</td>
+</tr>
+<tr>
+<td><code>$.context._humanTaskResponses</code></td>
+<td>HumanNodeExecutor</td>
+<td>Quorum &gt; 1 only</td>
+<td>Array of all respondents' form values</td>
+</tr>
+<tr>
+<td><code>$.context._humanTaskConsensus</code></td>
+<td>HumanNodeExecutor</td>
+<td>Quorum &gt; 1 only</td>
+<td><code>"unanimous"</code> | <code>"majority"</code> | <code>"any-denied"</code> | <code>"split"</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Notes:</strong><br />
+- <code>$.context._signal</code> is overwritten on each <code>ResumeAsync</code> call. For accumulation patterns (<code>MinSignalCount &gt; 1</code>) use <code>$.context._signals</code> which is append-only.<br />
+- <code>$.context._humanTaskResponse</code> is distinct from <code>$.context._signal</code> — it contains the validated form values submitted by the human, not the raw signal payload from the <code>HumanTaskStore</code>.<br />
+- Timer nodes do NOT write signal context keys on resume — the sweep service resumes them directly without a signal payload.<br />
+- <code>$.context._humanTaskConsensus</code> values: <code>"unanimous"</code> (all same decision), <code>"majority"</code> (&gt;50% agree), <code>"any-denied"</code> (at least one denied/rejected), <code>"split"</code> (no clear pattern).</p>
+<p><strong>Usage in edge predicates:</strong></p>
+<pre><code>$.context._signal.amount               ← field from most recent signal payload
+$.context._signals.length              ← how many signals accumulated
+$.context._humanTaskResponse.decision  ← human decision (Quorum = 1)
+$.context._humanTaskConsensus          ← &quot;unanimous&quot; | &quot;majority&quot; | &quot;any-denied&quot; | &quot;split&quot;
+</code></pre>
+<p>See <code>HumanTaskContextKeys</code> static class for typed string constants.</p>
+<h2>17. Background Services</h2>
+<p>Two <code>IHostedService</code> implementations registered automatically by <code>services.AddFlowEngine()</code>:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Runs every SweepInterval (default 30s).
+/// Calls IDistributedLockProvider.FindResumableInstanceIdsAsync,
+/// then for each result: TryAcquireAsync → load → resume execution.
+/// Handles: crashed server recovery, wait timeouts, accumulated signals.
+/// &lt;/summary&gt;
+public class ExecutionSweepService : BackgroundService { }
+
+/// &lt;summary&gt;
+/// Background service that renews distributed lock leases for all execution
+/// instances currently active on this process.
+///
+/// Purpose: prevents ExecutionSweepService on other nodes from reclaiming
+/// instances that are still running locally (false "orphaned" detection).
+///
+/// Runs every FlowEngineOptions.LeaseRenewalInterval (default 13s).
+/// LeaseRenewalInterval MUST be less than DefaultLeaseDuration / 2.
+///   Default: 13s &lt; 30s / 2 = 15s ✓
+///
+/// If IDistributedLockProvider.RenewAsync returns false (another node has
+/// taken the claim), the local execution CancellationTokenSource is cancelled
+/// immediately and the instance ID is removed from ActiveExecutions.
+///
+/// No-op when InMemory lock provider is registered (single-process mode).
+/// &lt;/summary&gt;
+public class LeaseRenewalService : BackgroundService { }
+</code></pre>
+<p>Both services are no-ops when the <code>InMemory</code> lock provider is registered<br />
+(single-process embedded mode). They activate automatically in multi-server<br />
+deployments where a real <code>IDistributedLockProvider</code> is registered.</p>
+<hr />
+<h2>18. INodeExecutor</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Plugin interface for all node types. Implementations are registered
+/// at startup and keyed by NodeType string. The engine dispatches to the
+/// correct executor by matching NodeDefinition.Type.
+///
+/// PERSISTENCE MODEL — all implementors must understand this:
+///
+/// The engine persists execution state at async boundaries only — specifically
+/// when the loop exits due to suspension (wait/human), reaching a terminal
+/// state (output/fault/timeout), or host shutdown. It does NOT save after
+/// every node. A chain of synchronous nodes runs entirely in memory.
+///
+/// Consequence: if the server crashes mid-chain, the sweep service reclaims
+/// the instance and the engine re-executes from the last SAVED CurrentNodeId,
+/// which may be the entry node of the workflow. Every node in the chain
+/// re-executes.
+///
+/// IDEMPOTENCY REQUIREMENT:
+///
+/// All node executors MUST be safe to re-execute with the same inputs.
+///
+///   Naturally idempotent (no action required):
+///     filter, decision, compute, transform, store — pure functions, no side effects
+///     integration (reads/GET) — reading is always safe to repeat
+///     query — read-only database access
+///     agent — same prompt produces same or acceptable output (note: token cost)
+///     timer — builds a WaitDescriptor from a duration expression; re-execution
+///       rebuilds the same descriptor (TimeoutAt may shift slightly on re-execution
+///       after crash, but this is acceptable — the delay restarts from scratch)
+///
+///   Must be made idempotent:
+///     integration (writes — POST/PUT/DELETE) — use IdempotencyKey; the registered
+///       IRequestResponseClient deduplicates on the server side
+///     message — use message deduplication on the broker, or IdempotencyKey
+///     human — IHumanTaskStore.SaveAsync must be idempotent by (InstanceId, NodeId);
+///       if a task record already exists for this execution point, return it
+///       rather than creating a duplicate
+///     workflow (local) — engine handles: checks for existing child instance
+///       keyed by (ParentInstanceId, ParentNodeId) before creating a new one
+///
+///   Special cases:
+///     checkpoint — the only node type that intentionally triggers a mid-loop
+///       SaveAsync. Always returns Match. Use before expensive non-idempotent
+///       chains to bound the re-execution window on crash recovery.
+///
+///     timer — suspension node like wait, but the elapsed delay IS the happy path.
+///       Always emits Match when TimeoutAt fires (sweep service detects node type
+///       and uses Match rather than Error). No external signal required.
+///       Reuses ICalendarProvider, WaitDescriptor, and sweep machinery.
+/// &lt;/summary&gt;
+public interface INodeExecutor
+{
+    /// &lt;summary&gt;Must match the &quot;type&quot; field in the workflow JSON definition.&lt;/summary&gt;
+    string NodeType { get; }
+
+    Task&lt;NodeResult&gt; ExecuteAsync(
+        NodeDefinition     node,
+        ExecutionInstance  instance,
+        IExecutionContext   ctx,
+        CancellationToken  ct = default);
+}
+
+public sealed class NodeResult
+{
+    public DecisionOutcome  Outcome      { get; init; }
+    public ContextValue?    Output       { get; init; }   // written to context if storeAs set
+    public ExecutionError?  Error        { get; init; }
+    public WaitDescriptor?  PendingWait  { get; init; }   // set by wait/human nodes
+    public string?          HumanTaskId  { get; init; }   // set by human nodes
+    /// &lt;summary&gt;
+    /// When true, the engine calls SaveWithRetryAsync immediately after this
+    /// node completes, before advancing to the next node. Only the checkpoint
+    /// node executor sets this to true. All other executors leave it false.
+    /// &lt;/summary&gt;
+    public bool             ForceCheckpoint { get; init; }
+}
+
+/// &lt;summary&gt;
+/// Scoped context helper passed to every node executor.
+/// Provides safe read/write access to the execution context,
+/// JSONPath resolution, credential lookup, and document access.
+/// &lt;/summary&gt;
+public interface IExecutionContext
+{
+    ExecutionInstance  Instance        { get; }
+    IServiceProvider   Services        { get; }
+
+    // ── Context access ────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;
+    /// Resolve a JSONPath expression against the execution context.
+    ///
+    /// Three standard namespaces:
+    ///   $.entity              — the primary entity (read-only)
+    ///   $.params.x            — invocation parameters (read-only)
+    ///   $.context.x           — mutable context written by nodes
+    ///
+    /// One engine-managed namespace (read-only, never persisted in Context dict):
+    ///   $.engine.instanceId               — current instance GUID
+    ///   $.engine.workflowId               — workflow definition ID
+    ///   $.engine.workflowVersion          — pinned definition version
+    ///   $.engine.status                   — current ExecStatus string
+    ///   $.engine.createdAt                — instance creation timestamp
+    ///   $.engine.visits.{nodeId}          — visit count for a named node
+    ///   $.engine.visits._total            — total node executions so far
+    ///   $.engine.currentNodeId            — ID of the node being executed
+    ///   $.engine.parentInstanceId         — parent instance ID (null if root)
+    ///   $.engine.correlationId            — correlation ID set at invocation
+    ///
+    /// Examples:
+    ///   Resolve(&quot;$.engine.visits.n-review&quot;)      → ContextValue wrapping int
+    ///   Resolve(&quot;$.engine.visits._total&quot;)        → ContextValue wrapping int
+    ///   Resolve(&quot;$.context.reworkCount&quot;)         → ContextValue from context dict
+    ///   ResolveAs&amp;lt;int&amp;gt;(&quot;$.engine.visits.n-review&quot;) → int directly
+    ///
+    /// Returns null if the path is valid but the value is not found.
+    /// Throws ArgumentException for malformed paths.
+    /// &lt;/summary&gt;
+    ContextValue?      Resolve(string jsonPath);
+
+    void               Store(string key, ContextValue value);
+
+    /// &lt;summary&gt;
+    /// Typed convenience wrapper over Resolve.
+    /// Returns default(T) if path not found or value is NullContextValue.
+    /// Throws InvalidCastException if the value cannot be converted to T.
+    /// &lt;/summary&gt;
+    T?                 ResolveAs&lt;T&gt;(string jsonPath);
+
+    // ── Engine metadata ($.engine.* — convenience accessors) ──────────────────
+
+    /// &lt;summary&gt;
+    /// How many times the named node has been visited in this instance.
+    /// Equivalent to ResolveAs&amp;lt;int&amp;gt;(&quot;$.engine.visits.{nodeId}&quot;).
+    /// Returns 0 if the node has never been visited.
+    /// Intended for rework-limit checks and loop guards in filter/compute nodes.
+    ///
+    /// Example use in FilterNodeConfig:
+    ///   { &quot;propertyPath&quot;: &quot;visits.n-review&quot;, &quot;operation&quot;: &quot;ge&quot;, &quot;testValue&quot;: 3 }
+    ///   targeting &quot;$.engine&quot; instead of &quot;$.context&quot;
+    /// &lt;/summary&gt;
+    int                GetVisitCount(string nodeId);
+
+    /// &lt;summary&gt;
+    /// Total number of node executions in this instance so far.
+    /// Useful for logging and complexity guards.
+    /// &lt;/summary&gt;
+    int                TotalVisitCount { get; }
+
+    // ── Infrastructure ────────────────────────────────────────────────────────
+    Task&lt;Credential?&gt;  GetCredentialAsync(string credentialRef, CancellationToken ct);
+    Task&lt;Stream&gt;       GetDocumentAsync(DocumentContextValue doc, CancellationToken ct);
+    ILogger            Logger { get; }
+
+    // ── Date / calendar ───────────────────────────────────────────────────────
+    /// &lt;summary&gt;
+    /// Resolve a duration expression to an absolute DateTimeOffset.
+    /// Supports ISO 8601 (&quot;PT4H&quot;), business-day-aware (&quot;3bd&quot;), and
+    /// calendar-relative (&quot;startDate+30d&quot;) expressions.
+    /// &lt;/summary&gt;
+    Task&lt;DateTimeOffset&gt; ResolveDateTimeAsync(string expression, CancellationToken ct);
+}
+</code></pre>
+<h3><code>$.engine.*</code> resolution notes</h3>
+<p>The <code>$.engine</code> namespace is synthesised at resolution time from the live<br />
+<code>ExecutionInstance</code> — it is never stored in <code>ContextDictionary.Context</code>.<br />
+This means:</p>
+<ul>
+<li><strong>Read-only</strong> — no node can write to <code>$.engine.*</code> via <code>Store()</code></li>
+<li><strong>Always current</strong> — <code>$.engine.visits.n-review</code> reflects the count at the<br />
+  moment <code>Resolve()</code> is called, including the current execution</li>
+<li><strong>Zero cost</strong> — resolved directly from <code>Instance.NodeVisitCounts</code>, no<br />
+  additional storage or serialization</li>
+</ul>
+<p>The engine implementation of <code>Resolve()</code> checks the path prefix before<br />
+dispatching to the context dictionary:</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Pseudocode — engine implementation of Resolve()
+public ContextValue? Resolve(string path) =&gt; path switch
+{
+    var p when p.StartsWith(&quot;$.engine.visits.&quot;) =&gt; ResolveVisit(p),
+    var p when p.StartsWith(&quot;$.engine.&quot;)        =&gt; ResolveEngineMeta(p),
+    var p when p.StartsWith(&quot;$.entity&quot;)         =&gt; Instance.Context.Entity,
+    var p when p.StartsWith(&quot;$.params.&quot;)        =&gt; ResolveParams(p),
+    var p when p.StartsWith(&quot;$.context.&quot;)       =&gt; ResolveContext(p),
+    _ =&gt; throw new ArgumentException($&quot;Unrecognised path namespace: {path}&quot;)
+};
+
+private ContextValue ResolveVisit(string path)
+{
+    // &quot;$.engine.visits.n-review&quot; → nodeId = &quot;n-review&quot;
+    var nodeId = path[&quot;$.engine.visits.&quot;.Length..];
+    var count  = nodeId == &quot;_total&quot;
+        ? Instance.NodeVisitCounts.Values.Sum()
+        : Instance.NodeVisitCounts.GetValueOrDefault(nodeId, 0);
+    return new JsonContextValue { Value = JsonSerializer.SerializeToElement(count) };
+}
+</code></pre>
+<hr />
+<h2>18a. ParamsSchemaValidator — schema validation utilities</h2>
+<p>Static helper used by the engine for all JSON Schema (draft-07 subset) validation. Supported keywords: <code>type</code>, <code>required</code>, <code>properties</code> (with nested <code>type</code>, <code>enum</code>, <code>minimum</code>, <code>maximum</code>).</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public static class ParamsSchemaValidator
+{
+    /// &lt;summary&gt;
+    /// Validates workflow input params against a schema string.
+    /// Called by FlowEngine.StartAsync when WorkflowDefinition.ParamsSchema is set.
+    /// Returns empty list when valid; throws ArgumentException if schema is malformed.
+    /// &lt;/summary&gt;
+    public static IReadOnlyList&lt;string&gt; Validate(
+        string schemaJson,
+        IReadOnlyDictionary&lt;string, ContextValue&gt;? @params);
+
+    /// &lt;summary&gt;
+    /// Validates a single JsonElement against a JSON Schema string.
+    /// Called by the engine after node execution, before StoreAs, when
+    /// NodeDefinition.OutputSchema is set.
+    /// Root-level type/enum/min/max checked; for object outputs, required
+    /// and properties are validated against the object's own properties.
+    /// Returns empty list when valid; throws ArgumentException if schema is malformed.
+    ///
+    /// Error code produced on failure: OUTPUT_SCHEMA_VALIDATION_FAILED
+    /// &lt;/summary&gt;
+    public static IReadOnlyList&lt;string&gt; ValidateOutput(
+        string schemaJson,
+        JsonElement output);
+
+    /// &lt;summary&gt;
+    /// Validates that required context keys exist in the context dictionary
+    /// and, when a schema is provided, that their values conform to it.
+    /// Called by the engine before executor invocation when
+    /// NodeDefinition.ContextRequirements is set.
+    /// Keys are bare context key names (no $.context. prefix).
+    /// A null schema value means presence-only check.
+    /// Returns empty list when all requirements are satisfied.
+    ///
+    /// Error code produced on failure: CONTEXT_REQUIREMENTS_FAILED
+    /// &lt;/summary&gt;
+    public static IReadOnlyList&lt;string&gt; ValidateContextRequirements(
+        Dictionary&lt;string, string?&gt; requirements,
+        IReadOnlyDictionary&lt;string, ContextValue&gt; context);
+}</code></pre>
+<hr />
+<h2>19. Versioning and concurrency note</h2>
+<p><code>ExecutionInstance.Version</code> is a monotonically increasing <code>long</code> (see the class definition in section 1).
+The state store's <code>SaveAsync</code> must fail with <code>ConcurrencyException</code> if the stored
+version does not match the in-memory version. The engine catches <code>ConcurrencyException</code>,
+reloads the instance, replays the last node result, and retries the save. This prevents
+lost updates in multi-host deployments.</p>
+<p><strong>Implementation note:</strong> Cosmos and Azure Table stores may additionally use provider-native
+ETags for the conditional write; the <code>Version</code> field is still required and must be
+incremented on every successful save regardless of which mechanism the store uses.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// State store SaveAsync — required behaviour:
+// 1. Compare instance.Version against persisted version.
+// 2. If mismatch → throw new ConcurrencyException(instance.InstanceId).
+// 3. If match   → write the new state and increment Version.
+// The engine's SaveWithRetryAsync catches ConcurrencyException,
+// reloads, merges, and retries up to 3 times.
+</code></pre>
+<hr />
+<hr />
+<h2>20. Supporting infrastructure interfaces</h2>
+<p>These interfaces complete the pluggability model. Each has a default<br />
+implementation registered automatically by <code>services.AddFlowEngine()</code>.<br />
+All are replaceable via <code>FlowEngineBuilder</code>.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// ── IWorkflowRegistry ──────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Registry of WorkflowDefinition objects. Populated at startup and/or
+/// at runtime. The engine calls GetAsync before every execution start.
+/// &lt;/summary&gt;
+public interface IWorkflowRegistry
+{
+    /// &lt;summary&gt;
+    /// Load a definition by ID and optional version constraint.
+    /// Version null = latest Active version.
+    /// Version &quot;2.*&quot; = latest Active 2.x version.
+    /// Version &quot;2.1.0&quot; = exact version.
+    /// Returns null if no matching Active definition found.
+    /// &lt;/summary&gt;
+    Task&lt;WorkflowDefinition?&gt; GetAsync(
+        string id, string? version, CancellationToken ct = default);
+
+    /// All provided implementations call WorkflowDefinitionValidator.ValidateAndThrow
+    /// before persisting. Throws WorkflowDefinitionValidationException on structural errors.
+    Task SaveAsync(WorkflowDefinition definition, CancellationToken ct = default);
+
+    Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
+        string? idFilter = null,
+        DefinitionStatus? status = null,
+        CancellationToken ct = default);
+}
+
+// ── WorkflowDefinitionValidator ───────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Validates a WorkflowDefinition for structural correctness. Called automatically
+/// by all provided IWorkflowRegistry.SaveAsync implementations before persisting.
+///
+/// Checks: Id/Version non-empty, EntryNodeId exists, GlobalOnFailureNodeId/
+/// GlobalOnDeadlineNodeId exist (when set), all edge NextNodeId targets exist,
+/// all node Types non-empty, MaxVisits &gt; 0, self-loops with default MaxVisits flagged.
+/// &lt;/summary&gt;
+public static class WorkflowDefinitionValidator
+{
+    /// &lt;summary&gt;Returns all validation errors. Empty list = valid.&lt;/summary&gt;
+    public static IReadOnlyList&lt;string&gt; Validate(WorkflowDefinition definition);
+
+    /// &lt;summary&gt;Throws WorkflowDefinitionValidationException if any errors found.&lt;/summary&gt;
+    public static void ValidateAndThrow(WorkflowDefinition definition);
+}
+
+public class WorkflowDefinitionValidationException : Exception
+{
+    public string                WorkflowId { get; }
+    public string                Version    { get; }
+    public IReadOnlyList&lt;string&gt; Errors     { get; }
+}
+
+/// <summary>
+/// DefinitionStatus lifecycle:
+///   Draft  — under construction; cannot be started; GetAsync(id, null) excludes Draft.
+///   Active — published; new instances can be started; GetAsync(id, null) returns latest Active.
+///
+/// Transitions: Draft ↔ Active (bidirectional).
+/// Active definitions are immutable — transition back to Draft to edit.
+/// StartAsync throws WorkflowNotActiveException for Draft definitions.
+/// </summary>
+public enum DefinitionStatus { Draft, Active }
+
+/// &lt;summary&gt;Default — ConcurrentDictionary keyed by &quot;id@version&quot;.&lt;/summary&gt;
+public sealed class InMemoryWorkflowRegistry : IWorkflowRegistry
+{
+    private readonly ConcurrentDictionary&lt;string, WorkflowDefinition&gt; _store = new();
+
+    public Task&lt;WorkflowDefinition?&gt; GetAsync(string id, string? version, CancellationToken ct)
+    {
+        if (version != null &amp;&amp; !version.Contains('*'))
+        {
+            _store.TryGetValue($&quot;{id}@{version}&quot;, out var exact);
+            return Task.FromResult(exact);
+        }
+        // Find latest Active version matching constraint
+        var candidates = _store.Values
+            .Where(d =&gt; d.Id == id &amp;&amp; d.Status == DefinitionStatus.Active)
+            .OrderByDescending(d =&gt; d.Version);
+        if (version != null) // wildcard like &quot;2.*&quot;
+        {
+            var prefix = version.Replace(&quot;.*&quot;, &quot;.&quot;);
+            candidates = (IOrderedEnumerable&lt;WorkflowDefinition&gt;)
+                candidates.Where(d =&gt; d.Version.StartsWith(prefix));
+        }
+        return Task.FromResult(candidates.FirstOrDefault());
+    }
+
+    public Task SaveAsync(WorkflowDefinition definition, CancellationToken ct)
+    {
+        _store[$&quot;{definition.Id}@{definition.Version}&quot;] = definition;
+        return Task.CompletedTask;
+    }
+
+    public Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
+        string? idFilter, DefinitionStatus? status, CancellationToken ct)
+    {
+        var q = _store.Values.AsEnumerable();
+        if (idFilter != null) q = q.Where(d =&gt; d.Id == idFilter);
+        if (status   != null) q = q.Where(d =&gt; d.Status == status);
+        return Task.FromResult&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt;(q.ToList());
+    }
+}
+
+// ── INodeExecutorRegistry ──────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Resolves the correct INodeExecutor for a given node type string.
+/// Populated at startup by FlowEngineBuilder.AddNodeExecutor&amp;lt;T&amp;gt;().
+/// &lt;/summary&gt;
+public interface INodeExecutorRegistry
+{
+    INodeExecutor? Get(string nodeType);
+    void Register(INodeExecutor executor);
+}
+
+/// &lt;summary&gt;Default — Dictionary built from DI INodeExecutor registrations.&lt;/summary&gt;
+public sealed class NodeExecutorRegistry : INodeExecutorRegistry
+{
+    private readonly Dictionary&lt;string, INodeExecutor&gt; _executors;
+    public NodeExecutorRegistry(IEnumerable&lt;INodeExecutor&gt; executors)
+        =&gt; _executors = executors.ToDictionary(e =&gt; e.NodeType);
+    public INodeExecutor? Get(string nodeType)
+        =&gt; _executors.GetValueOrDefault(nodeType);
+    public void Register(INodeExecutor executor)
+        =&gt; _executors[executor.NodeType] = executor;
+}
+
+// ── ICalendarProvider ──────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Resolves duration and date expressions to absolute DateTimeOffset values.
+/// Used by IExecutionContext.ResolveDateTimeAsync and the human/wait node executors.
+///
+/// Default implementation (DefaultCalendarProvider) handles ISO 8601 durations only
+/// (e.g. "PT4H", "P2D", "P1W"). No other calendar implementations are provided in
+/// the package suite. Implement ICalendarProvider for business-day calendars,
+/// timezone-aware offsets, or custom scheduling expressions.
+/// Register via: .UseCalendarProvider&lt;T&gt;()
+/// &lt;/summary&gt;
+public interface ICalendarProvider
+{
+    /// &lt;summary&gt;
+    /// Resolve a duration or date expression relative to a base time.
+    ///
+    /// Expressions supported by DefaultCalendarProvider:
+    ///   &quot;PT4H&quot;    — ISO 8601 duration added to baseTime
+    ///   &quot;P3D&quot;     — ISO 8601 duration (3 days)
+    ///   &quot;P2W&quot;     — ISO 8601 duration (2 weeks)
+    ///
+    /// Expressions requiring a custom ICalendarProvider implementation:
+    ///   &quot;2bd&quot;           — 2 business days (skips weekends + holidays)
+    ///   &quot;startDate+30d&quot; — named context date + offset
+    /// &lt;/summary&gt;
+    Task&lt;DateTimeOffset&gt; ResolveAsync(
+        string         expression,
+        DateTimeOffset baseTime,
+        CancellationToken ct = default);
+}
+
+public sealed class DefaultCalendarProvider : ICalendarProvider
+{
+    public Task&lt;DateTimeOffset&gt; ResolveAsync(
+        string expression, DateTimeOffset baseTime, CancellationToken ct)
+    {
+        if (System.Xml.XmlConvert.TryToTimeSpan(expression, out var ts))
+            return Task.FromResult(baseTime.Add(ts));
+        throw new ArgumentException(
+            $&quot;DefaultCalendarProvider only handles ISO 8601 durations. &quot; +
+            $&quot;Expression '{expression}' requires a custom ICalendarProvider.&quot;);
+    }
+}
+
+// ── ICredentialStore ───────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Provides credentials referenced by name in node configs (FetchNodeConfig.CredentialRef,
+/// IntegrationNodeConfig request headers, etc.).
+/// Default reads from environment variables (DefaultCredentialStore).
+/// No Key Vault or Secrets Manager implementations are provided in the package suite.
+/// Implement ICredentialStore for Azure Key Vault, AWS Secrets Manager, etc.
+/// Register via: .UseCredentialStore&lt;T&gt;()
+///
+/// credentialRef usage: reference credentials by logical name in node configs
+/// (FetchNodeConfig.CredentialRef, IntegrationNodeConfig, etc.).
+/// The engine calls GetAsync at node execution time, enabling credential rotation
+/// without process restart.
+/// &lt;/summary&gt;
+public interface ICredentialStore
+{
+    /// &lt;summary&gt;
+    /// Retrieve a named credential. Returns null if not found.
+    /// Implementations should cache credentials with appropriate TTLs.
+    /// &lt;/summary&gt;
+    Task&lt;Credential?&gt; GetAsync(string credentialRef, CancellationToken ct = default);
+}
+
+public sealed class Credential
+{
+    /// &lt;summary&gt;
+    /// Credential type. Determines which fields are required.
+    /// &quot;none&quot; | &quot;api-key&quot; | &quot;bearer&quot; | &quot;basic&quot; | &quot;oauth2-client&quot; | &quot;custom&quot;
+    /// &lt;/summary&gt;
+    public string  Type          { get; init; }
+
+    // ── Common ────────────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;Primary secret value: API key, bearer token, or basic-auth password.&lt;/summary&gt;
+    public string? Key           { get; init; }
+    /// &lt;summary&gt;Secondary secret: OAuth client secret, or basic-auth password (when Key = username).&lt;/summary&gt;
+    public string? Secret        { get; init; }
+
+    // ── api-key delivery ─────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;HTTP header name for api-key delivery. Example: &quot;X-API-Key&quot;.&lt;/summary&gt;
+    public string? KeyHeader     { get; init; }
+    /// &lt;summary&gt;Query parameter name for api-key delivery. Example: &quot;api_key&quot;.&lt;/summary&gt;
+    public string? KeyQueryParam { get; init; }
+
+    // ── oauth2-client ─────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;Token endpoint URL. Example: &quot;https://auth.example.com/oauth/token&quot;.&lt;/summary&gt;
+    public string? TokenEndpoint { get; init; }
+    /// &lt;summary&gt;OAuth client ID.&lt;/summary&gt;
+    public string? ClientId      { get; init; }
+    /// &lt;summary&gt;OAuth scope string. Example: &quot;read:orders write:payments&quot;.&lt;/summary&gt;
+    public string? Scope         { get; init; }
+
+    // ── custom ────────────────────────────────────────────────────────────────
+
+    /// &lt;summary&gt;Arbitrary headers injected on every request. Used with Type = &quot;custom&quot;.&lt;/summary&gt;
+    public Dictionary&lt;string, string&gt;? CustomHeaders { get; init; }
+}
+
+/// &lt;summary&gt;
+/// Default ICredentialStore — reads structured credential fields from environment variables.
+///
+/// Environment variable format: FLOWENGINE_CRED_{REF}_{FIELD}
+/// where {REF} is the credentialRef with hyphens replaced by underscores, uppercased.
+///
+/// Example — api-key credential named &quot;product-api&quot;:
+///   FLOWENGINE_CRED_PRODUCTAPI_TYPE=api-key
+///   FLOWENGINE_CRED_PRODUCTAPI_KEY=abc123
+///   FLOWENGINE_CRED_PRODUCTAPI_KEYHEADER=X-API-Key
+///
+/// Example — OAuth2 client credential named &quot;risk-engine&quot;:
+///   FLOWENGINE_CRED_RISKENGINE_TYPE=oauth2-client
+///   FLOWENGINE_CRED_RISKENGINE_CLIENTID=my-client
+///   FLOWENGINE_CRED_RISKENGINE_SECRET=my-secret
+///   FLOWENGINE_CRED_RISKENGINE_TOKENENDPOINT=https://auth.example.com/oauth/token
+///   FLOWENGINE_CRED_RISKENGINE_SCOPE=read:risk
+///
+/// Example — bearer token named &quot;crm-api&quot;:
+///   FLOWENGINE_CRED_CRMAPI_TYPE=bearer
+///   FLOWENGINE_CRED_CRMAPI_KEY=eyJhbGci...
+///
+/// Register a custom implementation to use Azure Key Vault, AWS Secrets Manager, etc.
+/// &lt;/summary&gt;
+public sealed class DefaultCredentialStore : ICredentialStore
+{
+    public Task&lt;Credential?&gt; GetAsync(string credentialRef, CancellationToken ct)
+    {
+        var prefix = &quot;FLOWENGINE_CRED_&quot;
+            + credentialRef.ToUpperInvariant().Replace(&quot;-&quot;, &quot;_&quot;).Replace(&quot;.&quot;, &quot;_&quot;)
+            + &quot;_&quot;;
+
+        var type = Environment.GetEnvironmentVariable($&quot;{prefix}TYPE&quot;);
+        if (type == null) return Task.FromResult&lt;Credential?&gt;(null);
+
+        return Task.FromResult&lt;Credential?&gt;(new Credential
+        {
+            Type          = type,
+            Key           = Environment.GetEnvironmentVariable($&quot;{prefix}KEY&quot;),
+            Secret        = Environment.GetEnvironmentVariable($&quot;{prefix}SECRET&quot;),
+            KeyHeader     = Environment.GetEnvironmentVariable($&quot;{prefix}KEYHEADER&quot;),
+            KeyQueryParam = Environment.GetEnvironmentVariable($&quot;{prefix}KEYQUERYPARAM&quot;),
+            TokenEndpoint = Environment.GetEnvironmentVariable($&quot;{prefix}TOKENENDPOINT&quot;),
+            ClientId      = Environment.GetEnvironmentVariable($&quot;{prefix}CLIENTID&quot;),
+            Scope         = Environment.GetEnvironmentVariable($&quot;{prefix}SCOPE&quot;),
+        });
+    }
+}
+
+// ── IDocumentStore ─────────────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Stores and retrieves binary documents referenced by DocumentContextValue.
+/// Used by node executors that produce or consume documents (agent nodes,
+/// fetch nodes, human task attachments).
+/// Default implementation uses the local filesystem (dev/test only).
+/// Register a custom implementation for Azure Blob, S3, etc.
+/// &lt;/summary&gt;
+public interface IDocumentStore
+{
+    /// &lt;summary&gt;Read a document by its StoreRef.&lt;/summary&gt;
+    Task&lt;Stream&gt; OpenReadAsync(string storeRef, CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Write a document and return a DocumentContextValue for storage in context.
+    /// Implementations assign an opaque StoreRef (URL, blob path, etc.).
+    /// &lt;/summary&gt;
+    Task&lt;DocumentContextValue&gt; StoreAsync(
+        Stream        content,
+        string        fileName,
+        string        contentType,
+        CancellationToken ct = default);
+}
+
+/// &lt;summary&gt;Default — local filesystem under a configurable base path.&lt;/summary&gt;
+public sealed class LocalFileDocumentStore : IDocumentStore
+{
+    private readonly string _basePath;
+    public LocalFileDocumentStore(string basePath)
+    {
+        _basePath = basePath;
+        Directory.CreateDirectory(basePath);
+    }
+    public Task&lt;Stream&gt; OpenReadAsync(string storeRef, CancellationToken ct)
+        =&gt; Task.FromResult&lt;Stream&gt;(File.OpenRead(Path.Combine(_basePath, storeRef)));
+    public async Task&lt;DocumentContextValue&gt; StoreAsync(
+        Stream content, string fileName, string contentType, CancellationToken ct)
+    {
+        var id   = Guid.NewGuid().ToString(&quot;N&quot;);
+        var path = Path.Combine(_basePath, id);
+        await using var fs = File.Create(path);
+        await content.CopyToAsync(fs, ct);
+        return new DocumentContextValue
+        {
+            StoreRef    = id,
+            FileName    = fileName,
+            ContentType = contentType,
+            SizeBytes   = fs.Length,
+            StoredAt    = DateTimeOffset.UtcNow
+        };
+    }
+}
+
+// ── IFlowEngineTelemetry ───────────────────────────────────────────────────────
+
+/// &lt;summary&gt;
+/// Emits structured telemetry events from the engine and node executors.
+/// Default implementation logs via ILogger. Register a custom implementation
+/// to emit directly to an OpenTelemetry ActivitySource, Application Insights, etc.
+///
+/// Standard event names (all begin with &quot;flow.&quot;):
+///   flow.instance.started      flow.instance.resumed
+///   flow.instance.suspended    flow.instance.completed
+///   flow.instance.faulted      flow.instance.cancelled
+///   flow.node.started          flow.node.completed
+///   flow.node.faulted          flow.node.retrying
+///   flow.task.created          flow.task.completed
+///   flow.checkpoint.saved
+/// &lt;/summary&gt;
+public interface IFlowEngineTelemetry
+{
+    void Emit(string eventName, Dictionary&lt;string, object?&gt; tags);
+}
+
+public sealed class LoggerFlowEngineTelemetry : IFlowEngineTelemetry
+{
+    private readonly ILogger _logger;
+    public LoggerFlowEngineTelemetry(ILogger&lt;FlowEngine&gt; logger) =&gt; _logger = logger;
+    public void Emit(string eventName, Dictionary&lt;string, object?&gt; tags)
+        =&gt; _logger.LogInformation(&quot;{Event} {@Tags}&quot;, eventName, tags);
+}
+</code></pre>
+<p>Node-type-specific config schemas (FilterNodeConfig, IntegrationNodeConfig,<br />
+HumanNodeConfig, etc.) are defined per node executor and are not defined here —<br />
+they evolve with each node type independently.</p>
+<h2>Distributed execution — package matrix</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>State Store Package</th>
+<th>Compatible Lock Providers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EF.FlowEngine.StateStore.File</code></td>
+<td><code>EF.FlowEngine.Locks.InMemory</code> (dev/test only)</td>
+</tr>
+<tr>
+<td><code>EF.FlowEngine.StateStore.Sql</code></td>
+<td><code>EF.FlowEngine.Locks.Sql</code>, <code>EF.FlowEngine.Locks.Redis</code></td>
+</tr>
+<tr>
+<td><code>EF.FlowEngine.StateStore.Redis</code></td>
+<td><code>EF.FlowEngine.Locks.Redis</code></td>
+</tr>
+<tr>
+<td><code>EF.FlowEngine.StateStore.Cosmos</code></td>
+<td><code>EF.FlowEngine.Locks.Cosmos</code>, <code>EF.FlowEngine.Locks.Redis</code></td>
+</tr>
+<tr>
+<td><code>EF.FlowEngine.StateStore.AzureTable</code></td>
+<td><code>EF.FlowEngine.Locks.AzureTable</code>, <code>EF.FlowEngine.Locks.AzureBlob</code>, <code>EF.FlowEngine.Locks.Redis</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Any state store can be paired with Redis locks — Redis is the universal<br />
+fallback lock provider when the state store's native locking is inconvenient<br />
+or unavailable.</p>
+<hr />
+<h2>SqlWorkflowRegistry — database-backed IWorkflowRegistry</h2>
+<p><code>InMemoryWorkflowRegistry</code> is for dev/test only. Production deployments must<br />
+use a persistent registry so workflow definitions survive restarts and can be<br />
+managed without code changes.</p>
+<h3>Package</h3>
+<pre><code>dotnet add package EF.FlowEngine.WorkflowRegistry.Sql
+</code></pre>
+<p>Supports SQL Server, PostgreSQL, and SQLite via Entity Framework Core.</p>
+<h3>Schema</h3>
+<pre><span class="lang-tag">sql</span><code class="language-sql">CREATE TABLE workflow_definitions (
+    id          VARCHAR(200)   NOT NULL,   -- workflow Id (e.g. &quot;loan-origination&quot;)
+    version     VARCHAR(50)    NOT NULL,   -- semantic version (e.g. &quot;1.2.0&quot;)
+    status      VARCHAR(20)    NOT NULL,   -- 'Draft' | 'Active'
+    label       VARCHAR(500)   NOT NULL,
+    definition  NVARCHAR(MAX)  NOT NULL,   -- full WorkflowDefinition serialized as JSON
+    created_at  DATETIMEOFFSET NOT NULL,
+    updated_at  DATETIMEOFFSET NOT NULL,
+    created_by  VARCHAR(200)   NULL,
+    CONSTRAINT pk_workflow_definitions PRIMARY KEY (id, version)
+);
+
+-- Speeds up GetAsync(id, version: null) — &quot;latest Active for this id&quot;
+CREATE INDEX ix_workflow_definitions_id_status
+    ON workflow_definitions (id, status);
+</code></pre>
+<p>The <code>definition</code> column stores the entire <code>WorkflowDefinition</code> serialized as<br />
+JSON. Do <strong>not</strong> normalize nodes/edges into relational tables — the definition<br />
+is always loaded and saved as a unit.</p>
+<h3>Implementation contract</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class SqlWorkflowRegistry : IWorkflowRegistry
+{
+    // Constructor receives IDbContextFactory&lt;WorkflowRegistryDbContext&gt;
+    // (registered by UseWorkflowRegistry&lt;SqlWorkflowRegistry&gt;).
+
+    public async Task&lt;WorkflowDefinition?&gt; GetAsync(
+        string id, string? version, CancellationToken ct)
+    {
+        // version == null  → latest Active: WHERE id=@id AND status='Active'
+        //                    ORDER BY version_sort_key DESC  LIMIT 1
+        // version == &quot;2.*&quot; → WHERE id=@id AND status='Active'
+        //                    AND version LIKE '2.%'
+        //                    ORDER BY version_sort_key DESC  LIMIT 1
+        // version == exact → WHERE id=@id AND version=@version
+        //                    (any status — pinned in-flight instances use exact)
+    }
+
+    public async Task SaveAsync(WorkflowDefinition definition, CancellationToken ct)
+    {
+        // UPSERT on (id, version).
+        // If a row with this (id, version) exists and status = Active:
+        //   throw WorkflowAlreadyPublishedException
+        //   — published definitions are immutable; bump the version instead.
+        // Draft rows may be overwritten freely.
+        // Sets updated_at = UtcNow on every save.
+    }
+
+    public async Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
+        string? idFilter, DefinitionStatus? status, CancellationToken ct)
+    {
+        // Both filters optional. Returns fully deserialized definitions.
+        // Used by management UIs to list all versions for a workflow ID.
+    }
+}
+</code></pre>
+<h3>Semver ordering</h3>
+<p>SQL <code>ORDER BY version DESC</code> is lexicographic and incorrect for semver<br />
+(<code>"1.10.0"</code> sorts before <code>"1.9.0"</code>). Store a computed sort key:</p>
+<pre><span class="lang-tag">sql</span><code class="language-sql">-- Add to schema:
+version_sort_key INT NOT NULL
+    GENERATED ALWAYS AS (
+        CAST(SPLIT_PART(version, '.', 1) AS INT) * 1000000 +
+        CAST(SPLIT_PART(version, '.', 2) AS INT) * 1000    +
+        CAST(SPLIT_PART(version, '.', 3) AS INT)
+    )  -- SQL Server: use a computed column expression equivalent
+</code></pre>
+<p>For portability, computing the sort key in application code before insert is<br />
+also acceptable — there will never be enough versions per workflow ID for<br />
+this to be a performance concern.</p>
+<h3>Registration</h3>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">services.AddFlowEngine()
+    .UseWorkflowRegistry&lt;SqlWorkflowRegistry&gt;(options =&gt;
+    {
+        options.ConnectionString = config.GetConnectionString(&quot;FlowEngine&quot;);
+        options.Schema           = &quot;flow&quot;;   // optional, defaults to dbo / public
+    });
+</code></pre>
+<h3>Migrations</h3>
+<p>The package ships EF Core migrations. Apply at deploy time:</p>
+<pre><span class="lang-tag">bash</span><code class="language-bash">dotnet ef database update --project FlowEngine.WorkflowRegistry.Sql
+</code></pre>
+<p>Or call at startup (acceptable for smaller deployments):</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">await registryDbContext.Database.MigrateAsync();
+</code></pre>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('theme');
+  if (stored) html.setAttribute('data-theme', stored);
+  toggle.textContent = html.getAttribute('data-theme') === 'light' ? '🌙' : '☀️';
+  toggle.addEventListener('click', () => {
+    const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    toggle.textContent = next === 'light' ? '🌙' : '☀️';
+  });
+})();
+</script>
+
+</body>
+</html>
