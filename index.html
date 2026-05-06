@@ -1,57 +1,268 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EF.Packages.Enterprise Docs</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                   Helvetica, Arial, sans-serif;
-      max-width: 760px;
-      margin: 48px auto;
-      padding: 0 24px;
-      color: #1a1a2e;
-      background: #f8f9fa;
-    }
-    h1 { font-size: 1.75rem; margin-bottom: 4px; }
-    .subtitle { color: #555; font-size: 0.95rem; margin-bottom: 32px; }
-    h2 { font-size: 1.1rem; border-bottom: 1px solid #ddd;
-         padding-bottom: 6px; margin-top: 32px; }
-    ul { list-style: none; padding: 0; margin: 0; }
-    li { padding: 8px 0; border-bottom: 1px solid #eee; }
-    li:last-child { border-bottom: none; }
-    a { color: #0969da; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    footer { margin-top: 48px; font-size: 0.8rem; color: #999; }
-    code { font-size: 0.85em; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EF.Packages.Enterprise — Documentation</title>
+<link rel="stylesheet" href="docs-common.css">
+<style>
+  /* ── Index-page-specific styles ─────────────────────────────────────────── */
+
+  /* No sidebar on this page — full-width single-column layout */
+  .layout {
+    grid-template-columns: minmax(210px, var(--sidebar-width)) minmax(0, var(--content-max));
+  }
+
+  /* Product section headers */
+  .product-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .product-icon {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px; font-weight: 600;
+    flex-shrink: 0;
+  }
+  .product-icon.teal  { background: rgba(29,158,117,.15); color: var(--teal); border: 1px solid rgba(29,158,117,.3); }
+  .product-icon.purple{ background: rgba(127,119,221,.15); color: var(--purple); border: 1px solid rgba(127,119,221,.3); }
+  .product-header h2  { border: none; margin: 0; padding: 0; font-size: 20px; }
+  .product-desc       { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* Doc cards grid */
+  .doc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .doc-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  .doc-card:hover {
+    border-color: var(--card-accent, var(--teal));
+    background: var(--bg3);
+    box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  }
+  .doc-card:visited { color: inherit; }
+  .doc-card-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .doc-card-type {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--card-accent, var(--teal));
+  }
+
+  /* Purple accent for FilterBuilder cards */
+  .cards-purple .doc-card { --card-accent: var(--purple); }
+  .cards-purple .doc-card:hover { border-color: var(--purple); }
+
+  /* Footer */
+  .doc-footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .doc-footer a { color: var(--muted); text-decoration: none; }
+  .doc-footer a:hover { color: var(--text); }
+
+  @media (max-width: 768px) {
+    .doc-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 480px) {
+    .doc-grid { grid-template-columns: 1fr; }
+  }
+</style>
 </head>
 <body>
-  <h1>EF.Packages.Enterprise Docs</h1>
-  <p class="subtitle">
-    Auto-deployed from
-    <a href="https://github.com/efreeman518/EF.Packages.Enterprise">efreeman518/EF.Packages.Enterprise</a>
-    · <code>a94db43</code>
-  </p>
 
-  <h2>Documents</h2>
-  <ul>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/EF-FilterBuilder-Design-Doc.html">EF-FilterBuilder-Design-Doc.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/EF-FilterBuilder-UnitTestSamples.html">EF-FilterBuilder-UnitTestSamples.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-Connectors.html">FlowEngine-Connectors.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-CoreSchema.html">FlowEngine-CoreSchema.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-Design-Doc.html">FlowEngine-Design-Doc.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-EngineLoop.html">FlowEngine-EngineLoop.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-Local-Aspire-Test-Harness.html">FlowEngine-Local-Aspire-Test-Harness.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-NodeExecutor-Guide.html">FlowEngine-NodeExecutor-Guide.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-Operations.html">FlowEngine-Operations.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-UseCaseValidation.html">FlowEngine-UseCaseValidation.html</a></li>
-      <li><a href="https://efreeman518.github.io/ef-packages-docs/FlowEngine-WorkflowDefinition.html">FlowEngine-WorkflowDefinition.html</a></li>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Documentation Index</div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">🌙</button>
+  </div>
+  <div class="title-row">
+    <button class="hamburger" id="hamburger" aria-label="Open navigation">&#9776;</button>
+    <h1><span>EF</span>.Packages.Enterprise</h1>
+  </div>
+  <p class="tagline">Pluggable .NET 10 libraries for durable workflow orchestration and dynamic filter expression building. Select a document below to explore.</p>
+  <div class="header-meta">
+    <span><strong>Platform</strong> .NET 10+</span>
+    <span><strong>Status</strong> Pre-release</span>
+    <span><strong>Deployed</strong> 2026-05-06 16:46 UTC</span>
+  </div>
+</div>
 
-  </ul>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-  <footer>Deployed: 2026-05-06 14:56 UTC</footer>
+<div class="layout">
+<nav class="sidebar">
+  <div class="sidebar-label">FlowEngine</div>
+  <a href="#flowengine">Overview</a>
+  <a href="#fe-design">Design Doc</a>
+  <a href="#fe-schema">Core Schema</a>
+  <a href="#fe-workflowdef">Workflow Definition</a>
+  <a href="#fe-nodeexec">Node Executor Guide</a>
+  <a href="#fe-engineloop">Engine Loop</a>
+  <a href="#fe-operations">Operations</a>
+  <a href="#fe-connectors">Connectors</a>
+  <a href="#fe-usecases">Use Case Validation</a>
+  <a href="#fe-aspire">Local Aspire Harness</a>
+  <div class="sidebar-label">FilterBuilder</div>
+  <a href="#filterbuilder">Overview</a>
+  <a href="#fb-design">Design Doc</a>
+  <a href="#fb-tests">Unit Test Samples</a>
+</nav>
+
+<main class="content">
+
+  <!-- ── FlowEngine ─────────────────────────────────────────────────────── -->
+  <section id="flowengine">
+    <div class="product-header">
+      <div class="product-icon teal">FE</div>
+      <div>
+        <h2>FlowEngine</h2>
+        <p class="product-desc">Declarative, serializable, durable workflow orchestration for .NET. Define workflows as JSON. Run them across any number of servers with crash recovery, human-in-the-loop, and AI agent integration.</p>
+      </div>
+    </div>
+
+    <div class="doc-grid" id="fe-design">
+      <a class="doc-card" href="FlowEngine-Design-Doc.html" id="fe-design">
+        <span class="doc-card-type">Design Document</span>
+        <span class="doc-card-label">Design Doc</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-CoreSchema.html" id="fe-schema">
+        <span class="doc-card-type">Reference</span>
+        <span class="doc-card-label">Core Schema</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-WorkflowDefinition.html" id="fe-workflowdef">
+        <span class="doc-card-type">Reference</span>
+        <span class="doc-card-label">Workflow Definition</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-NodeExecutor-Guide.html" id="fe-nodeexec">
+        <span class="doc-card-type">Guide</span>
+        <span class="doc-card-label">Node Executor Guide</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-EngineLoop.html" id="fe-engineloop">
+        <span class="doc-card-type">Implementation</span>
+        <span class="doc-card-label">Engine Loop</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-Operations.html" id="fe-operations">
+        <span class="doc-card-type">Operations</span>
+        <span class="doc-card-label">Operations Reference</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-Connectors.html" id="fe-connectors">
+        <span class="doc-card-type">Reference</span>
+        <span class="doc-card-label">Connectors &amp; Agent Governance</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-UseCaseValidation.html" id="fe-usecases">
+        <span class="doc-card-type">Testing</span>
+        <span class="doc-card-label">Use Case Validation</span>
+      </a>
+      <a class="doc-card" href="FlowEngine-Local-Aspire-Test-Harness.html" id="fe-aspire">
+        <span class="doc-card-type">Guide</span>
+        <span class="doc-card-label">Local Aspire Test Harness</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ── FilterBuilder ──────────────────────────────────────────────────── -->
+  <section id="filterbuilder">
+    <div class="product-header">
+      <div class="product-icon purple">FB</div>
+      <div>
+        <h2>FilterBuilder</h2>
+        <p class="product-desc">Declarative, serializable filter expression engine for typed .NET collections and LINQ data sources. Patent pending.</p>
+      </div>
+    </div>
+
+    <div class="doc-grid cards-purple" id="fb-design">
+      <a class="doc-card" href="EF-FilterBuilder-Design-Doc.html" id="fb-design">
+        <span class="doc-card-type">Design Document</span>
+        <span class="doc-card-label">Design Doc</span>
+      </a>
+      <a class="doc-card" href="EF-FilterBuilder-UnitTestSamples.html" id="fb-tests">
+        <span class="doc-card-type">Testing</span>
+        <span class="doc-card-label">Unit Test Samples</span>
+      </a>
+    </div>
+  </section>
+
+  <footer class="doc-footer">
+    <span>Deployed: 2026-05-06 16:46 UTC</span>
+    <a href="https://github.com/efreeman518/EF.Packages.Enterprise">github.com/efreeman518/EF.Packages.Enterprise</a>
+  </footer>
+
+</main>
+</div>
+
+<script>
+(function () {
+  /* ── Theme toggle ── */
+  const html = document.documentElement;
+  const btn  = document.getElementById('themeToggle');
+  const apply = t => {
+    html.setAttribute('data-theme', t);
+    btn.textContent = t === 'dark' ? '🌙' : '☀️';
+  };
+  apply(localStorage.getItem('ef-theme') || 'dark');
+  btn.addEventListener('click', () => {
+    const t = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('ef-theme', t);
+    apply(t);
+  });
+
+  /* ── Mobile sidebar ── */
+  const sidebar  = document.querySelector('.sidebar');
+  const overlay  = document.getElementById('sidebarOverlay');
+  const hamburger = document.getElementById('hamburger');
+  const open  = () => { sidebar.classList.add('open');  overlay.classList.add('open');  document.body.classList.add('nav-open'); };
+  const close = () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); document.body.classList.remove('nav-open'); };
+  hamburger.addEventListener('click', open);
+  overlay.addEventListener('click', close);
+  sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { if (window.innerWidth <= 768) close(); }));
+
+  /* ── Active sidebar link on scroll ── */
+  const links    = document.querySelectorAll('.sidebar a[href^="#"]');
+  const sections = document.querySelectorAll('[id]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const match = document.querySelector('.sidebar a[href="#' + e.target.id + '"]');
+        if (match) match.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-15% 0px -75% 0px' });
+  sections.forEach(s => obs.observe(s));
+})();
+</script>
 </body>
 </html>
