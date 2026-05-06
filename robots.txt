@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://efreeman518.github.io/ef-packages-docs/sitemap.xml
