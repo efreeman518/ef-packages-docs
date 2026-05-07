@@ -31,6 +31,7 @@
   <li><a href="#outbox">Transactional Outbox (<code>EF.FlowEngine.Outbox.Sql</code>)</a></li>
   <li><a href="#circuit-breaker">Distributed Circuit Breaker</a></li>
   <li><a href="#migration">Migration Tooling</a></li>
+  <li><a href="#copy-workflow">Copying a Workflow Definition</a></li>
   <li><a href="#testing">Testing Failure Modes</a></li>
 </ul>
 
@@ -76,6 +77,7 @@ app.MapFlowEngineAdmin(prefix: "/api/flowengine");
   <tr><td><code>POST</code></td><td><code>/circuit-breakers/{key}/reset</code></td><td>Admin</td><td>Manually close an open circuit</td></tr>
   <tr><td><code>GET</code></td><td><code>/human-tasks</code></td><td>Admin or HumanTask</td><td>List pending human tasks with optional assignee filter</td></tr>
   <tr><td><code>GET</code></td><td><code>/workflows/{id}/compatibility</code></td><td>Admin</td><td>Analyze breaking changes between two versions of a workflow</td></tr>
+  <tr><td><code>POST</code></td><td><code>/workflows/{id}/copy</code></td><td>Admin</td><td>Copy a workflow definition to a new ID and label; copy is saved as <code>Draft</code></td></tr>
 </table></div>
 
 <h3>IFlowEngineAdminApi contract</h3>
@@ -91,6 +93,7 @@ app.MapFlowEngineAdmin(prefix: "/api/flowengine");
     Task                       ResetCircuitAsync(string key, CancellationToken ct = default);
     Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetHumanTasksAsync(string? assignee, CancellationToken ct = default);
     Task&lt;WorkflowCompatibilityReport&gt; AnalyzeCompatibilityAsync(string workflowId, string fromVersion, string toVersion, CancellationToken ct = default);
+    Task&lt;WorkflowDefinition&gt; CopyWorkflowAsync(string sourceWorkflowId, string? sourceVersion, string newWorkflowId, string newLabel, string newVersion = "1.0.0", CancellationToken ct = default);
 }
 </code></pre>
 
@@ -359,6 +362,39 @@ foreach (var inst in queryResult.Items)
     await engine.MigrateInstanceAsync(inst.InstanceId, "2.0.0", ct: ct);
 }
 </code></pre>
+
+<hr>
+
+<h2 id="copy-workflow">Copying a Workflow Definition</h2>
+<p>Use the copy endpoint to create a new, independent workflow definition from an existing one. The copy has a distinct ID and label, starts in <code>Draft</code> status, and shares no lifecycle relationship with the source. It can be promoted, versioned, and deleted independently.</p>
+
+<h3>Via Admin API</h3>
+<pre><span class="lang-tag">http</span><code>POST /api/flowengine/workflows/{sourceWorkflowId}/copy
+Content-Type: application/json
+
+{
+  "newWorkflowId": "expense-approval-v2",
+  "newLabel":      "Expense Approval (Revised)",
+  "newVersion":    "1.0.0",
+  "sourceVersion": "2.1.0"   // omit to copy the latest version
+}
+</code></pre>
+<p>Returns <code>201 Created</code> with the new <code>WorkflowDefinition</code> in the response body. Returns <code>404 Not Found</code> if the source workflow or version does not exist.</p>
+
+<h3>Via <code>IFlowEngineAdminApi</code></h3>
+<pre><span class="lang-tag">csharp</span><code>var copy = await adminApi.CopyWorkflowAsync(
+    sourceWorkflowId: "expense-approval",
+    sourceVersion:    null,           // null = latest
+    newWorkflowId:    "expense-approval-v2",
+    newLabel:         "Expense Approval (Revised)",
+    newVersion:       "1.0.0");
+
+// copy.Status == DefinitionStatus.Draft
+// Promote when ready:
+await adminApi.TransitionWorkflowStatusAsync(copy.Id, copy.Version, DefinitionStatus.Active);
+</code></pre>
+
+<p>What is copied: all node definitions, edges, policies (retry, circuit breaker, lease duration), default tags, entry node, global failure/deadline handlers, compensation flag, persist-after-every-node flag, params schema, description, and intent. <code>CreatedAt</code>/<code>UpdatedAt</code> are reset to the time of copying.</p>
 
 <hr>
 
