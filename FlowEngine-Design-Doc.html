@@ -553,7 +553,7 @@ processor.ProcessMessageAsync += async args =>
     public string? CreatedBy   { get; init; }
 
     // Status
-    public DefinitionStatus Status { get; set; }  // Draft | Active  (transitions: Draft ↔ Active)
+    public DefinitionStatus Status { get; set; }  // Draft | Active | Archived  (transitions: Draft ↔ Active, Active ↔ Archived)
 
     // Graph
     public string EntryNodeId { get; init; }
@@ -1939,13 +1939,14 @@ bool safe = report.Findings.All(f => f.Severity != CompatibilityFindingSeverity.
   <tr><td><code>RedisWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.Redis</td><td>Production — fast access, low latency</td></tr>
   <tr><td><code>CosmosWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.Cosmos</td><td>Production — Azure Cosmos DB</td></tr>
 </table></div>
-<p><strong>Status lifecycle:</strong> All registries enforce the same transitions: <code>Draft ↔ Active</code> (bidirectional). <code>GetAsync(id, null)</code> always returns the latest <code>Active</code> version.</p>
+<p><strong>Status lifecycle:</strong> All registries enforce the same transitions: <code>Draft ↔ Active</code>, <code>Active → Archived</code>, <code>Archived → Active</code>. <code>GetAsync(id, null)</code> always returns the latest <code>Active</code> version — <code>Draft</code> and <code>Archived</code> are excluded from null-version resolution.</p>
 <div class="table-wrap"><table>
-  <tr><th>Status</th><th>Meaning</th></tr>
-  <tr><td><code>Draft</code></td><td>Under construction — cannot be started. Safe to modify freely. Transition to <code>Active</code> to publish.</td></tr>
-  <tr><td><code>Active</code></td><td>Published — new instances can be started. Immutable once set. Transition back to <code>Draft</code> to edit.</td></tr>
+  <tr><th>Status</th><th>New instances</th><th>Editable</th><th>Deletable</th><th>Meaning</th></tr>
+  <tr><td><code>Draft</code></td><td>No</td><td>Yes</td><td>Yes</td><td>Under construction. Transition to <code>Active</code> to publish.</td></tr>
+  <tr><td><code>Active</code></td><td>Yes</td><td>No</td><td>No</td><td>Published and immutable. Transition back to <code>Draft</code> to edit, or to <code>Archived</code> to retire.</td></tr>
+  <tr><td><code>Archived</code></td><td>No</td><td>No</td><td>No</td><td>Retired. No new instances may start; in-flight instances continue normally. Unarchive to <code>Active</code> if re-activation is needed.</td></tr>
 </table></div>
-<p><strong>Safe deletion:</strong> Active definitions cannot be overwritten directly. Use <code>IFlowEngine.DeleteWorkflowVersionAsync(workflowId, version)</code> — it verifies no live instances are running before removing the definition.</p>
+<p><strong>Safe deletion:</strong> Only <code>Draft</code> definitions can be deleted directly. Use <code>IFlowEngine.DeleteWorkflowVersionAsync(workflowId, version)</code> — it verifies no live instances are running before removing the definition. <code>Active</code> definitions are auto-demoted to <code>Draft</code> on deletion; <code>Archived</code> definitions must be unarchived to <code>Active</code> first.</p>
 
 
 <h2 id="lifecycle">Workflow Authoring Lifecycle</h2>
@@ -2026,6 +2027,11 @@ bool safe = report.Findings.All(f => f.Severity != CompatibilityFindingSeverity.
 <rect x="20" y="246" width="340" height="36" rx="4" fill="#161b22" stroke="#30363d" stroke-width="1" stroke-dasharray="4 3"/>
 <text x="190" y="263" text-anchor="middle" fill="#8b949e" font-family="IBM Plex Mono,monospace" font-size="10">Edit: save new version (v2) → publish → MigrateInstanceAsync</text>
 <text x="190" y="277" text-anchor="middle" fill="#8b949e" font-family="IBM Plex Mono,monospace" font-size="9">existing suspended instances stay on v1 until migrated</text>
+
+<!-- ── Archive note ── -->
+<rect x="20" y="296" width="340" height="36" rx="4" fill="#161b22" stroke="#30363d" stroke-width="1" stroke-dasharray="4 3"/>
+<text x="190" y="312" text-anchor="middle" fill="#8b949e" font-family="IBM Plex Mono,monospace" font-size="10">Retire: Active → Archived (TransitionStatusAsync)</text>
+<text x="190" y="326" text-anchor="middle" fill="#8b949e" font-family="IBM Plex Mono,monospace" font-size="9">no new starts; in-flight instances continue · Archived → Active to unarchive</text>
 </svg>
 </div>
 
