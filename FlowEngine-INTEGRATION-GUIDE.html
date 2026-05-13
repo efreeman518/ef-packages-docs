@@ -42,10 +42,6 @@ them:</p>
 <td>Blazor dashboard UI</td>
 <td><code>EF.FlowEngine.Dashboard</code></td>
 </tr>
-<tr class="even">
-<td>Optional dashboard sample host</td>
-<td><code>EF.FlowEngine.Dashboard.UI</code></td>
-</tr>
 </tbody>
 </table>
 <p>Add provider packages that match your infrastructure:</p>
@@ -239,35 +235,26 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href=
 <span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Resume workflow from the human node</span></span>
 <span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span>instance<span class="op">.</span><span class="fu">InstanceId</span><span class="op">,</span> eventName<span class="op">:</span> <span class="st">&quot;human.response&quot;</span><span class="op">,</span> correlationKey<span class="op">:</span> humanTaskId<span class="op">);</span></span>
 <span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Completed</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span></code></pre></div>
-<p><strong>Reference implementation:</strong> see <a
-href="../../EF.Test.Integration.FlowEngine.UseCases/">EF.Test.Integration.FlowEngine.UseCases</a>
-for 9 realistic end-to-end use cases covering healthcare, loans,
+<p><strong>Reference implementation:</strong> the source repository
+includes 9 realistic end-to-end use cases covering healthcare, loans,
 e-commerce, AI, compliance, scheduling, and orchestration patterns.</p>
 <h4 id="testing-via-the-dashboard-ui">Testing via the Dashboard UI</h4>
-<p>For manual validation or E2E testing, use the Aspire orchestrator to
-start the complete stack locally:</p>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">rtk</span> dotnet run <span class="at">--project</span> EF.FlowEngine.Dashboard.AppHost <span class="at">--launch-profile</span> http</span></code></pre></div>
-<p>The AppHost starts:</p>
-<ul>
-<li>SQL Server container (persistent volume)</li>
-<li>Redis container (persistent volume)</li>
-<li>Dashboard UI with pre-seeded sample workflows</li>
-<li>Admin API endpoints</li>
-</ul>
-<p>Access the dashboard at <code>http://localhost:15250</code> (or check
-Aspire console for the assigned port). Use the <strong>Run
-Workflow</strong> page to test workflows with custom input, and the
-<strong>Instance List</strong> to trace execution history.</p>
+<p>For manual validation or E2E testing, host the Blazor dashboard in
+your own ASP.NET Core app (see <a
+href="#decide-the-hosting-model">Decide the hosting model</a> above).
+Point it at a real SQL Server and Redis (or use .NET Aspire to spin them
+up as containers during development), and use the dashboard's
+<strong>Run Workflow</strong> page to test workflows with custom input
+and the <strong>Instance List</strong> to trace execution history.</p>
 <h4 id="in-memory-testing-for-local-development">In-Memory Testing for
 Local Development</h4>
 <p>For fast local unit/integration tests without containers, use the
 in-memory providers:</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseAllInMemoryProviders</span><span class="op">()</span>  <span class="co">// in-memory state, locks, registry, human tasks</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>FilterNodeExecutor<span class="op">&gt;()</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ... add executors</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseAllInMemoryProviders</span><span class="op">()</span>  <span class="co">// in-memory state, locks, registry, human tasks</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>FilterNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ... add executors</span></span></code></pre></div>
 <p><strong>Important:</strong> in-memory providers are <strong>not
 distributed</strong> — use only for single-instance local development
 and unit tests. For multi-instance or production, use SQL/Redis/Cosmos
@@ -285,21 +272,26 @@ external dependencies</li>
 <li><strong>TestExecutionContext builder</strong> for creating isolated
 execution contexts in unit tests</li>
 </ul>
-<h3 id="reference-implementations">Reference implementations</h3>
-<p>Use these files as concrete examples:</p>
+<h3 id="reference-packages">Reference packages</h3>
+<p>Install these NuGet packages to get the components described in this
+guide:</p>
 <ul>
-<li><a
-href="../../EF.FlowEngine.Dashboard.UI/Program.cs">EF.FlowEngine.Dashboard.UI/Program.cs</a></li>
-<li><a
-href="../../EF.FlowEngine.Dashboard.AppHost/Program.cs">EF.FlowEngine.Dashboard.AppHost/Program.cs</a></li>
-<li><a
-href="../../EF.FlowEngine.AdminApi/FlowEngineAdminApiExtensions.cs">EF.FlowEngine.AdminApi/FlowEngineAdminApiExtensions.cs</a></li>
-<li><a
-href="../../EF.FlowEngine.Dashboard/DashboardServiceExtensions.cs">EF.FlowEngine.Dashboard/DashboardServiceExtensions.cs</a></li>
-<li><a
-href="../../EF.Test.Integration.FlowEngine.UseCases/">EF.Test.Integration.FlowEngine.UseCases</a>
-— End-to-end workflow testing patterns and fixtures</li>
+<li><code>EF.FlowEngine</code> — core workflow engine</li>
+<li><code>EF.FlowEngine.AdminApi</code> — Admin API extensions
+(<code>FlowEngineAdminApiExtensions</code>)</li>
+<li><code>EF.FlowEngine.Dashboard</code> — Blazor dashboard services
+(<code>DashboardServiceExtensions</code>)</li>
+<li><code>EF.FlowEngine.Testing</code> — test fixtures and helpers</li>
+<li>Provider packages: <code>EF.FlowEngine.StateStore.*</code>,
+<code>EF.FlowEngine.Locks.*</code>,
+<code>EF.FlowEngine.WorkflowRegistry.*</code>,
+<code>EF.FlowEngine.HumanTaskStore.*</code>,
+<code>EF.FlowEngine.Outbox.Sql</code>,
+<code>EF.FlowEngine.CircuitBreaker.*</code>,
+<code>EF.FlowEngine.Clients.*</code></li>
 </ul>
+<p>See the <a href="FlowEngine-README.md">README</a> for installation
+details (packages are published to the GitHub Package Registry).</p>
 </div>
 
 <script>
