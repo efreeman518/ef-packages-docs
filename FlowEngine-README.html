@@ -41,45 +41,45 @@ persistence, distributed locking, and automatic crash recovery.</p>
 </tr>
 <tr class="even">
 <td><a
-href="docs/FlowEngine-INTEGRATION-GUIDE.md">FlowEngine-INTEGRATION-GUIDE.md</a></td>
+href="FlowEngine-INTEGRATION-GUIDE.html">FlowEngine-INTEGRATION-GUIDE.md</a></td>
 <td>Implementors</td>
 <td>End-to-end .NET solution integration: providers, migrations,
 clients, Admin API, Dashboard</td>
 </tr>
 <tr class="odd">
 <td><a
-href="docs/FlowEngine-Design-Doc.html">FlowEngine-Design-Doc.html</a></td>
+href="FlowEngine-Design-Doc.html">FlowEngine-Design-Doc.html</a></td>
 <td>Developers / implementors</td>
 <td>Full technical reference: architecture, node types, execution model,
 API, operations</td>
 </tr>
 <tr class="even">
-<td><a href="docs/FlowEngine-SKILL.md">FlowEngine-SKILL.md</a></td>
+<td><a href="FlowEngine-SKILL.html">FlowEngine-SKILL.md</a></td>
 <td>Workflow authors / AI agents</td>
 <td>Node authoring guide, design patterns, decision guide</td>
 </tr>
 <tr class="odd">
 <td><a
-href="docs/FlowEngine-WorkflowDefinition.html">FlowEngine-WorkflowDefinition.html</a></td>
+href="FlowEngine-WorkflowDefinition.html">FlowEngine-WorkflowDefinition.html</a></td>
 <td>Implementors</td>
 <td>Node config classes and schema</td>
 </tr>
 <tr class="even">
 <td><a
-href="docs/FlowEngine-NodeExecutor-Guide.html">FlowEngine-NodeExecutor-Guide.html</a></td>
+href="FlowEngine-NodeExecutor-Guide.html">FlowEngine-NodeExecutor-Guide.html</a></td>
 <td>Node authors</td>
 <td>How to build custom node executors</td>
 </tr>
 <tr class="odd">
 <td><a
-href="docs/FlowEngine-Operations.html">FlowEngine-Operations.html</a></td>
+href="FlowEngine-Operations.html">FlowEngine-Operations.html</a></td>
 <td>Ops / platform teams</td>
 <td>Admin API, Dashboard, Outbox, distributed circuit breakers,
 migration tooling</td>
 </tr>
 <tr class="even">
 <td><a
-href="docs/FlowEngine-Connectors.html">FlowEngine-Connectors.html</a></td>
+href="FlowEngine-Connectors.html">FlowEngine-Connectors.html</a></td>
 <td>Developers</td>
 <td>Ready-made connector clients, agent governance, content filtering,
 telemetry</td>
@@ -530,7 +530,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="
 <blockquote>
 <p><strong>Note:</strong> <code>when</code> predicates above use
 shorthand for readability. Actual expressions are Roslyn C# — see <a
-href="docs/FlowEngine-Design-Doc.html#edges">FlowEngine-Design-Doc.html</a>
+href="FlowEngine-Design-Doc.html#edges">FlowEngine-Design-Doc.html</a>
 for exact syntax.</p>
 </blockquote>
 <h4 id="3-register-and-start-a-workflow">3. Register and start a
@@ -1833,7 +1833,7 @@ capped exponential back-off: <code>min(2^n × 5 s, 300 s)</code>.
 <code>FlowEngineHealthCheck</code> uses <code>OldestPendingAge</code> to
 report <code>Degraded</code> when the drain falls behind.</p>
 <p>See <a
-href="docs/FlowEngine-Operations.html#outbox">FlowEngine-Operations.html</a>
+href="FlowEngine-Operations.html#outbox">FlowEngine-Operations.html</a>
 for detailed configuration and drain service options.</p>
 <hr />
 <h3 id="connector-clients">Connector Clients</h3>
@@ -1864,8 +1864,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb50-1"><a href=
 <span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>        chatClient<span class="op">:</span> openAIClient<span class="op">.</span><span class="fu">AsChatClient</span><span class="op">(</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">),</span></span>
 <span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a>        modelName<span class="op">:</span>  <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span></code></pre></div>
 <p>See <a
-href="docs/FlowEngine-Connectors.html">FlowEngine-Connectors.html</a>
-for full configuration options and custom client patterns.</p>
+href="FlowEngine-Connectors.html">FlowEngine-Connectors.html</a> for
+full configuration options and custom client patterns.</p>
 <hr />
 <h3 id="agent-governance">Agent Governance</h3>
 <h4 id="content-filtering">Content Filtering</h4>
@@ -1956,7 +1956,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb53-1"><a href=
 <span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
 <span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
 <p>See <a
-href="docs/FlowEngine-Connectors.html#agent-governance">FlowEngine-Connectors.html</a>
+href="FlowEngine-Connectors.html#agent-governance">FlowEngine-Connectors.html</a>
 for the full <code>IContentFilter</code> contract and telemetry
 integration.</p>
 <hr />
@@ -2051,8 +2051,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb56-1"><a href=
 client) to call the admin API. The dashboard package does not need a
 direct database connection.</p>
 <p>See <a
-href="docs/FlowEngine-Operations.html">FlowEngine-Operations.html</a>
-for the complete ops reference.</p>
+href="FlowEngine-Operations.html">FlowEngine-Operations.html</a> for the
+complete ops reference.</p>
 <hr />
 <h3 id="license">License</h3>
 <p>MIT License. See <a href="LICENSE">LICENSE</a> for details.</p>
