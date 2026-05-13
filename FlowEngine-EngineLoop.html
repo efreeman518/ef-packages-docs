@@ -24,8 +24,8 @@
 <p>The core engine loop — the orchestrator that takes an <code>ExecutionInstance</code> from one stable state to the next.
 Central piece that all node executors, state store implementations, and background services depend on.</p>
 <p><strong>Related docs:</strong><br />
-- <code>FlowEngine-CoreSchema.md</code> — <code>ExecutionInstance</code>, all interfaces (canonical)<br />
-- <code>FlowEngine-WorkflowDefinition.md</code> — <code>WorkflowDefinition</code>, <code>NodeDefinition</code>, <code>EdgeDefinition</code></p>
+- <a href="FlowEngine-CoreSchema.html"><code>FlowEngine-CoreSchema</code></a> — <code>ExecutionInstance</code>, all interfaces (canonical)<br />
+- <a href="FlowEngine-WorkflowDefinition.html"><code>FlowEngine-WorkflowDefinition</code></a> — <code>WorkflowDefinition</code>, <code>NodeDefinition</code>, <code>EdgeDefinition</code></p>
 <p><strong>Key files:</strong><br />
 - <code>EF.FlowEngine/Engine/FlowEngine.cs</code>                    — main engine class<br />
 - <code>EF.FlowEngine/Engine/WhenEvaluator.cs</code>                 — edge predicate evaluator<br />
@@ -1287,7 +1287,7 @@ public async Task DeleteWorkflowVersionAsync(
 <hr />
 <h2>12. Supporting infrastructure interfaces</h2>
 
-<p>Note: These interfaces are now formally contracted in <code>FlowEngine-CoreSchema.md</code> §20.<br />
+<p>Note: These interfaces are now formally contracted in <a href="FlowEngine-CoreSchema.html"><code>FlowEngine-CoreSchema</code></a> §20.<br />
 The implementations below are for the engine build — use the CoreSchema contracts as the canonical reference.</p>
 <p>Define these implementations to allow the engine to compile:</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public interface IWorkflowRegistry
