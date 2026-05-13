@@ -288,6 +288,19 @@ body.nav-open { overflow: hidden; }
   box-shadow: var(--content-shadow);
 }
 
+/* Fallback: .content used without a .layout grid parent — center it under the
+   header and add page-side padding via margin so the card matches sidebar docs. */
+body > .content {
+  max-width: min(100%, var(--content-max));
+  margin: 16px auto 56px;
+  width: auto;
+}
+@media (max-width: 768px) {
+  body > .content {
+    margin: 12px clamp(12px, 4vw, 24px) 48px;
+  }
+}
+
 /* ── Typography ─────────────────────────────────────────────────────────── */
 h2 { font-size: 22px; font-weight: 600; color: var(--text); margin: 52px 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); letter-spacing: -.01em; }
 h2:first-child { margin-top: 0; }
