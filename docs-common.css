@@ -404,7 +404,7 @@ td code { font-size: .85em; }
 .tag-async { background: rgba(55,138,221,.15);  color: var(--blue);  border: 1px solid rgba(55,138,221,.25); }
 .tag-term  { background: rgba(216,90,48,.15);   color: var(--coral); border: 1px solid rgba(216,90,48,.25); }
 
-/* ── Arch box ───────────────────────────────────────────────────────────── */
+/* ── Arch box (for ASCII-art diagrams) ─────────────────────────────────── */
 .arch-box {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
   padding: 24px; margin: 14px 0 22px;
@@ -415,6 +415,21 @@ td code { font-size: .85em; }
 .arch-box .teal { color: var(--teal); }
 .arch-box .blue { color: var(--blue); }
 .arch-box .amber { color: var(--amber); }
+
+/* ── Arch row + cards (for side-by-side prose cards) ──────────────────── */
+.arch-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 14px 0 22px;
+}
+.arch-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 18px 20px;
+}
+.arch-card h4 { margin-top: 0; }
+.arch-card ul { margin: 0; padding-left: 1.2em; }
+.arch-card li { margin: 4px 0; }
 
 /* ── Pills & outcomes ───────────────────────────────────────────────────── */
 .outcomes { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 14px; }
