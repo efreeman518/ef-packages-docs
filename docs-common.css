@@ -295,9 +295,17 @@ body > .content {
   margin: 16px auto 56px;
   width: auto;
 }
+/* Align .doc-header width with the content card when there is no sidebar layout. */
+body:has(> .content) > .doc-header {
+  width: min(100%, var(--content-max));
+}
 @media (max-width: 768px) {
   body > .content {
     margin: 12px clamp(12px, 4vw, 24px) 48px;
+  }
+  body:has(> .content) > .doc-header {
+    width: auto;
+    margin: 16px clamp(12px, 4vw, 24px) 0;
   }
 }
 

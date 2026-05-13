@@ -1,100 +1,23 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<html lang="" data-theme="dark">
 <head>
-  <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>SKILL-EF.FilterBuilder</title>
-  <style>
-    code{white-space: pre-wrap;}
-    span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
-    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    /* The extra [class] is a hack that increases specificity enough to
-       override a similar rule in reveal.js */
-    ul.task-list[class]{list-style: none;}
-    ul.task-list li input[type="checkbox"] {
-      font-size: inherit;
-      width: 0.8em;
-      margin: 0 0.8em 0.2em -1.6em;
-      vertical-align: middle;
-    }
-    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-    /* CSS for syntax highlighting */
-    pre > code.sourceCode { white-space: pre; position: relative; }
-    pre > code.sourceCode > span { line-height: 1.25; }
-    pre > code.sourceCode > span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode > span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre > code.sourceCode { white-space: pre-wrap; }
-    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code > span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code > span > a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
-        color: #aaaaaa;
-      }
-    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-    div.sourceCode
-      {   }
-    @media screen {
-    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-    code span.at { color: #7d9029; } /* Attribute */
-    code span.bn { color: #40a070; } /* BaseN */
-    code span.bu { color: #008000; } /* BuiltIn */
-    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-    code span.ch { color: #4070a0; } /* Char */
-    code span.cn { color: #880000; } /* Constant */
-    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-    code span.dt { color: #902000; } /* DataType */
-    code span.dv { color: #40a070; } /* DecVal */
-    code span.er { color: #ff0000; font-weight: bold; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #40a070; } /* Float */
-    code span.fu { color: #06287e; } /* Function */
-    code span.im { color: #008000; font-weight: bold; } /* Import */
-    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-    code span.op { color: #666666; } /* Operator */
-    code span.ot { color: #007020; } /* Other */
-    code span.pp { color: #bc7a00; } /* Preprocessor */
-    code span.sc { color: #4070a0; } /* SpecialChar */
-    code span.ss { color: #bb6688; } /* SpecialString */
-    code span.st { color: #4070a0; } /* String */
-    code span.va { color: #19177c; } /* Variable */
-    code span.vs { color: #4070a0; } /* VerbatimString */
-    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
-  </style>
-  <link rel="stylesheet" href="docs-md.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SKILL: EF.FilterBuilder</title>
+  <link rel="stylesheet" href="docs-common.css">
 </head>
 <body>
-<div class="md-container">
-<header id="title-block-header">
-<h1 class="title">SKILL-EF.FilterBuilder</h1>
-</header>
-<h1 id="skill-effilterbuilder">SKILL: EF.FilterBuilder</h1>
-<h2 id="what-this-skill-is">What this skill is</h2>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Documentation</div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">🌙</button>
+  </div>
+  <h1>SKILL: EF.FilterBuilder</h1>
+</div>
+
+<div class="content">
+<h2 id="skill-effilterbuilder">SKILL: EF.FilterBuilder</h2>
+<h3 id="what-this-skill-is">What this skill is</h3>
 <p>This skill teaches you how to construct, reason about, and generate
 correct <code>FilterSet</code> definitions for
 <strong>EF.FilterBuilder</strong> — a C# 14 / .NET 10 library that
@@ -107,7 +30,7 @@ EF.FilterBuilder, use this skill to generate correct, idiomatic code and
 JSON. All examples in this skill are verified against the
 implementation.</p>
 <hr />
-<h2 id="core-mental-model">Core mental model</h2>
+<h3 id="core-mental-model">Core mental model</h3>
 <pre><code>FilterSet (serializable JSON)
     │
     ├── Operator: AND | OR
@@ -125,9 +48,9 @@ Filter (single leaf condition)
 to <code>.Where()</code> on <code>IQueryable&lt;T&gt;</code> or compiled
 to a delegate for <code>IEnumerable&lt;T&gt;</code>.</p>
 <hr />
-<h2 id="data-model--complete-property-reference">Data model — complete
-property reference</h2>
-<h3 id="filterset">FilterSet</h3>
+<h3 id="data-model--complete-property-reference">Data model — complete
+property reference</h3>
+<h4 id="filterset">FilterSet</h4>
 <table>
 <thead>
 <tr class="header">
@@ -182,7 +105,7 @@ first</td>
 <p><strong>Rule:</strong> A <code>FilterSet</code> must have either
 <code>Filters</code> OR <code>FilterSets</code> — not both, not
 neither.</p>
-<h3 id="filter">Filter</h3>
+<h4 id="filter">Filter</h4>
 <table>
 <thead>
 <tr class="header">
@@ -270,7 +193,7 @@ whitespace from both sides before comparison</td>
 </tbody>
 </table>
 <hr />
-<h2 id="operators">Operators</h2>
+<h3 id="operators">Operators</h3>
 <p><strong>Comparison</strong> — any comparable type</p>
 <table>
 <thead>
@@ -481,8 +404,8 @@ null strings evaluate to <code>false</code></p>
 <p>EF Core translates <code>string.Length</code> to <code>LEN()</code> /
 <code>LENGTH()</code> in SQL.</p>
 <hr />
-<h2 id="filtertype-enum--dynamic-rhs-strategies">FilterType enum —
-dynamic RHS strategies</h2>
+<h3 id="filtertype-enum--dynamic-rhs-strategies">FilterType enum —
+dynamic RHS strategies</h3>
 <table>
 <thead>
 <tr class="header">
@@ -550,8 +473,8 @@ object before building the expression constant. If
 expression with variable <code>TestValue</code> bound to the resolved
 value, and the result replaces <code>testValue</code>.</p>
 <hr />
-<h2 id="filtersettype-enum--build-time-branching">FilterSetType enum —
-build-time branching</h2>
+<h3 id="filtersettype-enum--build-time-branching">FilterSetType enum —
+build-time branching</h3>
 <table>
 <thead>
 <tr class="header">
@@ -601,8 +524,8 @@ changes at data-edit time with zero code changes.</p>
 arbitrarily. A <code>BranchIfMatch</code> can be a <code>Switch</code>;
 a <code>SwitchCase.Then</code> can be another <code>Branch</code>. The
 compiler recurses through the same entry point.</p>
-<h3 id="filterset-branching-properties">FilterSet branching
-properties</h3>
+<h4 id="filterset-branching-properties">FilterSet branching
+properties</h4>
 <table>
 <thead>
 <tr class="header">
@@ -666,9 +589,9 @@ wins</td>
 </tr>
 </tbody>
 </table>
-<h3
+<h4
 id="rule-1-collection-scope-is-determined-by-child-filterset-presence">Rule
-1: Collection scope is determined by child FilterSet presence</h3>
+1: Collection scope is determined by child FilterSet presence</h4>
 <p>When a <code>PropertyPath</code> segment resolves to an
 <code>IEnumerable&lt;T&gt;</code> property (and is not
 <code>string</code>):</p>
@@ -716,9 +639,9 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb2-1"><a href="
 <span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
 <span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="co">// → orders.Where(o =&gt; o.Tags.Any(t =&gt; t.Key == &quot;color&quot;) &amp;&amp; o.Tags.Any(t =&gt; t.Value == &quot;red&quot;))</span></span></code></pre></div>
-<h3
+<h4
 id="rule-2-filters-and-filtersets-are-mutually-exclusive-at-each-level">Rule
-2: Filters and FilterSets are mutually exclusive at each level</h3>
+2: Filters and FilterSets are mutually exclusive at each level</h4>
 <p>A <code>FilterSet</code> node contains either:</p>
 <ul>
 <li><code>Filters</code> (leaf conditions) — making it a <strong>leaf
@@ -744,19 +667,19 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="
 <span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    Filters     <span class="op">=</span> <span class="op">[</span> A <span class="op">],</span>        <span class="co">// ← do not do this</span></span>
 <span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    FilterSets  <span class="op">=</span> <span class="op">[</span> <span class="op">...</span> <span class="op">],</span>      <span class="co">// ← at the same level</span></span>
 <span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<h3 id="rule-3-null-safety-is-automatic">Rule 3: Null-safety is
-automatic</h3>
+<h4 id="rule-3-null-safety-is-automatic">Rule 3: Null-safety is
+automatic</h4>
 <p>Multi-segment paths are null-checked at every navigation level
 automatically. <code>"A.B.C.Name"</code> generates null-guards at A, B,
 and C. No annotation required. Pass <code>enableNullChecks: true</code>
 (the default) and it just works.</p>
-<h3 id="rule-4-delimiter-is-per-filter-not-per-filterset">Rule 4:
-Delimiter is per-Filter, not per-FilterSet</h3>
+<h4 id="rule-4-delimiter-is-per-filter-not-per-filterset">Rule 4:
+Delimiter is per-Filter, not per-FilterSet</h4>
 <p>Each <code>Filter</code> independently specifies its delimiter.
 Different filters in the same <code>FilterSet</code> can use different
 delimiters. When absent, defaults to <code>"."</code>.</p>
-<h3 id="rule-5-type-coercion-is-automatic">Rule 5: Type coercion is
-automatic</h3>
+<h4 id="rule-5-type-coercion-is-automatic">Rule 5: Type coercion is
+automatic</h4>
 <p><code>TestValue</code> is typed as <code>object?</code>. The compiler
 coerces it to the target property type at build time:</p>
 <ul>
@@ -767,19 +690,19 @@ coerces it to the target property type at build time:</p>
 </ul>
 <p>You do not need to cast <code>TestValue</code> — pass the natural
 JSON-representable value and the library handles it.</p>
-<h3
+<h4
 id="rule-6-casesensitive-and-normalize-apply-only-to-string-properties">Rule
-6: CaseSensitive and Normalize apply only to string properties</h3>
+6: CaseSensitive and Normalize apply only to string properties</h4>
 <p><code>CaseSensitive = false</code> lowercases both sides before any
 string comparison. <code>Normalize = true</code> trims both sides. When
 both are set, <strong>Normalize runs first, then CaseSensitive</strong>
 — so <code>"  Smith  "</code> → trim → <code>"Smith"</code> → lowercase
 → <code>"smith"</code>. Both flags are silently ignored on non-string
 properties.</p>
-<h3
+<h4
 id="rule-7-isnull--isnotnull-require-no-testvalue--never-set-one">Rule
 7: <code>isnull</code> / <code>isnotnull</code> require no TestValue —
-never set one</h3>
+never set one</h4>
 <p>Do not set <code>TestValue</code>, <code>FilterType</code>, or any
 other field when using <code>isnull</code> or <code>isnotnull</code>.
 The compiler dispatches these before TestValue resolution. Setting
@@ -791,10 +714,10 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">// WRONG — TestValue is ignored and may cause confusion</span></span>
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;DeletedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnull&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">null</span> <span class="op">}</span></span></code></pre></div>
-<h3
+<h4
 id="rule-8-in--nin-testvalue-must-be-an-enumerable--never-a-scalar">Rule
 8: <code>in</code> / <code>nin</code> TestValue must be an enumerable —
-never a scalar</h3>
+never a scalar</h4>
 <p>If you pass a scalar (e.g. <code>TestValue = "Active"</code>), the
 compiler throws at build time. Always pass an array or list.</p>
 <div class="sourceCode" id="cb5"><pre
@@ -803,24 +726,24 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">// WRONG — scalar value for in/nin</span></span>
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;in&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Active&quot;</span> <span class="op">}</span></span></code></pre></div>
-<h3
+<h4
 id="rule-9-datetime-operators-only-work-on-datetime-and-datetimeoffset">Rule
-9: Date/time operators only work on DateTime and DateTimeOffset</h3>
+9: Date/time operators only work on DateTime and DateTimeOffset</h4>
 <p>Applying <code>year-eq</code>, <code>month-eq</code>,
 <code>day-eq</code>, <code>hour-eq</code>, or <code>dow-eq</code> to a
 non-date property throws a descriptive
 <code>InvalidOperationException</code> at expression-build time.</p>
-<h3
+<h4
 id="rule-10-string-length-operators-only-work-on-string-properties">Rule
-10: String length operators only work on string properties</h3>
+10: String length operators only work on string properties</h4>
 <p>Applying <code>len-*</code> operators to a non-string property throws
 <code>InvalidOperationException</code> at expression-build time. Null
 string properties evaluate to <code>false</code> for all length
 comparisons — they do not throw.</p>
-<h3
+<h4
 id="rule-11-branch-and-switch-output-is-always-a-flat-predicate--never-conditional">Rule
 11: Branch and Switch output is always a flat predicate — never
-conditional</h3>
+conditional</h4>
 <p>The compiled output of <code>FilterSetType.Branch</code> and
 <code>FilterSetType.Switch</code> is a normal
 <code>Expression&lt;Func&lt;T,bool&gt;&gt;</code> with no
@@ -828,10 +751,10 @@ conditional</h3>
 implementation produces runtime conditional logic in the expression
 tree, it is wrong. The branching must be fully resolved before the
 predicate is constructed.</p>
-<h3
+<h4
 id="rule-12-condition-datasets-in-params1-must-be-pre-materialized">Rule
 12: Condition datasets in <code>params1</code> must be
-pre-materialized</h3>
+pre-materialized</h4>
 <p>For Branch, Switch, <code>TestValueFilterExpression</code>, and
 <code>TestValueFilterExpressionMulti</code>, any dataset passed in
 <code>params1</code> must be a <code>List&lt;T&gt;</code>, array, or
@@ -840,33 +763,33 @@ The compiler iterates condition datasets as
 <code>IEnumerable&lt;T&gt;</code> — passing an
 <code>IQueryable&lt;T&gt;</code> bypasses EF Core query execution and
 loads all rows into memory.</p>
-<h3
+<h4
 id="rule-13-testvaluefilterexpressionmulti-requires-operation--in-or-nin">Rule
 13: <code>TestValueFilterExpressionMulti</code> requires
-<code>Operation = "in"</code> or <code>"nin"</code></h3>
+<code>Operation = "in"</code> or <code>"nin"</code></h4>
 <p>This strategy builds an array and feeds it to the membership operator
 pipeline. Using any other operator (e.g. <code>"eq"</code>,
 <code>"gt"</code>) throws <code>InvalidOperationException</code> at
 expression-build time with a descriptive message.</p>
-<h3
+<h4
 id="rule-14-do-not-cache-expressions-built-with-testvaluefilterexpressionmulti-if-the-dataset-changes">Rule
 14: Do not cache expressions built with
-<code>TestValueFilterExpressionMulti</code> if the dataset changes</h3>
+<code>TestValueFilterExpressionMulti</code> if the dataset changes</h4>
 <p>The array is a snapshot of the dataset state at expression-build
 time. A cached expression reflects the dataset as it was when the
 expression was first built. If the underlying dataset changes between
 calls, rebuild the expression rather than reusing the cache.</p>
-<h3 id="rule-15-switchcasewhenvalue-comparison-is-case-insensitive">Rule
+<h4 id="rule-15-switchcasewhenvalue-comparison-is-case-insensitive">Rule
 15: <code>SwitchCase.WhenValue</code> comparison is
-case-insensitive</h3>
+case-insensitive</h4>
 <p>Switch case matching uses
 <code>StringComparison.OrdinalIgnoreCase</code>. <code>"VIP"</code>,
 <code>"vip"</code>, and <code>"Vip"</code> all match a
 <code>WhenValue</code> of <code>"VIP"</code>. This is intentional —
 switch values often originate from databases with inconsistent
 casing.</p>
-<h3 id="filterbuildert-primary-public-api">FilterBuilder&lt;T&gt;
-(primary public API)</h3>
+<h4 id="filterbuildert-primary-public-api">FilterBuilder&lt;T&gt;
+(primary public API)</h4>
 <div class="sourceCode" id="cb6"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Compile FilterSet to typed predicate expression</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>Expression<span class="op">&lt;</span>Func<span class="op">&lt;</span>T<span class="op">,</span> <span class="dt">bool</span><span class="op">&gt;&gt;</span> FilterBuilder<span class="op">&lt;</span>T<span class="op">&gt;.</span><span class="fu">ProcessFilterSet</span><span class="op">(</span></span>
@@ -881,7 +804,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="
 <span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Example-based FilterSet generation</span></span>
 <span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>FilterSet FilterBuilder<span class="op">&lt;</span>T<span class="op">&gt;.</span><span class="fu">BuildFilterSetItem</span><span class="op">(</span>T example<span class="op">)</span></span></code></pre></div>
-<h3 id="iqueryablet-extension">IQueryable&lt;T&gt; extension</h3>
+<h4 id="iqueryablet-extension">IQueryable&lt;T&gt; extension</h4>
 <div class="sourceCode" id="cb7"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>IQueryable<span class="op">&lt;</span>T<span class="op">&gt;</span> source<span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    FilterSet<span class="op">?</span> filterSet <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
@@ -889,7 +812,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> enableNullChecks <span class="op">=</span> <span class="kw">true</span><span class="op">,</span></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;?</span> params1 <span class="op">=</span> <span class="kw">null</span><span class="op">)</span></span></code></pre></div>
 <hr />
-<h2 id="json-serialization-format">JSON serialization format</h2>
+<h3 id="json-serialization-format">JSON serialization format</h3>
 <p><code>FilterSet</code> serializes to idiomatic JSON. Property names
 follow C# PascalCase by default (configure with
 <code>JsonSerializerOptions</code> as needed). <code>FilterType</code>
@@ -936,9 +859,9 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb9-1"><a href="
 <span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
 <span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <hr />
-<h2 id="usage-patterns--complete-examples">Usage patterns — complete
-examples</h2>
-<h3 id="pattern-1-simple-flat-filter">Pattern 1: Simple flat filter</h3>
+<h3 id="usage-patterns--complete-examples">Usage patterns — complete
+examples</h3>
+<h4 id="pattern-1-simple-flat-filter">Pattern 1: Simple flat filter</h4>
 <div class="sourceCode" id="cb10"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
@@ -952,8 +875,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href=
 <span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Users</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-2-deep-navigation-path-auto-null-safe">Pattern 2: Deep
-navigation path (auto null-safe)</h3>
+<h4 id="pattern-2-deep-navigation-path-auto-null-safe">Pattern 2: Deep
+navigation path (auto null-safe)</h4>
 <div class="sourceCode" id="cb11"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
@@ -964,7 +887,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href=
 <span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer.Address.ZipCode&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;bw&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;232&quot;</span>      <span class="op">},</span></span>
 <span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
-<h3 id="pattern-3-nested-andor">Pattern 3: Nested AND/OR</h3>
+<h4 id="pattern-3-nested-andor">Pattern 3: Nested AND/OR</h4>
 <div class="sourceCode" id="cb12"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">// (Status = &#39;Active&#39; AND Score &gt;= 80) OR (Status = &#39;VIP&#39;)</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
@@ -988,8 +911,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href=
 <span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
 <span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
-<h3 id="pattern-4-collection-filtering--same-object">Pattern 4:
-Collection filtering — same-object</h3>
+<h4 id="pattern-4-collection-filtering--same-object">Pattern 4:
+Collection filtering — same-object</h4>
 <p>Use when ALL conditions must match the SAME element in the
 collection.</p>
 <div class="sourceCode" id="cb13"><pre
@@ -1015,8 +938,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href=
 <span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
 <span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
-<h3 id="pattern-5-collection-filtering--any-object">Pattern 5:
-Collection filtering — any-object</h3>
+<h4 id="pattern-5-collection-filtering--any-object">Pattern 5:
+Collection filtering — any-object</h4>
 <p>Use when conditions can be satisfied by DIFFERENT elements in the
 collection.</p>
 <div class="sourceCode" id="cb14"><pre
@@ -1030,7 +953,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href=
 <span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Tags.Value&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;red&quot;</span>   <span class="op">},</span></span>
 <span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
-<h3 id="pattern-6-runtime-parameter">Pattern 6: Runtime parameter</h3>
+<h4 id="pattern-6-runtime-parameter">Pattern 6: Runtime parameter</h4>
 <div class="sourceCode" id="cb15"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: the filter definition carries no hardcoded comparison value.</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="co">// The threshold is supplied at call time via params1. The FilterSet itself can</span></span>
@@ -1052,8 +975,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href=
 <span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-7-cross-type-dataset-query">Pattern 7: Cross-type
-dataset query</h3>
+<h4 id="pattern-7-cross-type-dataset-query">Pattern 7: Cross-type
+dataset query</h4>
 <p>RHS value is derived by querying a separate typed dataset at
 expression-build time. The dataset type is completely independent from
 the entity being filtered. <code>Query</code> names the property to
@@ -1107,8 +1030,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href=
 <span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb16-47"><a href="#cb16-47" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-8-jsonpath-with-math-transform">Pattern 8: JSONPath with
-math transform</h3>
+<h4 id="pattern-8-jsonpath-with-math-transform">Pattern 8: JSONPath with
+math transform</h4>
 <div class="sourceCode" id="cb17"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: comparison value comes from a JSON document field, then a math</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co">// expression is applied before the constant is built. Here the filter matches</span></span>
@@ -1133,8 +1056,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb17-1"><a href=
 <span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> sensors<span class="op">.</span><span class="fu">AsQueryable</span><span class="op">().</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-9-first-match-priority-rules">Pattern 9: First-match
-priority rules</h3>
+<h4 id="pattern-9-first-match-priority-rules">Pattern 9: First-match
+priority rules</h4>
 <div class="sourceCode" id="cb18"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> rules <span class="op">=</span> <span class="kw">new</span> List<span class="op">&lt;</span>FilterSet<span class="op">&gt;</span></span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
@@ -1157,8 +1080,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb18-1"><a href=
 <span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a><span class="co">// Rules are sorted by Sequence internally — insertion order does not matter</span></span>
 <span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>FilterSet<span class="op">?</span> matched <span class="op">=</span> FilterBuilder<span class="op">&lt;</span>Customer<span class="op">&gt;.</span><span class="fu">FindFirstMatch</span><span class="op">(</span>customers<span class="op">,</span> rules<span class="op">);</span></span>
 <span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a><span class="dt">string</span> tier <span class="op">=</span> matched<span class="op">?.</span><span class="fu">ReferenceValue</span> <span class="op">??</span> <span class="st">&quot;standard&quot;</span><span class="op">;</span></span></code></pre></div>
-<h3 id="pattern-10-example-based-generation">Pattern 10: Example-based
-generation</h3>
+<h4 id="pattern-10-example-based-generation">Pattern 10: Example-based
+generation</h4>
 <div class="sourceCode" id="cb19"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Generates a FilterSet from an example object&#39;s non-default property values</span></span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> example <span class="op">=</span> <span class="kw">new</span> Product <span class="op">{</span> Category <span class="op">=</span> <span class="st">&quot;Electronics&quot;</span><span class="op">,</span> IsActive <span class="op">=</span> <span class="kw">true</span> <span class="op">};</span></span>
@@ -1168,7 +1091,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href=
 <span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="co">// Equivalent to: WHERE Category = &#39;Electronics&#39; AND IsActive = true</span></span>
 <span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-11-custom-delimiter">Pattern 11: Custom delimiter</h3>
+<h4 id="pattern-11-custom-delimiter">Pattern 11: Custom delimiter</h4>
 <div class="sourceCode" id="cb20"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co">// All three are semantically identical to &quot;Customer.Address.City&quot;</span></span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer/Address/City&quot;</span><span class="op">,</span>   Delimiter <span class="op">=</span> <span class="st">&quot;/&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Richmond&quot;</span> <span class="op">}</span></span>
@@ -1185,7 +1108,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href=
 <span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <hr />
-<h2 id="common-mistakes-to-avoid">Common mistakes to avoid</h2>
+<h3 id="common-mistakes-to-avoid">Common mistakes to avoid</h3>
 <table>
 <thead>
 <tr class="header">
@@ -1285,8 +1208,8 @@ predicate with no conditional logic</td>
 </tbody>
 </table>
 <hr />
-<h2 id="decision-guide--which-operator--filtertype-to-use">Decision
-guide — which operator / FilterType to use?</h2>
+<h3 id="decision-guide--which-operator--filtertype-to-use">Decision
+guide — which operator / FilterType to use?</h3>
 <pre><code>What are you testing?
     ├── Equality / comparison on any type               → eq, ne, gt, ge, lt, le
     ├── String content                                  → bw, bn, ew, en, cn, nc
@@ -1320,14 +1243,14 @@ Can this be inside FilterBuilder or must it be external?
     ├── Expressible as an EF Core-translatable expression tree  → inside FilterBuilder
     ├── Geo/spatial distance (Haversine)                        → compose externally
     └── Full-text search (CONTAINS, MATCH AGAINST)              → compose externally</code></pre>
-<h2
+<h3
 id="decision-guide--same-object-vs-any-object-collection-scope">Decision
-guide — same-object vs any-object collection scope?</h2>
+guide — same-object vs any-object collection scope?</h3>
 <pre><code>Do ALL conditions need to match the SAME collection element?
     YES → Put all conditions inside a child FilterSet on the collection-targeting Filter
     NO  → Use dot-notation paths through the collection (no child FilterSet)</code></pre>
-<h2 id="generating-filtersets-from-natural-language">Generating
-FilterSets from natural language</h2>
+<h3 id="generating-filtersets-from-natural-language">Generating
+FilterSets from natural language</h3>
 <table>
 <thead>
 <tr class="header">
@@ -1448,8 +1371,8 @@ externally</td>
 </tbody>
 </table>
 <hr />
-<h2 id="generating-filtersets-from-natural-language-1">Generating
-FilterSets from natural language</h2>
+<h3 id="generating-filtersets-from-natural-language-1">Generating
+FilterSets from natural language</h3>
 <table>
 <thead>
 <tr class="header">
@@ -1564,8 +1487,8 @@ full-text predicate</td>
 </tr>
 </tbody>
 </table>
-<h3 id="pattern-12-list-membership--in--nin">Pattern 12: List membership
-— in / nin</h3>
+<h4 id="pattern-12-list-membership--in--nin">Pattern 12: List membership
+— in / nin</h4>
 <div class="sourceCode" id="cb23"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Status must be one of the provided values</span></span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;in&quot;</span><span class="op">,</span></span>
@@ -1577,7 +1500,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href=
 <span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="co">// JSON representation</span></span>
 <span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="co">// { &quot;propertyPath&quot;: &quot;Status&quot;, &quot;operation&quot;: &quot;in&quot;, &quot;testValue&quot;: [&quot;Active&quot;,&quot;Pending&quot;,&quot;Review&quot;] }</span></span></code></pre></div>
-<h3 id="pattern-13-null-checks">Pattern 13: Null checks</h3>
+<h4 id="pattern-13-null-checks">Pattern 13: Null checks</h4>
 <div class="sourceCode" id="cb24"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Soft-delete: only non-deleted records</span></span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;DeletedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnull&quot;</span> <span class="op">}</span></span>
@@ -1593,8 +1516,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href=
 <span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span>    Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Active&quot;</span> <span class="op">},</span></span>
 <span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<h3 id="pattern-14-datetime-component-filters">Pattern 14: Date/time
-component filters</h3>
+<h4 id="pattern-14-datetime-component-filters">Pattern 14: Date/time
+component filters</h4>
 <div class="sourceCode" id="cb25"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Orders placed in March of any year</span></span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;CreatedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;month-eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">3</span> <span class="op">}</span></span>
@@ -1611,8 +1534,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href=
 <span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;CreatedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;month-eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">3</span>    <span class="op">},</span></span>
 <span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
 <span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<h3 id="pattern-15-string-length-filters">Pattern 15: String length
-filters</h3>
+<h4 id="pattern-15-string-length-filters">Pattern 15: String length
+filters</h4>
 <div class="sourceCode" id="cb26"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Non-empty (null-safe — null string → false, no exception)</span></span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Description&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;len-gt&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">0</span> <span class="op">}</span></span>
@@ -1622,9 +1545,9 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href=
 <span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Within a column limit</span></span>
 <span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Name&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;len-le&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">100</span> <span class="op">}</span></span></code></pre></div>
-<h3
+<h4
 id="pattern-16-case-insensitive-and-normalised-string-matching">Pattern
-16: Case-insensitive and normalised string matching</h3>
+16: Case-insensitive and normalised string matching</h4>
 <div class="sourceCode" id="cb27"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Case-insensitive contains</span></span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Name&quot;</span><span class="op">,</span>  Operation <span class="op">=</span> <span class="st">&quot;cn&quot;</span><span class="op">,</span></span>
@@ -1638,8 +1561,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href=
 <span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Non-blank after trimming</span></span>
 <span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Name&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;len-gt&quot;</span><span class="op">,</span></span>
 <span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>             TestValue <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> Normalize <span class="op">=</span> <span class="kw">true</span> <span class="op">}</span></span></code></pre></div>
-<h3 id="pattern-17-soft-delete-base-filter-serializable">Pattern 17:
-Soft-delete base filter (serializable)</h3>
+<h4 id="pattern-17-soft-delete-base-filter-serializable">Pattern 17:
+Soft-delete base filter (serializable)</h4>
 <div class="sourceCode" id="cb28"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Option A — chain .Where() before ApplyFilters</span></span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>dbContext<span class="op">.</span><span class="fu">Orders</span><span class="op">.</span><span class="fu">Where</span><span class="op">(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">DeletedAt</span> <span class="op">==</span> <span class="kw">null</span><span class="op">).</span><span class="fu">ApplyFilters</span><span class="op">(</span>userFilterSet<span class="op">);</span></span>
@@ -1654,8 +1577,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href=
 <span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    FilterSets <span class="op">=</span> <span class="op">[</span> notDeleted<span class="op">,</span> userFilterSet <span class="op">]</span></span>
 <span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>dbContext<span class="op">.</span><span class="fu">Orders</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>combined<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-18-geo-distance--external-composition">Pattern 18:
-Geo-distance — external composition</h3>
+<h4 id="pattern-18-geo-distance--external-composition">Pattern 18:
+Geo-distance — external composition</h4>
 <p>FilterBuilder does not include a spatial operator (Haversine cannot
 be translated to SQL without a spatial database extension). Compose
 externally:</p>
@@ -1674,8 +1597,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href=
 <span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> target <span class="op">=</span> <span class="kw">new</span> <span class="fu">Point</span><span class="op">(</span>targetLng<span class="op">,</span> targetLat<span class="op">)</span> <span class="op">{</span> SRID <span class="op">=</span> <span class="dv">4326</span> <span class="op">};</span></span>
 <span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>Expression<span class="op">&lt;</span>Func<span class="op">&lt;</span>Property<span class="op">,</span> <span class="dt">bool</span><span class="op">&gt;&gt;</span> geoFilter <span class="op">=</span></span>
 <span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">Location</span> <span class="op">!=</span> <span class="kw">null</span> <span class="op">&amp;&amp;</span> p<span class="op">.</span><span class="fu">Location</span><span class="op">.</span><span class="fu">Distance</span><span class="op">(</span>target<span class="op">)</span> <span class="op">&lt;=</span> radiusMetres<span class="op">;</span></span></code></pre></div>
-<h3 id="pattern-19-storing-filtersets-in-the-database">Pattern 19:
-Storing FilterSets in the database</h3>
+<h4 id="pattern-19-storing-filtersets-in-the-database">Pattern 19:
+Storing FilterSets in the database</h4>
 <div class="sourceCode" id="cb30"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> FilterRule</span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
@@ -1699,9 +1622,9 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href=
 <span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>FilterSet<span class="op">?</span> matched <span class="op">=</span> FilterBuilder<span class="op">&lt;</span>Customer<span class="op">&gt;</span></span>
 <span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">FindFirstMatch</span><span class="op">(</span>customers<span class="op">,</span> rules<span class="op">.</span><span class="fu">Select</span><span class="op">(</span>r <span class="op">=&gt;</span> r<span class="op">.</span><span class="fu">FilterSet</span><span class="op">).</span><span class="fu">ToList</span><span class="op">());</span></span></code></pre></div>
-<h3
+<h4
 id="pattern-20-aspnet-core--receive-filterset-as-request-body">Pattern
-20: ASP.NET Core — receive FilterSet as request body</h3>
+20: ASP.NET Core — receive FilterSet as request body</h4>
 <div class="sourceCode" id="cb31"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapPost</span><span class="op">(</span><span class="st">&quot;/api/orders/search&quot;</span><span class="op">,</span> <span class="fu">async</span> <span class="op">(</span></span>
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span>FromBody<span class="op">]</span> FilterSearchRequest req<span class="op">,</span></span>
@@ -1758,8 +1681,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href=
 <span id="cb32-39"><a href="#cb32-39" aria-hidden="true" tabindex="-1"></a><span class="co">// orders.Where(o =&gt;</span></span>
 <span id="cb32-40"><a href="#cb32-40" aria-hidden="true" tabindex="-1"></a><span class="co">//     o.Items.Any(item =&gt;</span></span>
 <span id="cb32-41"><a href="#cb32-41" aria-hidden="true" tabindex="-1"></a><span class="co">//         item.Tags.Any(tag =&gt; tag.Key == &quot;hazmat&quot; &amp;&amp; tag.Value == &quot;true&quot;)))</span></span></code></pre></div>
-<h3 id="pattern-21-multi-result-dataset-query">Pattern 21: Multi-result
-dataset query</h3>
+<h4 id="pattern-21-multi-result-dataset-query">Pattern 21: Multi-result
+dataset query</h4>
 <div class="sourceCode" id="cb33"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Promotion is a separate type tracking which product categories are discounted.</span></span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> Promotion</span>
@@ -1805,8 +1728,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href=
 <span id="cb33-42"><a href="#cb33-42" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb33-43"><a href="#cb33-43" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb33-44"><a href="#cb33-44" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-22-branch--binary-conditional-filter-selection">Pattern
-22: Branch — binary conditional filter selection</h3>
+<h4 id="pattern-22-branch--binary-conditional-filter-selection">Pattern
+22: Branch — binary conditional filter selection</h4>
 <div class="sourceCode" id="cb34"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co">// VipRecord is a simple lookup type. vipList is pre-fetched before the filter runs.</span></span>
 <span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> VipRecord <span class="op">{</span> <span class="kw">public</span> Guid CustomerId <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span> <span class="op">}</span></span>
@@ -1854,9 +1777,9 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href=
 <span id="cb34-44"><a href="#cb34-44" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb34-45"><a href="#cb34-45" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb34-46"><a href="#cb34-46" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
-<h3
+<h4
 id="pattern-23-switch--multi-case-filter-selection-by-extracted-value">Pattern
-23: Switch — multi-case filter selection by extracted value</h3>
+23: Switch — multi-case filter selection by extracted value</h4>
 <div class="sourceCode" id="cb35"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co">// TierRule maps a customer to a named tier. tierRuleList is pre-fetched before the filter runs.</span></span>
 <span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> TierRule</span>
@@ -1927,8 +1850,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href=
 <span id="cb35-67"><a href="#cb35-67" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
 <span id="cb35-68"><a href="#cb35-68" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb35-69"><a href="#cb35-69" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
-<h3 id="pattern-24-nested-branch-inside-switch">Pattern 24: Nested
-Branch inside Switch</h3>
+<h4 id="pattern-24-nested-branch-inside-switch">Pattern 24: Nested
+Branch inside Switch</h4>
 <div class="sourceCode" id="cb36"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Switch selects tier; VIP case itself branches on a feature flag</span></span>
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> vipCase <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
@@ -1967,8 +1890,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb36-1"><a href=
 <span id="cb36-35"><a href="#cb36-35" aria-hidden="true" tabindex="-1"></a><span class="co">// Compiler recurses through the same ProcessFilterSet entry point for each nested level.</span></span>
 <span id="cb36-36"><a href="#cb36-36" aria-hidden="true" tabindex="-1"></a><span class="co">// Final output: a single flat Expression&lt;Func&lt;T,bool&gt;&gt; — EF Core generates normal SQL.</span></span></code></pre></div>
 <hr />
-<h2 id="nested-collection-example-advanced">Nested collection example
-(advanced)</h2>
+<h3 id="nested-collection-example-advanced">Nested collection example
+(advanced)</h3>
 <div class="sourceCode" id="cb37"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Entity: Order → List&lt;LineItem&gt; Items → List&lt;Tag&gt; Tags</span></span>
 <span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="co">// &quot;Find orders where any LineItem has a Tag with Key=&#39;hazmat&#39; AND Value=&#39;true&#39; on the same Tag&quot;</span></span>
@@ -2012,5 +1935,21 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb37-1"><a href=
 <span id="cb37-40"><a href="#cb37-40" aria-hidden="true" tabindex="-1"></a><span class="co">//     o.Items.Any(item =&gt;</span></span>
 <span id="cb37-41"><a href="#cb37-41" aria-hidden="true" tabindex="-1"></a><span class="co">//         item.Tags.Any(tag =&gt; tag.Key == &quot;hazmat&quot; &amp;&amp; tag.Value == &quot;true&quot;)))</span></span></code></pre></div>
 </div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(stored);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
+</script>
 </body>
 </html>
