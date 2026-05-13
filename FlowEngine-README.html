@@ -1,0 +1,2136 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>FlowEngine-README</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="docs-common.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">FlowEngine-README</h1>
+</header>
+<h1 id="flowengine">FlowEngine</h1>
+<p><strong>A declarative, serializable workflow orchestration engine for
+durable async business processes.</strong></p>
+<p>Define complex workflows as plain JSON — store them in a database,
+version them like data, edit them without deploying code — and execute
+them durably across any number of server instances with full state
+persistence, distributed locking, and automatic crash recovery.</p>
+<hr />
+<h2 id="document-map">Document Map</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Document</th>
+<th>Audience</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>This README</td>
+<td>Everyone</td>
+<td>Getting started, installation, configuration reference</td>
+</tr>
+<tr class="even">
+<td><a
+href="docs/FlowEngine-INTEGRATION-GUIDE.md">FlowEngine-INTEGRATION-GUIDE.md</a></td>
+<td>Implementors</td>
+<td>End-to-end .NET solution integration: providers, migrations,
+clients, Admin API, Dashboard</td>
+</tr>
+<tr class="odd">
+<td><a
+href="docs/FlowEngine-Design-Doc.html">FlowEngine-Design-Doc.html</a></td>
+<td>Developers / implementors</td>
+<td>Full technical reference: architecture, node types, execution model,
+API, operations</td>
+</tr>
+<tr class="even">
+<td><a href="docs/FlowEngine-SKILL.md">FlowEngine-SKILL.md</a></td>
+<td>Workflow authors / AI agents</td>
+<td>Node authoring guide, design patterns, decision guide</td>
+</tr>
+<tr class="odd">
+<td><a
+href="docs/FlowEngine-WorkflowDefinition.html">FlowEngine-WorkflowDefinition.html</a></td>
+<td>Implementors</td>
+<td>Node config classes and schema</td>
+</tr>
+<tr class="even">
+<td><a
+href="docs/FlowEngine-NodeExecutor-Guide.html">FlowEngine-NodeExecutor-Guide.html</a></td>
+<td>Node authors</td>
+<td>How to build custom node executors</td>
+</tr>
+<tr class="odd">
+<td><a
+href="docs/FlowEngine-Operations.html">FlowEngine-Operations.html</a></td>
+<td>Ops / platform teams</td>
+<td>Admin API, Dashboard, Outbox, distributed circuit breakers,
+migration tooling</td>
+</tr>
+<tr class="even">
+<td><a
+href="docs/FlowEngine-Connectors.html">FlowEngine-Connectors.html</a></td>
+<td>Developers</td>
+<td>Ready-made connector clients, agent governance, content filtering,
+telemetry</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="why-flowengine">Why FlowEngine?</h2>
+<p>Business workflows are hard to get right. Human approvals can take
+days. External APIs fail and need retries. Long-running processes span
+server restarts. Multiple team members need to act in sequence. Rules
+change frequently. And the whole thing needs to be auditable.</p>
+<p>Most approaches force a choice between:</p>
+<ul>
+<li><strong>Code-based workflow</strong> (Temporal, Azure Durable
+Functions) — durable and powerful, but logic is locked in code. Changing
+a business rule means a code change and a deployment.</li>
+<li><strong>Visual workflow platforms</strong> (Power Automate, Zapier)
+— accessible to non-developers, but limited expressiveness and poor
+integration with your existing typed data model.</li>
+</ul>
+<p>FlowEngine takes a different path. Workflows are <strong>serializable
+JSON definitions</strong> that live in your database alongside your
+data. Business rules can be changed through data operations. The
+compiled execution is typed, with deep integration into your existing
+.NET entity model via FilterBuilder. The execution engine is designed
+for durable operation — async steps persist state, release server
+resources, and can resume on another server instance.</p>
+<pre><code>WorkflowDefinition (JSON in database)
+         │
+         ▼
+    FlowEngine
+         │
+         ├── Compiles FilterBuilder conditions → EF Core queries
+         ├── Persists state to SQL / Redis / Cosmos / Azure Table
+         ├── Coordinates across servers via distributed locking
+         └── Resumes from webhooks / Service Bus / Event Grid
+         │
+         ▼
+  ExecutionInstance
+  (persisted, auditable, resumable)</code></pre>
+<hr />
+<h2 id="orchestration-choreography--hybrid-patterns">Orchestration,
+Choreography &amp; Hybrid Patterns</h2>
+<p>FlowEngine is primarily an <strong>orchestration engine</strong>: one
+central workflow definition controls the entire business process.
+Understanding when to use orchestration, choreography, or a hybrid
+combination is key to designing effective systems.</p>
+<h3 id="orchestration">Orchestration</h3>
+<p>A single workflow definition governs the full process flow — every
+step, branch, retry, and compensation. The engine drives execution;
+services respond to instructions.</p>
+<p><strong>Strengths:</strong> visible end-to-end process, single
+retry/compensation strategy, easy debugging, full audit trail.
+<strong>Trade-off:</strong> services are coordinated by the engine;
+adding a step means updating the workflow definition.</p>
+<h3 id="choreography">Choreography</h3>
+<p>Each service knows what to do when it receives a domain event. There
+is no central coordinator — services react autonomously and emit their
+own events.</p>
+<p><strong>Strengths:</strong> loose coupling, independently deployable
+services, naturally event-driven. <strong>Trade-off:</strong> overall
+process flow is implicit, distributed failure handling is complex,
+observability requires event tracing across all participants.</p>
+<h3 id="hybrid--flowengines-sweet-spot-for-complex-systems">Hybrid —
+FlowEngine's sweet spot for complex systems</h3>
+<p>FlowEngine orchestrates the business process core while allowing
+choreography at the edges via its <code>message</code> and
+<code>wait</code> node types:</p>
+<ul>
+<li>A <strong><code>message</code> node</strong> publishes a domain
+event (e.g., <code>order.created</code>) to a registered
+<code>IMessageClient</code> (Service Bus, Event Grid). Independent
+downstream services react autonomously — they have no knowledge of the
+workflow.</li>
+<li>A <strong><code>wait</code> node</strong> suspends the workflow
+until an external event arrives (e.g., <code>order.fulfilled</code>
+signaled via <code>ResumeAsync(eventName, correlationKey)</code>).</li>
+</ul>
+<p>The workflow remains the authoritative record of process intent and
+state. External participants stay fully decoupled.</p>
+<h3 id="agents-in-hybrid-systems">Agents in hybrid systems</h3>
+<p><strong><code>agent</code> nodes</strong> (<code>IAgentClient</code>
+— OpenAI, Azure AI Foundry, Semantic Kernel) embed LLM/AI reasoning
+directly inside an orchestrated flow. The agent may call tools, reason
+over context, or produce structured decisions — but the <strong>workflow
+graph controls sequencing, retries, and compensation</strong>, making
+AI-driven steps durable, observable, and auditable.</p>
+<p>Typical hybrid pattern with agents:</p>
+<ol type="1">
+<li><code>agent</code> node reasons over data and produces a structured
+output (e.g., classification or risk score)</li>
+<li><code>decision</code> node routes based on agent output</li>
+<li><code>message</code> node publishes a domain event for downstream
+services to react independently</li>
+<li><code>wait</code> node suspends until an external confirmation
+arrives via <code>ResumeAsync</code></li>
+<li><code>human</code> node handles low-confidence or escalation
+cases</li>
+</ol>
+<h3 id="when-to-use-each-pattern">When to use each pattern</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Pattern</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Orchestration</strong></td>
+<td>Process has a clear sequence, compensation requirements, audit
+needs, or human-in-the-loop steps</td>
+</tr>
+<tr class="even">
+<td><strong>Choreography</strong></td>
+<td>Independent bounded contexts that must remain fully decoupled with
+no shared process state</td>
+</tr>
+<tr class="odd">
+<td><strong>Hybrid</strong></td>
+<td>Core process needs durability and observability, but some
+participants are autonomous external systems or AI agents</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="features">Features</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Declarative JSON workflows</strong></td>
+<td>Every workflow is a directed graph of typed nodes and conditional
+edges — fully serializable, storable, and versioned as data</td>
+</tr>
+<tr class="even">
+<td><strong>19 node types</strong></td>
+<td>filter, decision, store, compute, transform, integration, fetch,
+query, agent, message, loop, workflow, parallel, human, wait, timer,
+output, checkpoint, document</td>
+</tr>
+<tr class="odd">
+<td><strong>Durable async execution</strong></td>
+<td>Suspend at any async boundary, persist full state, resume on any
+server instance — workflows survive process restarts and server
+failures</td>
+</tr>
+<tr class="even">
+<td><strong>FilterBuilder integration</strong></td>
+<td><code>filter</code> and <code>query</code> nodes use FilterBuilder
+declarative filter expressions for typed, null-safe, EF
+Core-translatable conditions</td>
+</tr>
+<tr class="odd">
+<td><strong>Distributed locking</strong></td>
+<td>Pluggable <code>IDistributedLockProvider</code> — Redis, Azure Blob,
+SQL, Cosmos, Azure Table — prevents duplicate execution across server
+instances</td>
+</tr>
+<tr class="even">
+<td><strong>Pluggable state stores</strong></td>
+<td>SQL Server, Postgres, Redis, CosmosDB, Azure Table, local file
+(dev/test) — implement <code>IExecutionStateStore</code> for any
+backend</td>
+</tr>
+<tr class="odd">
+<td><strong>Named external clients</strong></td>
+<td>Bring your own <code>HttpClient</code>, <code>DbContext</code>,
+<code>ServiceBusClient</code>, <code>OpenAIClient</code> — register by
+name; FlowEngine never owns connection config</td>
+</tr>
+<tr class="even">
+<td><strong>Human-in-the-loop</strong></td>
+<td><code>human</code> node creates a <code>HumanTask</code>, suspends
+execution, resumes on response — Internal task queue or External
+(email/Teams/Slack) notification</td>
+</tr>
+<tr class="odd">
+<td><strong>Rework patterns</strong></td>
+<td>Backward edges + <code>$.engine.visits.{nodeId}</code> visit counts
+enable N-attempt rework cycles without explicit counter nodes</td>
+</tr>
+<tr class="even">
+<td><strong>Input validation</strong></td>
+<td><code>paramsSchema</code> on a workflow definition validates
+<code>StartRequest.Params</code> at startup — fail fast with clear
+messages</td>
+</tr>
+<tr class="odd">
+<td><strong>Output and context validation</strong></td>
+<td><code>outputSchema</code> on any node validates its JSON output
+before it is stored via <code>storeAs</code> — invalid values produce
+<code>Error</code> without writing to context.
+<code>contextRequirements</code> declares required context keys (with
+optional per-key schemas) that must be present before a node
+executes</td>
+</tr>
+<tr class="even">
+<td><strong>Saga compensation</strong></td>
+<td><code>enableCompensation: true</code> + per-node
+<code>compensationNodeId</code> — engine walks history in reverse and
+executes undo nodes automatically on failure</td>
+</tr>
+<tr class="odd">
+<td><strong>Circuit breaker</strong></td>
+<td><code>circuitBreakerPolicy</code> on workflow or node — detects
+repeated executor failures, opens a circuit, and auto-suspends affected
+instances until the service recovers. Alternate <code>CircuitOpen</code>
+edges enable graceful degradation instead of suspension</td>
+</tr>
+<tr class="even">
+<td><strong>Distributed circuit breaker</strong></td>
+<td><code>EF.FlowEngine.CircuitBreaker.Redis</code> / <code>.Sql</code>
+packages provide cross-replica circuit state via pluggable
+<code>ICircuitBreakerStore</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Transactional outbox</strong></td>
+<td><code>EF.FlowEngine.Outbox.Sql</code> — message/agent nodes enqueue
+in the same DB transaction as state save; background drain publishes
+with at-least-once guarantee</td>
+</tr>
+<tr class="even">
+<td><strong>Instance migration</strong></td>
+<td><code>MigrateInstanceAsync</code> moves suspended instances to a
+newer workflow version without replaying history.
+<code>CompatibilityAnalyzer.Analyze(from, to)</code> surfaces breaking
+changes before migration. <code>dryRun: true</code> validates remapping
+without persisting</td>
+</tr>
+<tr class="odd">
+<td><strong>Admin API</strong></td>
+<td><code>EF.FlowEngine.AdminApi</code> — minimal-API extension:
+instance query/retry/terminate/resume, circuit-breaker management,
+compatibility analysis over HTTP</td>
+</tr>
+<tr class="even">
+<td><strong>Ops Dashboard</strong></td>
+<td><code>EF.FlowEngine.Dashboard</code> — Blazor Server + MudBlazor:
+instance list/detail, human task inbox, workflow compatibility, circuit
+breaker status</td>
+</tr>
+<tr class="odd">
+<td><strong>Connector clients</strong></td>
+<td><code>EF.FlowEngine.Clients.Http</code>, <code>.ServiceBus</code>,
+<code>.OpenAI</code> — ready-made <code>IFlowClient</code> /
+<code>IMessageClient</code> / <code>IAgentClient</code>
+implementations</td>
+</tr>
+<tr class="even">
+<td><strong>Agent governance</strong></td>
+<td><code>ContentFilterPolicy</code> pre/post call hook,
+<code>PromptVersion</code> label, per-model cost rate table, and
+structured OTel telemetry on every agent invocation</td>
+</tr>
+<tr class="odd">
+<td><strong>Pre-execution validation</strong></td>
+<td>All client dependencies verified before the first node runs —
+misconfigured workflows fail fast with clear messages</td>
+</tr>
+<tr class="even">
+<td><strong>Full audit trail</strong></td>
+<td>Every node execution is immutably appended to
+<code>ExecutionInstance.History</code> — timestamps, outcomes, branch
+taken, stored values</td>
+</tr>
+<tr class="odd">
+<td><strong>OpenTelemetry</strong></td>
+<td>Structured events at every state transition — flows into any OTel
+collector, Azure Monitor, Datadog, Jaeger</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="requirements">Requirements</h2>
+<ul>
+<li>.NET 10.0 or later</li>
+<li>One of the supported state store backends (or implement
+<code>IExecutionStateStore</code>)</li>
+<li>One of the supported lock providers (or implement
+<code>IDistributedLockProvider</code>)</li>
+</ul>
+<hr />
+<h2 id="installation">Installation</h2>
+<blockquote>
+<p><strong>Pre-release / private registry.</strong> Packages are
+published to the GitHub Package Registry (not public nuget.org). Add the
+source to your NuGet config once, then install as shown below:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> nuget add source <span class="st">&quot;https://nuget.pkg.github.com/efreeman518/index.json&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--name</span> <span class="st">&quot;efreeman518&quot;</span> <span class="dt">\</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--username</span> YOUR_GITHUB_USERNAME <span class="dt">\</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">--password</span> YOUR_GITHUB_PAT <span class="dt">\</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">--store-password-in-clear-text</span></span></code></pre></div>
+</blockquote>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Core engine</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine <span class="at">--source</span> efreeman518</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># State store (choose one)</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.StateStore.File        <span class="at">--source</span> efreeman518  <span class="co"># dev/test — no infrastructure</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.StateStore.Sql         <span class="at">--source</span> efreeman518  <span class="co"># SQL Server / Postgres / SQLite</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.StateStore.Redis       <span class="at">--source</span> efreeman518</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.StateStore.Cosmos      <span class="at">--source</span> efreeman518</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.StateStore.AzureTable  <span class="at">--source</span> efreeman518</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Lock provider (choose one — Redis is universal fallback)</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Locks.InMemory         <span class="at">--source</span> efreeman518  <span class="co"># single process only</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Locks.Redis            <span class="at">--source</span> efreeman518</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Locks.AzureBlob        <span class="at">--source</span> efreeman518</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Locks.Sql              <span class="at">--source</span> efreeman518</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Locks.Cosmos           <span class="at">--source</span> efreeman518</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Locks.AzureTable       <span class="at">--source</span> efreeman518</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Workflow registry (choose one)</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.WorkflowRegistry.Sql   <span class="at">--source</span> efreeman518  <span class="co"># production — SQL Server / Postgres / SQLite</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.WorkflowRegistry.Redis <span class="at">--source</span> efreeman518</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.WorkflowRegistry.Cosmos <span class="at">--source</span> efreeman518</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="co"># JsonFileWorkflowRegistry is built into EF.FlowEngine (dev/test only)</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Human task store (choose one)</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.HumanTaskStore.Sql     <span class="at">--source</span> efreeman518</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.HumanTaskStore.Redis   <span class="at">--source</span> efreeman518</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.HumanTaskStore.Cosmos  <span class="at">--source</span> efreeman518</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="co"># InMemoryHumanTaskStore is included in EF.FlowEngine.Testing (test only)</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Distributed circuit breaker (choose one — upgrades InMemoryCircuitBreakerStore for multi-replica deployments)</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.CircuitBreaker.Redis   <span class="at">--source</span> efreeman518</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.CircuitBreaker.Sql     <span class="at">--source</span> efreeman518</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Transactional outbox (optional — at-least-once delivery guarantee for message/agent/integration nodes)</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Outbox.Sql             <span class="at">--source</span> efreeman518</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="co"># Admin API (optional — exposes engine operations over HTTP)</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.AdminApi               <span class="at">--source</span> efreeman518</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Ops Dashboard (optional — Blazor Server dashboard consuming the Admin API)</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Dashboard              <span class="at">--source</span> efreeman518</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a><span class="co"># Connector clients (optional — ready-made IFlowClient / IMessageClient / IAgentClient implementations)</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.Http           <span class="at">--source</span> efreeman518</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.ServiceBus     <span class="at">--source</span> efreeman518</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.OpenAI         <span class="at">--source</span> efreeman518</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a><span class="co"># Testing helpers (test projects only)</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Testing                <span class="at">--source</span> efreeman518  <span class="co"># TestExecutionContext, in-memory test helpers</span></span></code></pre></div>
+<hr />
+<h2 id="quick-start">Quick Start</h2>
+<h3 id="1-register-flowengine">1. Register FlowEngine</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddDbContextFactory</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span>opts <span class="op">=&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  opts<span class="op">.</span><span class="fu">UseSqlServer</span><span class="op">(</span>builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">(</span><span class="st">&quot;appdb&quot;</span><span class="op">)));</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IConnectionMultiplexer<span class="op">&gt;(</span>_ <span class="op">=&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  ConnectionMultiplexer<span class="op">.</span><span class="fu">Connect</span><span class="op">(</span>builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">(</span><span class="st">&quot;redis&quot;</span><span class="op">)!));</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>options <span class="op">=&gt;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">DefaultLeaseDuration</span>   <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromSeconds</span><span class="op">(</span><span class="dv">30</span><span class="op">);</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">LeaseRenewalInterval</span>   <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromSeconds</span><span class="op">(</span><span class="dv">13</span><span class="op">);</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">SweepInterval</span>          <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromSeconds</span><span class="op">(</span><span class="dv">30</span><span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="op">})</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">UseLockProviderRedis</span><span class="op">()</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="co">// Register all 19 node executors</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>FilterNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>DecisionNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>StoreNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>ComputeNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>TransformNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>IntegrationNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>FetchNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>QueryNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>AgentNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>MessageNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>LoopNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>WorkflowNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>ParallelNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>HumanNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>WaitNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>TimerNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>OutputNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>CheckpointNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>DocumentNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a><span class="co">// Register your external clients</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddHttpClient</span><span class="op">(</span><span class="st">&quot;payment-api&quot;</span><span class="op">)</span>                              <span class="co">// built-in IRequestResponseClient</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddClient</span><span class="op">&lt;</span>EfCoreQueryClient<span class="op">&lt;</span>CrmContext<span class="op">&gt;&gt;()</span>                <span class="co">// DI-resolved IQueryClient</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddClient</span><span class="op">(</span><span class="st">&quot;order-events&quot;</span><span class="op">,</span> <span class="kw">new</span> <span class="fu">ServiceBusMessageClient</span><span class="op">(</span>sbClient<span class="op">,</span> <span class="st">&quot;orders&quot;</span><span class="op">));</span></span></code></pre></div>
+<h3 id="2-define-a-workflow">2. Define a workflow</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span>          <span class="st">&quot;expense-approval&quot;</span><span class="fu">,</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;version&quot;</span><span class="fu">:</span>     <span class="st">&quot;1.0.0&quot;</span><span class="fu">,</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;label&quot;</span><span class="fu">:</span>       <span class="st">&quot;Expense Report Approval&quot;</span><span class="fu">,</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span>      <span class="st">&quot;Active&quot;</span><span class="fu">,</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;intent&quot;</span><span class="fu">:</span>      <span class="st">&quot;Route expense reports through auto-approval or manager sign-off based on amount.&quot;</span><span class="fu">,</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;entryNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-check-threshold&quot;</span><span class="fu">,</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nodes&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-check-threshold&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;n-check-threshold&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;filter&quot;</span><span class="fu">,</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Check approval threshold&quot;</span><span class="fu">,</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Reports under $500 auto-approve. At or over require manager review.&quot;</span><span class="fu">,</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;target&quot;</span><span class="fu">:</span> <span class="st">&quot;$.entity&quot;</span><span class="fu">,</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;filterSet&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;operator&quot;</span><span class="fu">:</span> <span class="st">&quot;AND&quot;</span><span class="fu">,</span> <span class="dt">&quot;filters&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>          <span class="fu">{</span> <span class="dt">&quot;propertyPath&quot;</span><span class="fu">:</span> <span class="st">&quot;Total&quot;</span><span class="fu">,</span> <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;ge&quot;</span><span class="fu">,</span> <span class="dt">&quot;testValue&quot;</span><span class="fu">:</span> <span class="dv">500</span> <span class="fu">}</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        <span class="ot">]</span><span class="fu">}</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;edges&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Needs approval&quot;</span><span class="fu">,</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span>   <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-manager-approval&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Auto-approve&quot;</span><span class="fu">,</span>   <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;NoMatch&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-approved&quot;</span> <span class="fu">}</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-manager-approval&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;n-manager-approval&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;human&quot;</span><span class="fu">,</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Manager approval&quot;</span><span class="fu">,</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Send to the manager for review. 2-day deadline with escalation.&quot;</span><span class="fu">,</span></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;title&quot;</span><span class="fu">:</span>       <span class="st">&quot;Approve expense: {{$.entity.SubmitterName}} — ${{$.entity.Total}}&quot;</span><span class="fu">,</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.ManagerEmail&quot;</span><span class="fu">,</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;channel&quot;</span><span class="fu">:</span>     <span class="st">&quot;Internal&quot;</span><span class="fu">,</span></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;formSchema&quot;</span><span class="fu">:</span>  <span class="st">&quot;{ </span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">enum</span><span class="ch">\&quot;</span><span class="st">: [</span><span class="ch">\&quot;</span><span class="st">approved</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">rejected</span><span class="ch">\&quot;</span><span class="st">] }, </span><span class="ch">\&quot;</span><span class="st">notes</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st"> } }&quot;</span><span class="fu">,</span></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;visibleContext&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;$.entity&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;dueIn&quot;</span><span class="fu">:</span>       <span class="st">&quot;P2D&quot;</span><span class="fu">,</span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;escalation&quot;</span><span class="fu">:</span>  <span class="fu">{</span> <span class="dt">&quot;after&quot;</span><span class="fu">:</span> <span class="st">&quot;PT4H&quot;</span><span class="fu">,</span> <span class="dt">&quot;reassignTo&quot;</span><span class="fu">:</span> <span class="st">&quot;role:finance-team&quot;</span> <span class="fu">}</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;edges&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Approved&quot;</span><span class="fu">,</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;when&quot;</span><span class="fu">:</span> <span class="st">&quot;$.context._humanTaskResponse.decision == &#39;approved&#39;&quot;</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-approved&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Rejected&quot;</span><span class="fu">,</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;when&quot;</span><span class="fu">:</span> <span class="st">&quot;$.context._humanTaskResponse.decision == &#39;rejected&#39;&quot;</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-rejected&quot;</span> <span class="fu">}</span></span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-approved&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;n-approved&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;output&quot;</span><span class="fu">,</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Approved&quot;</span><span class="fu">,</span></span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;outputMapping&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;reportId&quot;</span><span class="fu">:</span> <span class="st">&quot;$.entity.Id&quot;</span><span class="fu">,</span> <span class="dt">&quot;decision&quot;</span><span class="fu">:</span> <span class="st">&quot;approved&quot;</span> <span class="fu">}</span> <span class="fu">}</span></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-rejected&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;n-rejected&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;output&quot;</span><span class="fu">,</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Rejected&quot;</span><span class="fu">,</span></span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;outputMapping&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;reportId&quot;</span><span class="fu">:</span> <span class="st">&quot;$.entity.Id&quot;</span><span class="fu">,</span> <span class="dt">&quot;decision&quot;</span><span class="fu">:</span> <span class="st">&quot;rejected&quot;</span> <span class="fu">}</span> <span class="fu">}</span></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<blockquote>
+<p><strong>Note:</strong> <code>when</code> predicates above use
+shorthand for readability. Actual expressions are Roslyn C# — see <a
+href="docs/FlowEngine-Design-Doc.html#edges">FlowEngine-Design-Doc.html</a>
+for exact syntax.</p>
+</blockquote>
+<h3 id="3-register-and-start-a-workflow">3. Register and start a
+workflow</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register the workflow definition</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> registry <span class="op">=</span> app<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IWorkflowRegistry<span class="op">&gt;();</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">SaveAsync</span><span class="op">(</span>workflowDefinition<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Start an execution</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> engine   <span class="op">=</span> app<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IFlowEngine<span class="op">&gt;();</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    WorkflowId    <span class="op">=</span> <span class="st">&quot;expense-approval&quot;</span><span class="op">,</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    Entity        <span class="op">=</span> <span class="kw">new</span> JsonContextValue <span class="op">{</span> Value <span class="op">=</span> JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span>expenseReport<span class="op">)</span> <span class="op">},</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    CorrelationId <span class="op">=</span> expenseReport<span class="op">.</span><span class="fu">Id</span><span class="op">.</span><span class="fu">ToString</span><span class="op">(),</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    TenantId      <span class="op">=</span> currentTenant<span class="op">.</span><span class="fu">Id</span>    <span class="co">// optional — propagated to ExecutionInstance, filterable in queries</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>$<span class="st">&quot;Status: {instance.Status}&quot;</span><span class="op">);</span>  <span class="co">// Suspended (waiting for manager)</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>$<span class="st">&quot;Instance: {instance.InstanceId}&quot;</span><span class="op">);</span></span></code></pre></div>
+<p><strong>Background variants:</strong> All mutating entry points have
+a <code>*BackgroundAsync</code> counterpart that persists state and
+fires execution on the thread pool, returning immediately with the
+instance in <code>Running</code> status. The caller can respond with the
+<code>instanceId</code> and the client polls for completion.
+<code>StartManyAsync</code> starts multiple instances concurrently; a
+failure on one does not abort the others.</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Start — fire and observe</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await engine<span class="op">.</span><span class="fu">StartBackgroundAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Resume via event name + correlation key — fire and observe</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await engine<span class="op">.</span><span class="fu">ResumeBackgroundAsync</span><span class="op">(</span>instanceId<span class="op">,</span> <span class="st">&quot;payment.confirmed&quot;</span><span class="op">,</span> orderId<span class="op">,</span> payload<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Resume by instance ID (admin / retry) — fire and observe</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await engine<span class="op">.</span><span class="fu">ResumeByInstanceIdBackgroundAsync</span><span class="op">(</span>instanceId<span class="op">,</span> signalPayload<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Bulk launch — returns list of started instances in request order</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instances <span class="op">=</span> await engine<span class="op">.</span><span class="fu">StartManyAsync</span><span class="op">(</span>requests<span class="op">,</span> ct<span class="op">);</span></span></code></pre></div>
+<h3 id="4-resume-from-an-external-signal">4. Resume from an external
+signal</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Webhook handler — manager responded via internal UI</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapPost</span><span class="op">(</span><span class="st">&quot;/api/tasks/{taskId}/complete&quot;</span><span class="op">,</span> <span class="fu">async</span> <span class="op">(</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">string</span> taskId<span class="op">,</span> TaskResponsePayload payload<span class="op">,</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    IHumanTaskStore taskStore<span class="op">,</span> IFlowEngine engine<span class="op">)</span> <span class="op">=&gt;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    await taskStore<span class="op">.</span><span class="fu">SubmitResponseAsync</span><span class="op">(</span>taskId<span class="op">,</span> payload<span class="op">.</span><span class="fu">ResponseToken</span><span class="op">,</span> payload<span class="op">.</span><span class="fu">FormValues</span><span class="op">);</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Engine resumes automatically</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> Results<span class="op">.</span><span class="fu">Ok</span><span class="op">();</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co">// Or resume from Service Bus</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>processor<span class="op">.</span><span class="fu">ProcessMessageAsync</span> <span class="op">+=</span> async args <span class="op">=&gt;</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> body <span class="op">=</span> args<span class="op">.</span><span class="fu">Message</span><span class="op">.</span><span class="fu">Body</span><span class="op">.</span><span class="fu">ToObjectFromJson</span><span class="op">&lt;</span>dynamic<span class="op">&gt;();</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> instanceId <span class="op">=</span> <span class="op">(</span><span class="dt">string</span><span class="op">)</span>body<span class="op">.</span><span class="fu">instanceId</span><span class="op">;</span>  <span class="co">// for logging; lookup uses event+correlation</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Synchronous — awaits until the next suspension point or completion</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    await engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        instanceId<span class="op">:</span>     instanceId<span class="op">,</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        eventName<span class="op">:</span>      args<span class="op">.</span><span class="fu">Message</span><span class="op">.</span><span class="fu">Subject</span><span class="op">,</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>        correlationKey<span class="op">:</span> body<span class="op">.</span><span class="fu">expenseReportId</span><span class="op">.</span><span class="fu">ToString</span><span class="op">(),</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>        signalPayload<span class="op">:</span>  JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span>body<span class="op">)</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Background — returns immediately with Status=Running; workflow continues on thread pool</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">// await engine.ResumeBackgroundAsync(instanceId, args.Message.Subject,</span></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    <span class="co">//     body.expenseReportId.ToString(), JsonSerializer.SerializeToElement(body), ct);</span></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    await args<span class="op">.</span><span class="fu">CompleteMessageAsync</span><span class="op">(</span>args<span class="op">.</span><span class="fu">Message</span><span class="op">);</span></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<hr />
+<h2 id="execution-context-namespaces">Execution Context Namespaces</h2>
+<p>All workflow JSON — node configs, edge <code>when</code> predicates,
+<code>target</code> fields, <code>storeAs</code> keys — uses JSONPath to
+reference the execution context.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Namespace</th>
+<th>Access</th>
+<th>Mutability</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>$.entity</code></td>
+<td>Primary input passed at <code>StartAsync</code></td>
+<td>Read-only</td>
+<td><code>$.entity.OrderId</code></td>
+</tr>
+<tr class="even">
+<td><code>$.entity.Field</code></td>
+<td>Nested field access</td>
+<td>Read-only</td>
+<td><code>$.entity.Customer.Name</code></td>
+</tr>
+<tr class="odd">
+<td><code>$.params.x</code></td>
+<td>Named parameters from <code>StartRequest.Params</code></td>
+<td>Read-only</td>
+<td><code>$.params.approvalLevel</code></td>
+</tr>
+<tr class="even">
+<td><code>$.context.x</code></td>
+<td>Mutable store — written by <code>storeAs</code> or
+<code>store</code> nodes</td>
+<td>Read/Write</td>
+<td><code>$.context.riskTier</code></td>
+</tr>
+<tr class="odd">
+<td><code>$.context.x.y</code></td>
+<td>Nested context access</td>
+<td>Read/Write</td>
+<td><code>$.context.crmData.id</code></td>
+</tr>
+<tr class="even">
+<td><code>$.engine.visits.{nodeId}</code></td>
+<td>Visit count for a node</td>
+<td>Read-only</td>
+<td><code>$.engine.visits.n-review</code></td>
+</tr>
+<tr class="odd">
+<td><code>$.engine.visits._total</code></td>
+<td>Total node executions so far</td>
+<td>Read-only</td>
+<td><code>$.engine.visits._total</code></td>
+</tr>
+<tr class="even">
+<td><code>$.engine.instanceId</code></td>
+<td>Current instance ID</td>
+<td>Read-only</td>
+<td><code>$.engine.instanceId</code></td>
+</tr>
+<tr class="odd">
+<td><code>$.engine.workflowId</code></td>
+<td>Workflow definition ID</td>
+<td>Read-only</td>
+<td><code>$.engine.workflowId</code></td>
+</tr>
+<tr class="even">
+<td><code>$.engine.workflowVersion</code></td>
+<td>Workflow version the instance started on</td>
+<td>Read-only</td>
+<td><code>$.engine.workflowVersion</code></td>
+</tr>
+<tr class="odd">
+<td><code>$.engine.currentNodeId</code></td>
+<td>ID of the node currently executing</td>
+<td>Read-only</td>
+<td><code>$.engine.currentNodeId</code></td>
+</tr>
+<tr class="even">
+<td><code>$.engine.status</code></td>
+<td>Instance status string</td>
+<td>Read-only</td>
+<td><code>$.engine.status</code></td>
+</tr>
+<tr class="odd">
+<td><code>$.engine.createdAt</code></td>
+<td>ISO 8601 timestamp when the instance was created</td>
+<td>Read-only</td>
+<td><code>$.engine.createdAt</code></td>
+</tr>
+<tr class="even">
+<td><code>$.engine.parentInstanceId</code></td>
+<td>Instance ID of the parent (if spawned as a child)</td>
+<td>Read-only</td>
+<td><code>$.engine.parentInstanceId</code></td>
+</tr>
+<tr class="odd">
+<td><code>$.engine.correlationId</code></td>
+<td>Correlation ID passed at <code>StartAsync</code></td>
+<td>Read-only</td>
+<td><code>$.engine.correlationId</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Special reserved context keys</strong> (written automatically
+by node executors):</p>
+<table>
+<thead>
+<tr class="header">
+<th>Key</th>
+<th>Written by</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>$.context._humanTaskResponse</code></td>
+<td><code>human</code> node on resume</td>
+<td>The submitted form values as a JSON object</td>
+</tr>
+<tr class="even">
+<td><code>$.context._signal</code></td>
+<td><code>wait</code> / <code>message</code> RequestReply on resume</td>
+<td>Most recent signal payload</td>
+</tr>
+<tr class="odd">
+<td><code>$.context._signals</code></td>
+<td><code>wait</code> with <code>minSignalCount &gt; 1</code></td>
+<td>Array of all accumulated signal payloads</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="multi-tenancy">Multi-tenancy</h2>
+<p>Pass <code>TenantId</code> on <code>StartRequest</code> to tag every
+execution instance with a tenant identifier. The value is stored on
+<code>ExecutionInstance.TenantId</code> and is propagated through the
+full execution lifetime.</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    WorkflowId <span class="op">=</span> <span class="st">&quot;expense-approval&quot;</span><span class="op">,</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    Entity     <span class="op">=</span> <span class="op">...,</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    TenantId   <span class="op">=</span> currentUser<span class="op">.</span><span class="fu">TenantId</span>   <span class="co">// propagated to ExecutionInstance</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<p>Filter by tenant when querying instances:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instances <span class="op">=</span> await stateStore<span class="op">.</span><span class="fu">QueryAsync</span><span class="op">(</span><span class="kw">new</span> ExecutionQuery</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    TenantId   <span class="op">=</span> <span class="st">&quot;tenant-abc&quot;</span><span class="op">,</span>           <span class="co">// only return instances for this tenant</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    Status     <span class="op">=</span> InstanceStatus<span class="op">.</span><span class="fu">Suspended</span><span class="op">,</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    WorkflowId <span class="op">=</span> <span class="st">&quot;expense-approval&quot;</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="op">},</span> ct<span class="op">);</span></span></code></pre></div>
+<blockquote>
+<p><strong>Important:</strong> <code>TenantId</code> is a contract-level
+field. Each state store implementation is responsible for filtering on
+it. The engine does not enforce tenant isolation — combine with
+application-layer authorization to prevent cross-tenant reads.</p>
+</blockquote>
+<hr />
+<h2 id="plugin-selection-guide">Plugin Selection Guide</h2>
+<p>Choose one backend per plugin type. Mix-and-match is supported (e.g.
+SQL state + Redis locks + SQL registry).</p>
+<h3 id="state-store">State Store</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Backend</th>
+<th>Package</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>File</strong></td>
+<td><code>StateStore.File</code></td>
+<td>Dev/test only — no infra required, JSON on disk</td>
+</tr>
+<tr class="even">
+<td><strong>SQL</strong></td>
+<td><code>StateStore.Sql</code></td>
+<td>You already have SQL Server / Postgres / SQLite in your stack</td>
+</tr>
+<tr class="odd">
+<td><strong>Redis</strong></td>
+<td><code>StateStore.Redis</code></td>
+<td>You need fast reads and have Redis available</td>
+</tr>
+<tr class="even">
+<td><strong>Cosmos</strong></td>
+<td><code>StateStore.Cosmos</code></td>
+<td>Azure-first architecture, global distribution needed</td>
+</tr>
+<tr class="odd">
+<td><strong>AzureTable</strong></td>
+<td><code>StateStore.AzureTable</code></td>
+<td>Low-cost Azure storage, less query flexibility needed</td>
+</tr>
+</tbody>
+</table>
+<h3 id="lock-provider">Lock Provider</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Backend</th>
+<th>Package</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>InMemory</strong></td>
+<td><code>Locks.InMemory</code></td>
+<td>Single-process only — dev, test, local demos</td>
+</tr>
+<tr class="even">
+<td><strong>Redis</strong></td>
+<td><code>Locks.Redis</code></td>
+<td>Universal recommendation — fast, widely available</td>
+</tr>
+<tr class="odd">
+<td><strong>AzureBlob</strong></td>
+<td><code>Locks.AzureBlob</code></td>
+<td>Azure-only, no Redis; uses Blob lease API</td>
+</tr>
+<tr class="even">
+<td><strong>SQL</strong></td>
+<td><code>Locks.Sql</code></td>
+<td>Co-locate with SQL state store; no extra infra</td>
+</tr>
+<tr class="odd">
+<td><strong>Cosmos</strong></td>
+<td><code>Locks.Cosmos</code></td>
+<td>Co-locate with Cosmos state store</td>
+</tr>
+<tr class="even">
+<td><strong>AzureTable</strong></td>
+<td><code>Locks.AzureTable</code></td>
+<td>Co-locate with AzureTable state store</td>
+</tr>
+</tbody>
+</table>
+<h3 id="workflow-registry">Workflow Registry</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Backend</th>
+<th>Package</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>JsonFile</strong></td>
+<td>Built into <code>EF.FlowEngine</code></td>
+<td>Dev/test — load definitions from a local directory</td>
+</tr>
+<tr class="even">
+<td><strong>SQL</strong></td>
+<td><code>WorkflowRegistry.Sql</code></td>
+<td>Production recommendation — transactional, queryable</td>
+</tr>
+<tr class="odd">
+<td><strong>Redis</strong></td>
+<td><code>WorkflowRegistry.Redis</code></td>
+<td>Fast lookup, acceptable durability tradeoff</td>
+</tr>
+<tr class="even">
+<td><strong>Cosmos</strong></td>
+<td><code>WorkflowRegistry.Cosmos</code></td>
+<td>Azure-first, global replication needed</td>
+</tr>
+</tbody>
+</table>
+<h3 id="human-task-store">Human Task Store</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Backend</th>
+<th>Package</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>InMemory</strong></td>
+<td><code>EF.FlowEngine.Testing</code></td>
+<td>Test only — tasks are lost on restart</td>
+</tr>
+<tr class="even">
+<td><strong>SQL</strong></td>
+<td><code>HumanTaskStore.Sql</code></td>
+<td>Production recommendation — queryable, durable</td>
+</tr>
+<tr class="odd">
+<td><strong>Redis</strong></td>
+<td><code>HumanTaskStore.Redis</code></td>
+<td>Fast lookup with acceptable durability</td>
+</tr>
+<tr class="even">
+<td><strong>Cosmos</strong></td>
+<td><code>HumanTaskStore.Cosmos</code></td>
+<td>Azure-first, global distribution</td>
+</tr>
+</tbody>
+</table>
+<h3 id="circuit-breaker-store">Circuit Breaker Store</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Backend</th>
+<th>Package</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>InMemory</strong></td>
+<td>Built into <code>EF.FlowEngine</code></td>
+<td>Single replica only — process-local; circuit state is not shared
+across replicas</td>
+</tr>
+<tr class="even">
+<td><strong>Redis</strong></td>
+<td><code>CircuitBreaker.Redis</code></td>
+<td>Multi-replica deployments — shared circuit state via Redis sorted
+sets</td>
+</tr>
+<tr class="odd">
+<td><strong>SQL</strong></td>
+<td><code>CircuitBreaker.Sql</code></td>
+<td>Multi-replica deployments — shared circuit state via EF Core</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Important:</strong> <code>InMemoryCircuitBreakerStore</code>
+(default) is process-local. Each replica maintains its own circuit state
+independently. For production deployments with multiple replicas,
+replace it with <code>RedisCircuitBreakerStore</code> or
+<code>SqlCircuitBreakerStore</code> to share open/closed state across
+all replicas.</p>
+</blockquote>
+<hr />
+<h2 id="plugin-registration-reference">Plugin Registration
+Reference</h2>
+<h3 id="state-stores">State Stores</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">// File (dev/test — stores JSON files in rootDirectory)</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreFile</span><span class="op">(</span><span class="st">&quot;/tmp/flowengine-state&quot;</span><span class="op">);</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co">// SQL (requires IDbContextFactory&lt;TContext&gt; in DI where TContext : FlowEngineDbContext)</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Redis (requires IConnectionMultiplexer in DI)</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreRedis</span><span class="op">();</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos — resolve CosmosClient from DI</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos — provide CosmosClient directly</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>cosmosClient<span class="op">,</span> databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table — resolve TableServiceClient from DI</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreAzureTable</span><span class="op">();</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table — provide TableServiceClient directly</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreAzureTable</span><span class="op">(</span>tableServiceClient<span class="op">);</span></span></code></pre></div>
+<h3 id="lock-providers">Lock Providers</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">// In-memory (single process only)</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseInMemoryLockProvider</span><span class="op">();</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Redis (requires IConnectionMultiplexer in DI)</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseLockProviderRedis</span><span class="op">();</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Blob — resolve BlobServiceClient from DI</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseAzureBlobLockProvider</span><span class="op">();</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Blob — provide BlobContainerClient directly</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseAzureBlobLockProvider</span><span class="op">(</span>containerClient<span class="op">);</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co">// SQL</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseLockProviderSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseLockProviderCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseLockProviderAzureTable</span><span class="op">();</span></span></code></pre></div>
+<h3 id="workflow-registries">Workflow Registries</h3>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">// JSON files in a directory (dev/test)</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseJsonFileWorkflowRegistry</span><span class="op">(</span><span class="st">&quot;/path/to/workflows&quot;</span><span class="op">);</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co">// SQL</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseWorkflowRegistrySql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Redis</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseWorkflowRegistryRedis</span><span class="op">();</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseWorkflowRegistryCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
+<h3 id="human-task-stores">Human Task Stores</h3>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">// SQL</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseHumanTaskStoreSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Redis</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseHumanTaskStoreRedis</span><span class="op">();</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseHumanTaskStoreCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
+<h3 id="circuit-breaker-stores">Circuit Breaker Stores</h3>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Redis — shares circuit state across all replicas</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseCircuitBreakerRedis</span><span class="op">();</span>   <span class="co">// requires IConnectionMultiplexer in DI</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co">// SQL — EF Core-backed shared circuit state</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseCircuitBreakerSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span></span></code></pre></div>
+<hr />
+<h2 id="background-services">Background Services</h2>
+<p>FlowEngine registers three hosted services automatically. Configure
+their intervals via <code>FlowEngineOptions</code>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>ClaimantId</code></td>
+<td>new GUID per process</td>
+<td>Unique identifier for this engine node — used to scope distributed
+lock ownership</td>
+</tr>
+<tr class="even">
+<td><code>DefaultLeaseDuration</code></td>
+<td>30 s</td>
+<td>How long a distributed lock lease lasts before it can be
+reclaimed</td>
+</tr>
+<tr class="odd">
+<td><code>LeaseRenewalInterval</code></td>
+<td>13 s</td>
+<td>How often the lease renewal service extends active locks (~43% of
+lease duration)</td>
+</tr>
+<tr class="even">
+<td><code>SweepInterval</code></td>
+<td>30 s</td>
+<td>How often the sweep service polls for timed-out waits and unclaimed
+instances</td>
+</tr>
+<tr class="odd">
+<td><code>SweepBatchSize</code></td>
+<td>50</td>
+<td>How many instances the sweep service processes per tick</td>
+</tr>
+<tr class="even">
+<td><code>ScriptCacheSize</code></td>
+<td>1000</td>
+<td>Maximum number of compiled Roslyn <code>when</code>-predicate
+scripts kept in the expression cache</td>
+</tr>
+<tr class="odd">
+<td><code>MaxConcurrentExecutions</code></td>
+<td><code>0</code> (unlimited)</td>
+<td>Maximum workflow executions running concurrently on this node.
+<code>0</code> = unlimited. Prevents burst overload under high-volume
+starts</td>
+</tr>
+<tr class="even">
+<td><code>MaxShutdownDrainSeconds</code></td>
+<td><code>0</code> (disabled)</td>
+<td>Seconds to wait for in-flight executions to finish on host shutdown.
+<code>0</code> = abandon immediately; the sweep service reclaims them on
+next startup</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>options <span class="op">=&gt;</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">DefaultLeaseDuration</span>       <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromSeconds</span><span class="op">(</span><span class="dv">60</span><span class="op">);</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">LeaseRenewalInterval</span>       <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromSeconds</span><span class="op">(</span><span class="dv">25</span><span class="op">);</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">SweepInterval</span>              <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromSeconds</span><span class="op">(</span><span class="dv">15</span><span class="op">);</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">SweepBatchSize</span>             <span class="op">=</span> <span class="dv">100</span><span class="op">;</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">MaxConcurrentExecutions</span>    <span class="op">=</span> <span class="dv">200</span><span class="op">;</span>   <span class="co">// cap thread-pool load</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">MaxShutdownDrainSeconds</span>    <span class="op">=</span> <span class="dv">30</span><span class="op">;</span>    <span class="co">// wait up to 30 s on SIGTERM</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<hr />
+<h2 id="security-policy">Security Policy</h2>
+<p>Two <code>FlowEngineOptions</code> flags let operators disable Roslyn
+execution for environments where workflow definitions come from
+untrusted authors:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Default</th>
+<th>Effect when <code>false</code></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>AllowComputeNodes</code></td>
+<td><code>true</code></td>
+<td><code>StartAsync</code> / <code>StartBackgroundAsync</code> rejects
+any workflow definition that contains a <code>compute</code> node</td>
+</tr>
+<tr class="even">
+<td><code>AllowWhenExpressions</code></td>
+<td><code>true</code></td>
+<td><code>StartAsync</code> / <code>StartBackgroundAsync</code> rejects
+any workflow definition that has a <code>when</code> predicate on any
+edge</td>
+</tr>
+</tbody>
+</table>
+<p>Set both to <code>false</code> to prohibit all Roslyn execution on
+that engine node.</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>options <span class="op">=&gt;</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">AllowComputeNodes</span>    <span class="op">=</span> <span class="kw">false</span><span class="op">;</span>   <span class="co">// no Roslyn compute nodes</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">AllowWhenExpressions</span> <span class="op">=</span> <span class="kw">false</span><span class="op">;</span>   <span class="co">// no Roslyn edge predicates</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<p>When a workflow is rejected, <code>StartAsync</code> throws
+<code>ArgumentException</code> with a message identifying the blocked
+construct. Workflows that were already started before the policy was
+applied are not affected — the policy is enforced per-invocation, not at
+registration time.</p>
+<blockquote>
+<p><strong>Note:</strong> This is an operator-level kill switch, not a
+sandbox. Expressions in workflows started before the flags were set will
+still run. For untrusted multi-tenant authoring, combine these flags
+with a separate <code>IWorkflowRegistry</code> tenant isolation
+layer.</p>
+</blockquote>
+<hr />
+<h2 id="health-checks">Health Checks</h2>
+<p><code>FlowEngineHealthCheck</code> implements
+<code>IHealthCheck</code> and probes the three core infrastructure
+components:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Probe</th>
+<th>Failure result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>State store</td>
+<td><code>LoadAsync("__healthcheck__")</code></td>
+<td><code>Unhealthy</code></td>
+</tr>
+<tr class="even">
+<td>Lock provider</td>
+<td><code>FindResumableInstanceIdsAsync(...)</code></td>
+<td><code>Unhealthy</code></td>
+</tr>
+<tr class="odd">
+<td>Outbox drain lag (optional)</td>
+<td><code>GetMetricsAsync()</code> — oldest pending age vs.
+<code>OutboxStalenessThreshold</code></td>
+<td><code>Degraded</code></td>
+</tr>
+</tbody>
+</table>
+<p>Register via the standard <code>IHealthChecksBuilder</code>:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHealthChecks</span><span class="op">()</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddCheck</span><span class="op">&lt;</span>FlowEngineHealthCheck<span class="op">&gt;(</span><span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
+<p>The outbox check is skipped when no <code>IOutboxStore</code> is
+registered. Configure the staleness threshold (default: 5 minutes):</p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>FlowEngineHealthCheck<span class="op">.</span><span class="fu">OutboxStalenessThreshold</span> <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromMinutes</span><span class="op">(</span><span class="dv">10</span><span class="op">);</span></span></code></pre></div>
+<p><code>OutboxMetrics</code> (returned by
+<code>IOutboxStore.GetMetricsAsync</code>) is also available for custom
+health dashboards:</p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> metrics <span class="op">=</span> await outboxStore<span class="op">.</span><span class="fu">GetMetricsAsync</span><span class="op">(</span>ct<span class="op">);</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="co">// metrics.PendingCount     — total unpublished entries</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="co">// metrics.FailedCount      — entries currently in exponential back-off</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="co">// metrics.OldestPendingAge — age of the oldest unpublished entry (null if none)</span></span></code></pre></div>
+<hr />
+<h2 id="input-validation-with-paramsschema">Input Validation with
+paramsSchema</h2>
+<p>Declare a JSON Schema string on a workflow definition to validate
+<code>StartRequest.Params</code> before execution begins. Supported
+keywords: <code>required</code>, <code>properties</code> (with
+<code>type</code>, <code>enum</code>, <code>minimum</code>,
+<code>maximum</code>).</p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;loan-application&quot;</span><span class="fu">,</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0.0&quot;</span><span class="fu">,</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;paramsSchema&quot;</span><span class="fu">:</span> <span class="st">&quot;{</span><span class="ch">\&quot;</span><span class="st">required</span><span class="ch">\&quot;</span><span class="st">:[</span><span class="ch">\&quot;</span><span class="st">applicantId</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">requestedAmount</span><span class="ch">\&quot;</span><span class="st">],</span><span class="ch">\&quot;</span><span class="st">properties</span><span class="ch">\&quot;</span><span class="st">:{</span><span class="ch">\&quot;</span><span class="st">applicantId</span><span class="ch">\&quot;</span><span class="st">:{</span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">:</span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st">},</span><span class="ch">\&quot;</span><span class="st">requestedAmount</span><span class="ch">\&quot;</span><span class="st">:{</span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">:</span><span class="ch">\&quot;</span><span class="st">number</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">minimum</span><span class="ch">\&quot;</span><span class="st">:1000,</span><span class="ch">\&quot;</span><span class="st">maximum</span><span class="ch">\&quot;</span><span class="st">:500000}}}&quot;</span><span class="fu">,</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;entryNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-start&quot;</span><span class="fu">,</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nodes&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="er">...</span> <span class="fu">}</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Using the fluent builder:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> definition <span class="op">=</span> WorkflowDefinitionBuilder<span class="op">.</span><span class="fu">Create</span><span class="op">(</span><span class="st">&quot;loan-application&quot;</span><span class="op">)</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithParamsSchema</span><span class="op">(</span><span class="st">&quot;&quot;&quot;</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>          <span class="st">&quot;required&quot;</span><span class="op">:</span> <span class="op">[</span><span class="st">&quot;applicantId&quot;</span><span class="op">,</span> <span class="st">&quot;requestedAmount&quot;</span><span class="op">],</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>          <span class="st">&quot;properties&quot;</span><span class="op">:</span> <span class="op">{</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;applicantId&quot;</span><span class="op">:</span>     <span class="op">{</span> <span class="st">&quot;type&quot;</span><span class="op">:</span> <span class="st">&quot;string&quot;</span> <span class="op">},</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;requestedAmount&quot;</span><span class="op">:</span> <span class="op">{</span> <span class="st">&quot;type&quot;</span><span class="op">:</span> <span class="st">&quot;number&quot;</span><span class="op">,</span> <span class="st">&quot;minimum&quot;</span><span class="op">:</span> <span class="dv">1000</span><span class="op">,</span> <span class="st">&quot;maximum&quot;</span><span class="op">:</span> <span class="dv">500000</span> <span class="op">}</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>          <span class="op">}</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;&quot;&quot;)</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithEntryNode</span><span class="op">(</span><span class="st">&quot;n-start&quot;</span><span class="op">)</span></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ... nodes</span></span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span></code></pre></div>
+<p>When validation fails, <code>StartAsync</code> throws
+<code>WorkflowDefinitionValidationException</code> before executing any
+node. Access the validated params in nodes via
+<code>$.params.applicantId</code>,
+<code>$.params.requestedAmount</code>, etc.</p>
+<hr />
+<h2 id="output-and-context-value-validation">Output and Context Value
+Validation</h2>
+<p>Beyond input param validation, nodes can declare schemas for their
+outputs and for the context values they depend on.</p>
+<h3
+id="outputschema--validate-a-nodes-output-before-storing"><code>outputSchema</code>
+— validate a node's output before storing</h3>
+<p>Set <code>outputSchema</code> (JSON Schema draft-07 subset) on any
+node alongside <code>storeAs</code>. The engine validates the output
+<strong>before</strong> writing it to <code>$.context.{storeAs}</code>.
+If validation fails, the node produces
+<code>DecisionOutcome.Error</code> and the invalid value is never
+stored.</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Fluent builder</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNode</span><span class="op">(</span><span class="st">&quot;call-api&quot;</span><span class="op">,</span> <span class="st">&quot;fetch&quot;</span><span class="op">,</span> <span class="kw">new</span> FetchNodeConfig <span class="op">{</span> <span class="op">...</span> <span class="op">})</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithStoreAs</span><span class="op">(</span><span class="st">&quot;apiResult&quot;</span><span class="op">)</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithOutputSchema</span><span class="op">(</span><span class="st">&quot;&quot;&quot;</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>          <span class="st">&quot;type&quot;</span><span class="op">:</span> <span class="st">&quot;object&quot;</span><span class="op">,</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>          <span class="st">&quot;required&quot;</span><span class="op">:</span> <span class="op">[</span><span class="st">&quot;orderId&quot;</span><span class="op">,</span> <span class="st">&quot;status&quot;</span><span class="op">],</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>          <span class="st">&quot;properties&quot;</span><span class="op">:</span> <span class="op">{</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;orderId&quot;</span><span class="op">:</span> <span class="op">{</span> <span class="st">&quot;type&quot;</span><span class="op">:</span> <span class="st">&quot;string&quot;</span> <span class="op">},</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;status&quot;</span><span class="op">:</span>  <span class="op">{</span> <span class="st">&quot;type&quot;</span><span class="op">:</span> <span class="st">&quot;string&quot;</span><span class="op">,</span> <span class="st">&quot;enum&quot;</span><span class="op">:</span> <span class="op">[</span><span class="st">&quot;ok&quot;</span><span class="op">,</span> <span class="st">&quot;failed&quot;</span><span class="op">]</span> <span class="op">}</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>          <span class="op">}</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;&quot;&quot;)</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">ThenOn</span><span class="op">(</span><span class="st">&quot;next-node&quot;</span><span class="op">,</span> DecisionOutcome<span class="op">.</span><span class="fu">Match</span><span class="op">)</span></span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">ThenOn</span><span class="op">(</span><span class="st">&quot;schema-error-handler&quot;</span><span class="op">,</span> DecisionOutcome<span class="op">.</span><span class="fu">Error</span><span class="op">)</span></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Done</span><span class="op">()</span></span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="er">//</span> <span class="er">JSON</span> <span class="er">workflow</span> <span class="er">definition</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;call-api&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;fetch&quot;</span><span class="fu">,</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;storeAs&quot;</span><span class="fu">:</span> <span class="st">&quot;apiResult&quot;</span><span class="fu">,</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;outputSchema&quot;</span><span class="fu">:</span> <span class="st">&quot;{</span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">:</span><span class="ch">\&quot;</span><span class="st">object</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">required</span><span class="ch">\&quot;</span><span class="st">:[</span><span class="ch">\&quot;</span><span class="st">orderId</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">status</span><span class="ch">\&quot;</span><span class="st">]}&quot;</span><span class="fu">,</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="er">...</span> <span class="fu">},</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;edges&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;next-node&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Error&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;schema-error-handler&quot;</span> <span class="fu">}</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<blockquote>
+<p><strong><code>agent</code> nodes:</strong>
+<code>AgentNodeConfig.outputSchema</code> (config-level) shapes the LLM
+prompt for structured output. <code>NodeDefinition.outputSchema</code>
+(definition-level) is the engine-side gate. Set both to the same schema
+when you want the LLM to produce the right shape <em>and</em> the engine
+to enforce it.</p>
+</blockquote>
+<p><strong>Error code:</strong>
+<code>OUTPUT_SCHEMA_VALIDATION_FAILED</code> — appears in
+<code>NodeExecutionRecord.Error</code> and routes through normal
+<code>DecisionOutcome.Error</code> edge evaluation.</p>
+<h3
+id="contextrequirements--assert-required-context-keys-before-execution"><code>contextRequirements</code>
+— assert required context keys before execution</h3>
+<p>Declare keys that must be present in <code>$.context.*</code> before
+a node runs. Each key has an optional per-key JSON Schema.</p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Fluent builder</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span><span class="fu">AddNode</span><span class="op">(</span><span class="st">&quot;process-result&quot;</span><span class="op">,</span> <span class="st">&quot;compute&quot;</span><span class="op">,</span> <span class="kw">new</span> ComputeNodeConfig <span class="op">{</span> <span class="op">...</span> <span class="op">})</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithContextRequirement</span><span class="op">(</span><span class="st">&quot;apiResult&quot;</span><span class="op">)</span>                            <span class="co">// presence-only</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithContextRequirement</span><span class="op">(</span><span class="st">&quot;eligibilityData&quot;</span><span class="op">,</span> <span class="st">&quot;&quot;&quot;{&quot;</span>type<span class="st">&quot;:&quot;</span>object<span class="st">&quot;,&quot;</span>required<span class="st">&quot;:[&quot;</span>tier<span class="st">&quot;]}&quot;&quot;&quot;</span><span class="op">)</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Done</span><span class="op">()</span></span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="er">//</span> <span class="er">JSON</span> <span class="er">workflow</span> <span class="er">definition</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;process-result&quot;</span><span class="fu">,</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;compute&quot;</span><span class="fu">,</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;contextRequirements&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;apiResult&quot;</span><span class="fu">:</span> <span class="kw">null</span><span class="fu">,</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;eligibilityData&quot;</span><span class="fu">:</span> <span class="st">&quot;{</span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">:</span><span class="ch">\&quot;</span><span class="st">object</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">required</span><span class="ch">\&quot;</span><span class="st">:[</span><span class="ch">\&quot;</span><span class="st">tier</span><span class="ch">\&quot;</span><span class="st">]}&quot;</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="er">...</span> <span class="fu">}</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>If a required key is missing or fails its schema, the executor is
+never called and the node produces <code>DecisionOutcome.Error</code>
+with code <code>CONTEXT_REQUIREMENTS_FAILED</code>.</p>
+<p><strong>Supported schema keywords:</strong> full JSON Schema draft-07
+— <code>type</code>, <code>required</code>, <code>properties</code>,
+<code>enum</code>, <code>minimum</code>, <code>maximum</code>,
+<code>anyOf</code>, <code>oneOf</code>, <code>$ref</code> (internal),
+<code>pattern</code>, <code>minLength</code>, <code>maxLength</code>,
+<code>minItems</code>, <code>maxItems</code>, and more — backed by
+NJsonSchema.</p>
+<p><strong>Registration-time checks:</strong>
+<code>WorkflowDefinitionValidator</code> (called by
+<code>IWorkflowRegistry.SaveAsync</code>) catches
+<code>outputSchema</code> set without <code>storeAs</code>, and
+malformed schema JSON in either field, at registration time rather than
+at runtime.</p>
+<hr />
+<h2 id="workflow-authoring-lifecycle">Workflow Authoring Lifecycle</h2>
+<p>Definitions follow a three-status lifecycle. Only <code>Active</code>
+definitions can be started.</p>
+<pre><code>Draft ◄──► Active ──► Archived
+               ◄──────────────</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>Status</th>
+<th>New instances</th>
+<th>Editable</th>
+<th>Deletable</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Draft</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr class="even">
+<td><code>Active</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>No (auto-demoted on delete)</td>
+</tr>
+<tr class="odd">
+<td><code>Archived</code></td>
+<td>No</td>
+<td>No</td>
+<td>No (unarchive first)</td>
+</tr>
+</tbody>
+</table>
+<p>Archiving only gates new instance creation — <strong>any in-flight
+instances continue to completion normally.</strong></p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Save a new definition (saved as Draft by default)</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">SaveAsync</span><span class="op">(</span>definition<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Activate a draft (makes it startable and immutable)</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">TransitionStatusAsync</span><span class="op">(</span><span class="st">&quot;expense-approval&quot;</span><span class="op">,</span> <span class="st">&quot;1.0.0&quot;</span><span class="op">,</span> DefinitionStatus<span class="op">.</span><span class="fu">Active</span><span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="co">// List active definitions</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> defs <span class="op">=</span> await registry<span class="op">.</span><span class="fu">ListAsync</span><span class="op">(</span>status<span class="op">:</span> DefinitionStatus<span class="op">.</span><span class="fu">Active</span><span class="op">,</span> ct<span class="op">:</span> ct<span class="op">);</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Move back to Draft to edit (stops new instances from starting)</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">TransitionStatusAsync</span><span class="op">(</span><span class="st">&quot;expense-approval&quot;</span><span class="op">,</span> <span class="st">&quot;1.0.0&quot;</span><span class="op">,</span> DefinitionStatus<span class="op">.</span><span class="fu">Draft</span><span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="co">// Retire a workflow — prevents new starts, keeps definition for audit/history</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">TransitionStatusAsync</span><span class="op">(</span><span class="st">&quot;expense-approval&quot;</span><span class="op">,</span> <span class="st">&quot;1.0.0&quot;</span><span class="op">,</span> DefinitionStatus<span class="op">.</span><span class="fu">Archived</span><span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Unarchive if needed</span></span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">TransitionStatusAsync</span><span class="op">(</span><span class="st">&quot;expense-approval&quot;</span><span class="op">,</span> <span class="st">&quot;1.0.0&quot;</span><span class="op">,</span> DefinitionStatus<span class="op">.</span><span class="fu">Active</span><span class="op">,</span> ct<span class="op">);</span></span></code></pre></div>
+<p><strong>Running instances are pinned to the version they started
+on.</strong> Updating or archiving a definition never affects in-flight
+instances.</p>
+<hr />
+<h2 id="instance-migration">Instance Migration</h2>
+<h3 id="compatibility-analysis">Compatibility Analysis</h3>
+<p>Before migrating instances, run
+<code>CompatibilityAnalyzer.Analyze(from, to)</code> to surface breaking
+changes between two workflow versions:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> report <span class="op">=</span> CompatibilityAnalyzer<span class="op">.</span><span class="fu">Analyze</span><span class="op">(</span>v1Definition<span class="op">,</span> v2Definition<span class="op">);</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="kw">foreach</span> <span class="op">(</span><span class="dt">var</span> finding <span class="kw">in</span> report<span class="op">.</span><span class="fu">Findings</span><span class="op">)</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>$<span class="st">&quot;[{finding.Severity}] {finding.Message}&quot;</span><span class="op">);</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">// e.g. [Breaking] Node &#39;n-old-approval&#39; was removed — suspended instances would be stranded</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">//      [Warning]  Entry node changed from &#39;n-check-threshold&#39; to &#39;n-new-entry&#39;</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p><code>WorkflowCompatibilityReport.Findings</code> contains
+<code>CompatibilityFinding</code> entries with <code>Severity</code>
+(<code>Warning</code> / <code>Breaking</code>) covering:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Finding</th>
+<th>Severity</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Node removed</td>
+<td>Breaking</td>
+<td>Suspended instances pinned to that node would be stranded</td>
+</tr>
+<tr class="even">
+<td>Node type changed</td>
+<td>Breaking</td>
+<td>Executor incompatibility</td>
+</tr>
+<tr class="odd">
+<td>Missing edge target</td>
+<td>Breaking</td>
+<td>Dangling <code>nextNodeId</code> references</td>
+</tr>
+<tr class="even">
+<td>Entry node changed</td>
+<td>Warning</td>
+<td>New instances start at a different node</td>
+</tr>
+<tr class="odd">
+<td><code>GlobalOnFailureNodeId</code> changed</td>
+<td>Warning</td>
+<td>Error routing differs between versions</td>
+</tr>
+<tr class="even">
+<td><code>StoreAs</code> key renamed</td>
+<td>Warning</td>
+<td>In-flight instances have already stored under the old key;
+downstream reads will fail</td>
+</tr>
+<tr class="odd">
+<td>New <code>contextRequirements</code> key on an existing node</td>
+<td>Breaking</td>
+<td>In-flight instances may not have that context value when they
+resume</td>
+</tr>
+<tr class="even">
+<td><code>compensationNodeId</code> references a node absent in the
+target</td>
+<td>Breaking</td>
+<td>Compensation would fault rather than roll back</td>
+</tr>
+</tbody>
+</table>
+<p>The admin API exposes this as
+<code>IFlowEngineAdminApi.AnalyzeCompatibilityAsync(workflowId, fromVersion, toVersion)</code>
+over HTTP.</p>
+<h3 id="migrating-instances">Migrating instances</h3>
+<p>When a workflow definition needs to change while instances are still
+running or suspended, use <code>MigrateInstanceAsync</code> to move them
+to the new version without replaying history:</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Load the suspended instance</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await stateStore<span class="op">.</span><span class="fu">LoadAsync</span><span class="op">(</span>instanceId<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Build the updated definition (v2)</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> v2 <span class="op">=</span> WorkflowDefinitionBuilder<span class="op">.</span><span class="fu">FromJson</span><span class="op">(</span>existingJson<span class="op">)</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithVersion</span><span class="op">(</span><span class="st">&quot;2.0.0&quot;</span><span class="op">)</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ... apply changes</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">SaveAsync</span><span class="op">(</span>v2<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>await registry<span class="op">.</span><span class="fu">TransitionStatusAsync</span><span class="op">(</span><span class="st">&quot;expense-approval&quot;</span><span class="op">,</span> <span class="st">&quot;2.0.0&quot;</span><span class="op">,</span> DefinitionStatus<span class="op">.</span><span class="fu">Active</span><span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Migrate the suspended instance — nodeIdMap is optional; only needed if node IDs changed</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>await engine<span class="op">.</span><span class="fu">MigrateInstanceAsync</span><span class="op">(</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a>    instanceId<span class="op">,</span></span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a>    targetVersion<span class="op">:</span> <span class="st">&quot;2.0.0&quot;</span><span class="op">,</span></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a>    nodeIdMap<span class="op">:</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">string</span><span class="op">&gt;</span></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>        <span class="op">[</span><span class="st">&quot;n-old-approval&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="st">&quot;n-manager-approval&quot;</span>   <span class="co">// renamed node</span></span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a>    ct<span class="op">);</span></span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a><span class="co">// Dry-run — validates remapping without persisting; history entry labeled &quot;[dry-run]&quot;</span></span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true" tabindex="-1"></a>await engine<span class="op">.</span><span class="fu">MigrateInstanceAsync</span><span class="op">(</span></span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true" tabindex="-1"></a>    instanceId<span class="op">,</span></span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true" tabindex="-1"></a>    targetVersion<span class="op">:</span> <span class="st">&quot;2.0.0&quot;</span><span class="op">,</span></span>
+<span id="cb30-26"><a href="#cb30-26" aria-hidden="true" tabindex="-1"></a>    nodeIdMap<span class="op">:</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">string</span><span class="op">&gt;</span> <span class="op">{</span> <span class="op">[</span><span class="st">&quot;n-old-approval&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="st">&quot;n-manager-approval&quot;</span> <span class="op">},</span></span>
+<span id="cb30-27"><a href="#cb30-27" aria-hidden="true" tabindex="-1"></a>    dryRun<span class="op">:</span> <span class="kw">true</span><span class="op">,</span></span>
+<span id="cb30-28"><a href="#cb30-28" aria-hidden="true" tabindex="-1"></a>    ct<span class="op">:</span> ct<span class="op">);</span></span>
+<span id="cb30-29"><a href="#cb30-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-30"><a href="#cb30-30" aria-hidden="true" tabindex="-1"></a><span class="co">// Instance is now pinned to v2.0.0 — resume it normally</span></span>
+<span id="cb30-31"><a href="#cb30-31" aria-hidden="true" tabindex="-1"></a>await engine<span class="op">.</span><span class="fu">ResumeByInstanceIdAsync</span><span class="op">(</span>instanceId<span class="op">,</span> ct<span class="op">:</span> ct<span class="op">);</span></span>
+<span id="cb30-32"><a href="#cb30-32" aria-hidden="true" tabindex="-1"></a><span class="co">// or return immediately and let execution continue on the thread pool</span></span>
+<span id="cb30-33"><a href="#cb30-33" aria-hidden="true" tabindex="-1"></a>await engine<span class="op">.</span><span class="fu">ResumeByInstanceIdBackgroundAsync</span><span class="op">(</span>instanceId<span class="op">,</span> ct<span class="op">:</span> ct<span class="op">);</span></span></code></pre></div>
+<p>Delete an old version only when no running or suspended instances
+reference it:</p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>await engine<span class="op">.</span><span class="fu">DeleteWorkflowVersionAsync</span><span class="op">(</span><span class="st">&quot;expense-approval&quot;</span><span class="op">,</span> <span class="st">&quot;1.0.0&quot;</span><span class="op">,</span> ct<span class="op">);</span></span></code></pre></div>
+<hr />
+<h2 id="fluent-workflow-builder">Fluent Workflow Builder</h2>
+<p>An alternative to raw JSON for constructing definitions in C#:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> definition <span class="op">=</span> WorkflowDefinitionBuilder<span class="op">.</span><span class="fu">Create</span><span class="op">(</span><span class="st">&quot;expense-approval&quot;</span><span class="op">,</span> version<span class="op">:</span> <span class="st">&quot;1.0.0&quot;</span><span class="op">)</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithLabel</span><span class="op">(</span><span class="st">&quot;Expense Report Approval&quot;</span><span class="op">)</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithIntent</span><span class="op">(</span><span class="st">&quot;Route expense reports through auto-approval or manager sign-off based on amount.&quot;</span><span class="op">)</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithEntryNode</span><span class="op">(</span><span class="st">&quot;n-check-threshold&quot;</span><span class="op">)</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithGlobalOnFailureNode</span><span class="op">(</span><span class="st">&quot;n-system-error&quot;</span><span class="op">)</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithDefaultRetryPolicy</span><span class="op">(</span><span class="kw">new</span> RetryPolicy <span class="op">{</span> MaxAttempts <span class="op">=</span> <span class="dv">3</span><span class="op">,</span> Backoff <span class="op">=</span> BackoffType<span class="op">.</span><span class="fu">Exponential</span> <span class="op">})</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddNode</span><span class="op">(</span><span class="st">&quot;n-check-threshold&quot;</span><span class="op">,</span> NodeTypes<span class="op">.</span><span class="fu">Filter</span><span class="op">,</span> <span class="kw">new</span> FilterNodeConfig</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>        Target    <span class="op">=</span> <span class="st">&quot;$.entity&quot;</span><span class="op">,</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>        FilterSet <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span> Operator <span class="op">=</span> <span class="st">&quot;AND&quot;</span><span class="op">,</span> Filters <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>            <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Total&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;ge&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">500</span> <span class="op">}</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>        <span class="op">]}</span></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">})</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">WithIntent</span><span class="op">(</span><span class="st">&quot;Reports under $500 auto-approve. At or over require manager review.&quot;</span><span class="op">)</span></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">ThenOn</span><span class="op">(</span><span class="st">&quot;n-manager-approval&quot;</span><span class="op">,</span> DecisionOutcome<span class="op">.</span><span class="fu">Match</span><span class="op">)</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">ThenOn</span><span class="op">(</span><span class="st">&quot;n-approved&quot;</span><span class="op">,</span>         DecisionOutcome<span class="op">.</span><span class="fu">NoMatch</span><span class="op">)</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">Done</span><span class="op">()</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddNode</span><span class="op">(</span><span class="st">&quot;n-approved&quot;</span><span class="op">,</span> NodeTypes<span class="op">.</span><span class="fu">Output</span><span class="op">,</span> <span class="kw">new</span> OutputNodeConfig</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>        OutputMapping <span class="op">=</span> <span class="kw">new</span><span class="op">()</span> <span class="op">{</span> <span class="op">[</span><span class="st">&quot;reportId&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="st">&quot;$.entity.Id&quot;</span><span class="op">,</span> <span class="op">[</span><span class="st">&quot;decision&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="st">&quot;approved&quot;</span> <span class="op">}</span></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">})</span></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">Done</span><span class="op">()</span></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span></code></pre></div>
+<p><code>WorkflowDefinitionBuilder.FromJson(json)</code> and
+<code>WorkflowDefinitionBuilder.From(definition)</code> load existing
+definitions for incremental modification.</p>
+<hr />
+<h2 id="circuit-breaker">Circuit Breaker</h2>
+<p>When a node executor's backing service is repeatedly unresponsive,
+the circuit breaker prevents every workflow instance from hammering it
+and burning through retries. Once the failure threshold is reached the
+circuit opens: subsequent instances skip the executor entirely and
+either follow a <code>CircuitOpen</code> edge (graceful degradation) or
+auto-suspend at the failing node until the cool-down period expires, at
+which point the sweep service resumes them transparently.</p>
+<p><strong>Policy inheritance</strong> mirrors <code>RetryPolicy</code>:
+set <code>defaultCircuitBreakerPolicy</code> on the workflow definition
+as a workflow-wide default; override with
+<code>circuitBreakerPolicy</code> on individual nodes.</p>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;order-processing&quot;</span><span class="fu">,</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0.0&quot;</span><span class="fu">,</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;defaultCircuitBreakerPolicy&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;key&quot;</span><span class="fu">:</span> <span class="st">&quot;external-apis&quot;</span><span class="fu">,</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;failureThreshold&quot;</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;samplingWindow&quot;</span><span class="fu">:</span> <span class="st">&quot;00:01:00&quot;</span><span class="fu">,</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;openDuration&quot;</span><span class="fu">:</span> <span class="st">&quot;00:00:30&quot;</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nodes&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-call-payment&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;n-call-payment&quot;</span><span class="fu">,</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;fetch&quot;</span><span class="fu">,</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;circuitBreakerPolicy&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;key&quot;</span><span class="fu">:</span> <span class="st">&quot;payment-svc&quot;</span><span class="fu">,</span></span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;failureThreshold&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;openDuration&quot;</span><span class="fu">:</span> <span class="st">&quot;00:01:00&quot;</span></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;edges&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span>       <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-process-payment&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;CircuitOpen&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-use-cached-result&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Error&quot;</span><span class="ot">]</span><span class="fu">,</span>       <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-payment-failed&quot;</span> <span class="fu">}</span></span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong><code>CircuitBreakerPolicy</code> properties:</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>key</code></td>
+<td>node <code>type</code></td>
+<td>Groups nodes that share a backing service under one circuit. Omit to
+scope per node type.</td>
+</tr>
+<tr class="even">
+<td><code>failureThreshold</code></td>
+<td><code>5</code></td>
+<td>Number of failures within <code>samplingWindow</code> that trips the
+circuit</td>
+</tr>
+<tr class="odd">
+<td><code>samplingWindow</code></td>
+<td><code>00:01:00</code></td>
+<td>Rolling window over which failures are counted</td>
+</tr>
+<tr class="even">
+<td><code>openDuration</code></td>
+<td><code>00:00:30</code></td>
+<td>How long the circuit stays open before the next attempt is
+allowed</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Behaviors when the circuit is open:</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>Scenario</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Node has a <code>CircuitOpen</code> edge</td>
+<td>Engine takes that edge — workflow continues via the alternate
+path</td>
+</tr>
+<tr class="even">
+<td>No <code>CircuitOpen</code> edge</td>
+<td>Instance suspends at the failing node with a timed wait equal to
+<code>openDuration</code>; the sweep service resumes it automatically
+after cool-down</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Circuit state scope:</strong>
+<code>InMemoryCircuitBreakerStore</code> (the default) is a singleton —
+circuit state is shared across all workflow instances on the same
+process replica, so one instance discovering a failure protects the
+rest. Circuit state is per-replica (not distributed across replicas),
+but workflow instance state is always durable — suspended instances are
+picked up by the sweep service after a server restart, regardless of
+which replica holds the circuit state.</p>
+<p><strong>Distributed circuit breaker:</strong> For multi-replica
+deployments, replace the in-process store with a shared backend:</p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Redis — requires IConnectionMultiplexer in DI</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseCircuitBreakerRedis</span><span class="op">();</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="co">// SQL — requires IDbContextFactory&lt;TContext&gt; in DI</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseCircuitBreakerSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span></span></code></pre></div>
+<p>Or swap manually:</p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>ICircuitBreakerStore<span class="op">,</span> RedisCircuitBreakerStore<span class="op">&gt;();</span></span></code></pre></div>
+<hr />
+<h2 id="saga-compensation">Saga Compensation</h2>
+<p>Enable the saga pattern by setting
+<code>enableCompensation: true</code> on the workflow definition and
+declaring a <code>compensationNodeId</code> on each forward step that
+needs a rollback:</p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;order-saga&quot;</span><span class="fu">,</span> <span class="dt">&quot;version&quot;</span><span class="fu">:</span> <span class="st">&quot;1.0.0&quot;</span><span class="fu">,</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;enableCompensation&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;globalOnFailureNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-saga-failed&quot;</span><span class="fu">,</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;nodes&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-reserve-inventory&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;integration&quot;</span><span class="fu">,</span> <span class="dt">&quot;compensationNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-release-inventory&quot;</span><span class="fu">,</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span> <span class="st">&quot;inventory-api&quot;</span><span class="fu">,</span> <span class="er">...</span> <span class="fu">}</span></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-charge-payment&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;integration&quot;</span><span class="fu">,</span> <span class="dt">&quot;compensationNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-refund-payment&quot;</span><span class="fu">,</span></span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span> <span class="st">&quot;payment-api&quot;</span><span class="fu">,</span> <span class="er">...</span> <span class="fu">}</span></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-release-inventory&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;integration&quot;</span><span class="fu">,</span> <span class="er">...</span> <span class="fu">},</span></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-refund-payment&quot;</span><span class="fu">:</span>    <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;integration&quot;</span><span class="fu">,</span> <span class="er">...</span> <span class="fu">},</span></span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;n-saga-failed&quot;</span><span class="fu">:</span>       <span class="fu">{</span> <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;output&quot;</span><span class="fu">,</span> <span class="er">...</span> <span class="fu">}</span></span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>When any node faults with no matching outgoing edge, the engine:</p>
+<ol type="1">
+<li>Walks <code>History</code> in reverse</li>
+<li>Executes each completed step's <code>compensationNodeId</code> (if
+set)</li>
+<li>Routes to <code>globalOnFailureNodeId</code> or transitions to
+<code>Faulted</code></li>
+</ol>
+<hr />
+<h2 id="optional-infrastructure-extensions">Optional Infrastructure
+Extensions</h2>
+<h3 id="credential-store">Credential Store</h3>
+<p>Inject secrets into node configs at runtime via
+<code>credentialRef</code> fields. Implement
+<code>ICredentialStore</code> and register it:</p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseCredentialStore</span><span class="op">&lt;</span>AzureKeyVaultCredentialStore<span class="op">&gt;();</span></span></code></pre></div>
+<p>The default implementation reads from environment variables. See
+<code>ICredentialStore</code> for the interface contract.</p>
+<h3 id="document-store">Document Store</h3>
+<p>Required for the <code>document</code> node type (read/write binary
+content):</p>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseDocumentStore</span><span class="op">&lt;</span>AzureBlobDocumentStore<span class="op">&gt;();</span></span></code></pre></div>
+<p>Implement <code>IDocumentStore</code> to target any storage backend
+(S3, Azure Blob, disk, database).</p>
+<h3 id="calendar-provider">Calendar Provider</h3>
+<p>Required when <code>timer</code> nodes use business-calendar-aware
+durations (e.g. "3 business days"):</p>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseCalendarProvider</span><span class="op">&lt;</span>MyCalendarProvider<span class="op">&gt;();</span></span></code></pre></div>
+<p>The default implementation treats all ISO 8601 durations as calendar
+durations without business-day awareness.</p>
+<h3 id="telemetry">Telemetry</h3>
+<p>Plug into FlowEngine's structured event hooks for OpenTelemetry,
+custom metrics, or audit logging:</p>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseTelemetry</span><span class="op">&lt;</span>MyFlowEngineTelemetry<span class="op">&gt;();</span></span></code></pre></div>
+<p>Implement <code>IFlowEngineTelemetry</code> to receive events at
+every state transition: instance started, node executed, instance
+suspended/completed/faulted.</p>
+<hr />
+<h2 id="testing">Testing</h2>
+<h3 id="integration-tests--all-in-memory">Integration Tests — All
+In-Memory</h3>
+<p>The <code>EF.FlowEngine.Testing</code> package provides in-memory
+implementations of all infrastructure interfaces for fast, hermetic
+integration tests:</p>
+<div class="sourceCode" id="cb41"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co">// In your test host setup</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>options <span class="op">=&gt;</span> <span class="op">{</span> <span class="op">})</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseAllInMemoryProviders</span><span class="op">()</span>           <span class="co">// state store + lock provider + human task store</span></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseJsonFileWorkflowRegistry</span><span class="op">(</span>fixturesDir<span class="op">)</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>FilterNodeExecutor<span class="op">&gt;()</span></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ... other node executors and clients</span></span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">;</span></span></code></pre></div>
+<p><code>UseAllInMemoryProviders()</code> wires up:</p>
+<ul>
+<li><code>InMemoryExecutionStateStore</code></li>
+<li><code>InMemoryDistributedLockProvider</code></li>
+<li><code>InMemoryHumanTaskStore</code></li>
+</ul>
+<h3 id="unit-tests--custom-node-executors">Unit Tests — Custom Node
+Executors</h3>
+<p>Test individual node executors in isolation with
+<code>TestExecutionContextBuilder</code>:</p>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>Fact<span class="op">]</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> async Task <span class="fu">ComputeNode_CalculatesTotal</span><span class="op">()</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> ctx <span class="op">=</span> TestExecutionContext<span class="op">.</span><span class="fu">Create</span><span class="op">()</span></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">WithEntity</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> Price <span class="op">=</span> <span class="dv">100</span>m<span class="op">,</span> Quantity <span class="op">=</span> <span class="dv">3</span> <span class="op">})</span></span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">WithContext</span><span class="op">(</span><span class="st">&quot;taxRate&quot;</span><span class="op">,</span> <span class="fl">0.08</span><span class="op">)</span></span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> node <span class="op">=</span> <span class="kw">new</span> NodeDefinition</span>
+<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a>        Id     <span class="op">=</span> <span class="st">&quot;n-calc&quot;</span><span class="op">,</span></span>
+<span id="cb42-12"><a href="#cb42-12" aria-hidden="true" tabindex="-1"></a>        Type   <span class="op">=</span> NodeTypes<span class="op">.</span><span class="fu">Compute</span><span class="op">,</span></span>
+<span id="cb42-13"><a href="#cb42-13" aria-hidden="true" tabindex="-1"></a>        Config <span class="op">=</span> JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span><span class="kw">new</span> ComputeNodeConfig</span>
+<span id="cb42-14"><a href="#cb42-14" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb42-15"><a href="#cb42-15" aria-hidden="true" tabindex="-1"></a>            Expression <span class="op">=</span> <span class="st">&quot;(decimal)Entity[</span><span class="sc">\&quot;</span><span class="st">Price</span><span class="sc">\&quot;</span><span class="st">] * (int)Entity[</span><span class="sc">\&quot;</span><span class="st">Quantity</span><span class="sc">\&quot;</span><span class="st">] * (1 + (double)Context[</span><span class="sc">\&quot;</span><span class="st">taxRate</span><span class="sc">\&quot;</span><span class="st">])&quot;</span></span>
+<span id="cb42-16"><a href="#cb42-16" aria-hidden="true" tabindex="-1"></a>        <span class="op">}),</span></span>
+<span id="cb42-17"><a href="#cb42-17" aria-hidden="true" tabindex="-1"></a>        StoreAs <span class="op">=</span> <span class="st">&quot;orderTotal&quot;</span></span>
+<span id="cb42-18"><a href="#cb42-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb42-19"><a href="#cb42-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-20"><a href="#cb42-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> executor <span class="op">=</span> <span class="kw">new</span> <span class="fu">ComputeNodeExecutor</span><span class="op">();</span></span>
+<span id="cb42-21"><a href="#cb42-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> result   <span class="op">=</span> await executor<span class="op">.</span><span class="fu">ExecuteAsync</span><span class="op">(</span>node<span class="op">,</span> ctx<span class="op">.</span><span class="fu">Instance</span><span class="op">,</span> ctx<span class="op">,</span> CancellationToken<span class="op">.</span><span class="fu">None</span><span class="op">);</span></span>
+<span id="cb42-22"><a href="#cb42-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-23"><a href="#cb42-23" aria-hidden="true" tabindex="-1"></a>    Assert<span class="op">.</span><span class="fu">Equal</span><span class="op">(</span>DecisionOutcome<span class="op">.</span><span class="fu">Match</span><span class="op">,</span> result<span class="op">.</span><span class="fu">Outcome</span><span class="op">);</span></span>
+<span id="cb42-24"><a href="#cb42-24" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Verify stored value via ctx.Instance.Context</span></span>
+<span id="cb42-25"><a href="#cb42-25" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="chaos-testing--fault-injection">Chaos Testing — Fault
+Injection</h3>
+<p>Wrap any <code>IExecutionStateStore</code> with
+<code>FaultableExecutionStateStore</code> to simulate infrastructure
+failures:</p>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> inner    <span class="op">=</span> <span class="kw">new</span> <span class="fu">InMemoryExecutionStateStore</span><span class="op">();</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> faultable <span class="op">=</span> <span class="kw">new</span> <span class="fu">FaultableExecutionStateStore</span><span class="op">(</span>inner<span class="op">);</span></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Inject into DI</span></span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IExecutionStateStore<span class="op">&gt;(</span>faultable<span class="op">);</span></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a><span class="co">// In a test — fault the next save to verify crash recovery</span></span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>faultable<span class="op">.</span><span class="fu">FaultOnNextSave</span> <span class="op">=</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a><span class="co">// Engine should recover on next sweep and re-execute from last checkpoint</span></span></code></pre></div>
+<hr />
+<h2 id="transactional-outbox">Transactional Outbox</h2>
+<p>The transactional outbox pattern guarantees at-least-once delivery
+for messages, integration calls, and agent invocations by writing to an
+outbox table in the <strong>same database transaction</strong> as the
+workflow state save. A background drain service then publishes and
+removes entries.</p>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register the outbox (requires IDbContextFactory&lt;TContext&gt; in DI)</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseOutboxSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span>    <span class="co">// EF.FlowEngine.Outbox.Sql</span></span></code></pre></div>
+<p><strong>Idempotency keys</strong> ensure duplicate-safe re-delivery.
+Set <code>IdempotencyKey</code> on any message, agent, or integration
+node:</p>
+<div class="sourceCode" id="cb45"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;message&quot;</span><span class="fu">,</span></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span> <span class="st">&quot;order-events&quot;</span><span class="fu">,</span></span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;subject&quot;</span><span class="fu">:</span>   <span class="st">&quot;order.completed&quot;</span><span class="fu">,</span></span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;body&quot;</span><span class="fu">:</span>      <span class="fu">{</span> <span class="dt">&quot;orderId&quot;</span><span class="fu">:</span> <span class="st">&quot;$.entity.OrderId&quot;</span> <span class="fu">},</span></span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;idempotencyKey&quot;</span><span class="fu">:</span> <span class="st">&quot;$.entity.OrderId + &#39;-order-complete&#39;&quot;</span></span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb46"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent&quot;</span><span class="fu">,</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span>       <span class="st">&quot;gpt4o&quot;</span><span class="fu">,</span></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;promptTemplate&quot;</span><span class="fu">:</span>  <span class="st">&quot;Classify this order...&quot;</span><span class="fu">,</span></span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;idempotencyKey&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.OrderId + &#39;-classification&#39;&quot;</span></span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><code>WorkflowDefinitionValidator</code> emits a warning when
+<code>idempotencyKey</code> is absent from any agent/message/integration
+node — it does not block registration, but the warning surfaces at save
+time.</p>
+<p><strong>Monitoring drain health</strong> —
+<code>IOutboxStore.GetMetricsAsync</code> returns aggregate stats:</p>
+<div class="sourceCode" id="cb47"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> metrics <span class="op">=</span> await outboxStore<span class="op">.</span><span class="fu">GetMetricsAsync</span><span class="op">(</span>ct<span class="op">);</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>Console<span class="op">.</span><span class="fu">WriteLine</span><span class="op">(</span>$<span class="st">&quot;Pending: {metrics.PendingCount}, Failed: {metrics.FailedCount}, &quot;</span> <span class="op">+</span></span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>                  $<span class="st">&quot;Oldest: {metrics.OldestPendingAge?.TotalMinutes:F1} min&quot;</span><span class="op">);</span></span></code></pre></div>
+<p><code>FailedCount</code> is the number of entries currently in
+exponential back-off (next retry in the future). The drain service uses
+capped exponential back-off: <code>min(2^n × 5 s, 300 s)</code>.
+<code>FlowEngineHealthCheck</code> uses <code>OldestPendingAge</code> to
+report <code>Degraded</code> when the drain falls behind.</p>
+<p>See <a
+href="docs/FlowEngine-Operations.html#outbox">FlowEngine-Operations.html</a>
+for detailed configuration and drain service options.</p>
+<hr />
+<h2 id="connector-clients">Connector Clients</h2>
+<p>Ready-made <code>IFlowClient</code> / <code>IMessageClient</code> /
+<code>IAgentClient</code> implementations so you can register clients
+without writing adapters:</p>
+<h3 id="http-efflowengineclientshttp">HTTP
+(<code>EF.FlowEngine.Clients.Http</code>)</h3>
+<div class="sourceCode" id="cb48"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="co">// ResilientHttpFlowClient backed by Microsoft.Extensions.Http.Resilience standard pipeline</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddResilientHttpClient</span><span class="op">(</span><span class="st">&quot;payment-api&quot;</span><span class="op">,</span> baseAddress<span class="op">:</span> <span class="kw">new</span> <span class="fu">Uri</span><span class="op">(</span><span class="st">&quot;https://payments.internal/&quot;</span><span class="op">));</span></span></code></pre></div>
+<h3 id="azure-service-bus-efflowengineclientsservicebus">Azure Service
+Bus (<code>EF.FlowEngine.Clients.ServiceBus</code>)</h3>
+<div class="sourceCode" id="cb49"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="co">// ServiceBusMessageClient — supports FireAndForget + RequestReply via PendingWait</span></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddServiceBusClient</span><span class="op">(</span><span class="st">&quot;order-events&quot;</span><span class="op">,</span></span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>        connectionString<span class="op">:</span> builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">[</span><span class="st">&quot;ServiceBus:ConnectionString&quot;</span><span class="op">]!,</span></span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>        topicOrQueueName<span class="op">:</span> <span class="st">&quot;orders&quot;</span><span class="op">);</span></span></code></pre></div>
+<h3 id="openai--azure-ai-efflowengineclientsopenai">OpenAI / Azure AI
+(<code>EF.FlowEngine.Clients.OpenAI</code>)</h3>
+<div class="sourceCode" id="cb50"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="co">// OpenAIAgentClient backed by Microsoft.Extensions.AI IChatClient</span></span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="co">// Emits token usage via IFlowEngineTelemetry</span></span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddOpenAIAgentClient</span><span class="op">(</span><span class="st">&quot;gpt4o&quot;</span><span class="op">,</span></span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>        chatClient<span class="op">:</span> openAIClient<span class="op">.</span><span class="fu">AsChatClient</span><span class="op">(</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">),</span></span>
+<span id="cb50-6"><a href="#cb50-6" aria-hidden="true" tabindex="-1"></a>        modelName<span class="op">:</span>  <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span></code></pre></div>
+<p>See <a
+href="docs/FlowEngine-Connectors.html">FlowEngine-Connectors.html</a>
+for full configuration options and custom client patterns.</p>
+<hr />
+<h2 id="agent-governance">Agent Governance</h2>
+<h3 id="content-filtering">Content Filtering</h3>
+<p>Register a named <code>IContentFilter</code> and reference it by name
+in <code>AgentNodeConfig.ContentFilterPolicy</code>:</p>
+<div class="sourceCode" id="cb51"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register a custom content filter</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IContentFilter<span class="op">,</span> MyAzureContentSafetyFilter<span class="op">&gt;();</span></span></code></pre></div>
+<div class="sourceCode" id="cb52"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent&quot;</span><span class="fu">,</span></span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb52-4"><a href="#cb52-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span>           <span class="st">&quot;gpt4o&quot;</span><span class="fu">,</span></span>
+<span id="cb52-5"><a href="#cb52-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;promptTemplate&quot;</span><span class="fu">:</span>      <span class="st">&quot;Summarise the document: {{$.context.documentText}}&quot;</span><span class="fu">,</span></span>
+<span id="cb52-6"><a href="#cb52-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;contentFilterPolicy&quot;</span><span class="fu">:</span> <span class="st">&quot;azure-content-safety&quot;</span><span class="fu">,</span></span>
+<span id="cb52-7"><a href="#cb52-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;promptVersion&quot;</span><span class="fu">:</span>       <span class="st">&quot;v2.1-summarise&quot;</span></span>
+<span id="cb52-8"><a href="#cb52-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb52-9"><a href="#cb52-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><code>FilterInputAsync</code> runs before the LLM call;
+<code>FilterOutputAsync</code> runs after. If either returns
+<code>IsAllowed: false</code>, the node short-circuits with
+<code>DecisionOutcome.Error</code> and <code>ReplacementContent</code>
+(if set) is stored as the output.</p>
+<h3 id="prompt-versioning">Prompt Versioning</h3>
+<p>Set <code>AgentNodeConfig.PromptVersion</code> to a label string. It
+is recorded in
+<code>NodeExecutionRecord.Metadata["promptVersion"]</code> for every
+execution — enabling A/B analysis and rollback tracking without changing
+the workflow definition ID.</p>
+<h3 id="telemetry--cost-tracking">Telemetry &amp; Cost Tracking</h3>
+<p><code>AgentNodeExecutor</code> emits a
+<code>flow.agent.completed</code> event via
+<code>IFlowEngineTelemetry</code> with:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Tag</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>nodeId</code></td>
+<td>string</td>
+<td>Node ID in the workflow graph</td>
+</tr>
+<tr class="even">
+<td><code>clientRef</code></td>
+<td>string</td>
+<td>Registered agent client name</td>
+</tr>
+<tr class="odd">
+<td><code>promptHash</code></td>
+<td>string</td>
+<td>SHA-256 (truncated) of the rendered prompt</td>
+</tr>
+<tr class="even">
+<td><code>latencyMs</code></td>
+<td>long</td>
+<td>End-to-end call latency</td>
+</tr>
+<tr class="odd">
+<td><code>tokensUsed</code></td>
+<td>int?</td>
+<td>Total tokens (input + output)</td>
+</tr>
+<tr class="even">
+<td><code>promptVersion</code></td>
+<td>string?</td>
+<td><code>AgentNodeConfig.PromptVersion</code> label</td>
+</tr>
+<tr class="odd">
+<td><code>estimatedCostUsd</code></td>
+<td>decimal?</td>
+<td>Computed from <code>FlowEngineOptions.AgentModelRates</code></td>
+</tr>
+</tbody>
+</table>
+<p>Configure per-model rates:</p>
+<div class="sourceCode" id="cb53"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>options <span class="op">=&gt;</span></span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">AgentModelRates</span><span class="op">[</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="kw">new</span> ModelCostRate</span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>        InputCostPerToken  <span class="op">=</span> <span class="fl">0.000005m</span><span class="op">,</span>   <span class="co">// $5 / M input tokens</span></span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>        OutputCostPerToken <span class="op">=</span> <span class="fl">0.000015m</span>    <span class="co">// $15 / M output tokens</span></span>
+<span id="cb53-7"><a href="#cb53-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb53-8"><a href="#cb53-8" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<p>See <a
+href="docs/FlowEngine-Connectors.html#agent-governance">FlowEngine-Connectors.html</a>
+for the full <code>IContentFilter</code> contract and telemetry
+integration.</p>
+<hr />
+<h2 id="admin-api--dashboard">Admin API &amp; Dashboard</h2>
+<h3 id="admin-api-efflowengineadminapi">Admin API
+(<code>EF.FlowEngine.AdminApi</code>)</h3>
+<div class="sourceCode" id="cb54"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register policies + services</span></span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineAdminPolicies</span><span class="op">();</span>   <span class="co">// adds FlowEngine.Admin + FlowEngine.HumanTask policies</span></span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">();</span>                 <span class="co">// FlowEngineAdminService registered automatically</span></span>
+<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Map endpoints</span></span>
+<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFlowEngineAdmin</span><span class="op">(</span>prefix<span class="op">:</span> <span class="st">&quot;/api/flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
+<p>Endpoints exposed under <code>{prefix}/</code>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Method</th>
+<th>Path</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>GET</code></td>
+<td><code>instances</code></td>
+<td>Query instances (<code>ExecutionQuery</code> via query string)</td>
+</tr>
+<tr class="even">
+<td><code>POST</code></td>
+<td><code>instances/{id}/retry</code></td>
+<td>Retry a faulted instance (background — returns immediately with
+<code>Running</code> status)</td>
+</tr>
+<tr class="odd">
+<td><code>POST</code></td>
+<td><code>instances/{id}/terminate</code></td>
+<td>Terminate a running instance</td>
+</tr>
+<tr class="even">
+<td><code>POST</code></td>
+<td><code>instances/{id}/resume</code></td>
+<td>Resume a suspended instance with signal payload (background —
+returns immediately with <code>Running</code> status)</td>
+</tr>
+<tr class="odd">
+<td><code>GET</code></td>
+<td><code>circuit-breakers</code></td>
+<td>List all circuit breaker states</td>
+</tr>
+<tr class="even">
+<td><code>POST</code></td>
+<td><code>circuit-breakers/{key}/reset</code></td>
+<td>Reset an open circuit</td>
+</tr>
+<tr class="odd">
+<td><code>GET</code></td>
+<td><code>human-tasks</code></td>
+<td>List pending human tasks</td>
+</tr>
+<tr class="even">
+<td><code>GET</code></td>
+<td><code>workflows/{id}/compatibility</code></td>
+<td>Analyze version compatibility</td>
+</tr>
+</tbody>
+</table>
+<p>Authorization uses the registered <code>FlowEngine.Admin</code> and
+<code>FlowEngine.HumanTask</code> policies. Configure them to match your
+identity provider:</p>
+<div class="sourceCode" id="cb55"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddAuthorization</span><span class="op">(</span>o <span class="op">=&gt;</span></span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>    o<span class="op">.</span><span class="fu">AddPolicy</span><span class="op">(</span><span class="st">&quot;FlowEngine.Admin&quot;</span><span class="op">,</span> p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">RequireClaim</span><span class="op">(</span><span class="st">&quot;role&quot;</span><span class="op">,</span> <span class="st">&quot;flowengine-admin&quot;</span><span class="op">));</span></span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a>    o<span class="op">.</span><span class="fu">AddPolicy</span><span class="op">(</span><span class="st">&quot;FlowEngine.HumanTask&quot;</span><span class="op">,</span> p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">RequireClaim</span><span class="op">(</span><span class="st">&quot;role&quot;</span><span class="op">,</span> <span class="st">&quot;task-worker&quot;</span><span class="op">));</span></span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<h3 id="dashboard-efflowenginedashboard">Dashboard
+(<code>EF.FlowEngine.Dashboard</code>)</h3>
+<div class="sourceCode" id="cb56"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register the Blazor dashboard consuming the admin API</span></span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">:</span> <span class="st">&quot;https://your-api-host/api/flowengine&quot;</span><span class="op">);</span></span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Map Blazor components (requires UseBlazorComponents or equivalent)</span></span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapBlazorHub</span><span class="op">();</span></span>
+<span id="cb56-6"><a href="#cb56-6" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFallbackToPage</span><span class="op">(</span><span class="st">&quot;/_Host&quot;</span><span class="op">);</span></span></code></pre></div>
+<p>Dashboard pages: <strong>Instance List</strong> (filter/search/sort),
+<strong>Instance Detail</strong> (history timeline, context snapshot),
+<strong>Human Task Inbox</strong> (assign/complete tasks),
+<strong>Workflow List</strong> (with compatibility diff),
+<strong>Circuit Breaker Status</strong> (list + reset).</p>
+<p>Uses <code>IFlowEngineAdminClient</code> (Refit-generated typed HTTP
+client) to call the admin API. The dashboard package does not need a
+direct database connection.</p>
+<p>See <a
+href="docs/FlowEngine-Operations.html">FlowEngine-Operations.html</a>
+for the complete ops reference.</p>
+<hr />
+<h2 id="license">License</h2>
+<p>MIT License. See <a href="LICENSE">LICENSE</a> for details.</p>
+</body>
+</html>

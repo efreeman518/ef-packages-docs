@@ -1,0 +1,2014 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>SKILL-EF.FilterBuilder</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="docs-common.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">SKILL-EF.FilterBuilder</h1>
+</header>
+<h1 id="skill-effilterbuilder">SKILL: EF.FilterBuilder</h1>
+<h2 id="what-this-skill-is">What this skill is</h2>
+<p>This skill teaches you how to construct, reason about, and generate
+correct <code>FilterSet</code> definitions for
+<strong>EF.FilterBuilder</strong> — a C# 14 / .NET 10 library that
+compiles serializable filter definitions into
+<code>Expression&lt;Func&lt;T, bool&gt;&gt;</code> predicates targeting
+<code>IQueryable&lt;T&gt;</code> (EF Core → SQL) and
+<code>IEnumerable&lt;T&gt;</code> (in-memory).</p>
+<p>When a user asks you to build a filter, query, or rule using
+EF.FilterBuilder, use this skill to generate correct, idiomatic code and
+JSON. All examples in this skill are verified against the
+implementation.</p>
+<hr />
+<h2 id="core-mental-model">Core mental model</h2>
+<pre><code>FilterSet (serializable JSON)
+    │
+    ├── Operator: AND | OR
+    ├── Filters: [ Filter, Filter, ... ]      ← leaf conditions
+    └── FilterSets: [ FilterSet, FilterSet ]  ← nested logical groups (not both)
+
+Filter (single leaf condition)
+    ├── PropertyPath   &quot;A.B.C&quot;     dot-delimited navigation path
+    ├── Operation      &quot;eq&quot;        comparison operator
+    ├── TestValue      object?     right-hand side (when FilterType = Default)
+    ├── FilterType     enum        controls where TestValue comes from
+    └── FilterSet      FilterSet?  child group — CONTROLS COLLECTION SCOPE</code></pre>
+<p>The output is always
+<code>Expression&lt;Func&lt;T, bool&gt;&gt;</code> — passable directly
+to <code>.Where()</code> on <code>IQueryable&lt;T&gt;</code> or compiled
+to a delegate for <code>IEnumerable&lt;T&gt;</code>.</p>
+<hr />
+<h2 id="data-model--complete-property-reference">Data model — complete
+property reference</h2>
+<h3 id="filterset">FilterSet</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Type</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Operator</code></td>
+<td><code>Operator</code> (AND|OR)</td>
+<td>Yes</td>
+<td>Combines all children at this level</td>
+</tr>
+<tr class="even">
+<td><code>Filters</code></td>
+<td><code>IList&lt;Filter&gt;?</code></td>
+<td>One of</td>
+<td>Leaf conditions. Mutually exclusive with <code>FilterSets</code> at
+same level</td>
+</tr>
+<tr class="odd">
+<td><code>FilterSets</code></td>
+<td><code>IList&lt;FilterSet&gt;?</code></td>
+<td>One of</td>
+<td>Nested logical groups</td>
+</tr>
+<tr class="even">
+<td><code>Sequence</code></td>
+<td><code>int</code></td>
+<td>No</td>
+<td>Sort order for <code>FindFirstMatch</code>. Lower = evaluated
+first</td>
+</tr>
+<tr class="odd">
+<td><code>Name</code></td>
+<td><code>string?</code></td>
+<td>No</td>
+<td>Identifier returned when this FilterSet wins
+<code>FindFirstMatch</code></td>
+</tr>
+<tr class="even">
+<td><code>ReferenceValue</code></td>
+<td><code>string?</code></td>
+<td>No</td>
+<td>Supplementary payload (tier code, routing target, etc.)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rule:</strong> A <code>FilterSet</code> must have either
+<code>Filters</code> OR <code>FilterSets</code> — not both, not
+neither.</p>
+<h3 id="filter">Filter</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Type</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>PropertyPath</code></td>
+<td><code>string</code></td>
+<td>Yes</td>
+<td>Navigation path to target property. e.g.
+<code>"Customer.Address.City"</code></td>
+</tr>
+<tr class="even">
+<td><code>Delimiter</code></td>
+<td><code>string?</code></td>
+<td>No</td>
+<td>Path separator. Defaults to <code>"."</code>. Can be
+<code>"/"</code>, <code>"-&gt;"</code>, <code>"::"</code>, any
+string</td>
+</tr>
+<tr class="odd">
+<td><code>Operation</code></td>
+<td><code>string</code></td>
+<td>Yes</td>
+<td>See operator table below</td>
+</tr>
+<tr class="even">
+<td><code>FilterType</code></td>
+<td><code>FilterType</code></td>
+<td>No</td>
+<td>Defaults to <code>Default</code> (static TestValue)</td>
+</tr>
+<tr class="odd">
+<td><code>TestValue</code></td>
+<td><code>object?</code></td>
+<td>Conditional</td>
+<td>RHS value when <code>FilterType = Default</code>. Accepts arrays for
+<code>in</code>/<code>nin</code></td>
+</tr>
+<tr class="even">
+<td><code>FilterSet</code></td>
+<td><code>FilterSet?</code></td>
+<td>No</td>
+<td><strong>Controls collection scope</strong> (see critical rule
+below)</td>
+</tr>
+<tr class="odd">
+<td><code>ParamKey</code></td>
+<td><code>string?</code></td>
+<td>Conditional</td>
+<td>Key into <code>params1</code> dict for dynamic RHS strategies</td>
+</tr>
+<tr class="even">
+<td><code>Query</code></td>
+<td><code>string?</code></td>
+<td>Conditional</td>
+<td>Property name (FilterExpression) or JSONPath expr (Json)</td>
+</tr>
+<tr class="odd">
+<td><code>TestValueExpression</code></td>
+<td><code>string?</code></td>
+<td>No</td>
+<td>C# expression applied to resolved value. e.g.
+<code>"Math.Abs(TestValue - 90)"</code></td>
+</tr>
+<tr class="even">
+<td><code>CaseSensitive</code></td>
+<td><code>bool</code></td>
+<td>No</td>
+<td>Defaults to <code>true</code>. Set <code>false</code> for
+case-insensitive string matching — both sides lowercased</td>
+</tr>
+<tr class="odd">
+<td><code>Normalize</code></td>
+<td><code>bool</code></td>
+<td>No</td>
+<td>Defaults to <code>false</code>. When <code>true</code>, trims
+whitespace from both sides before comparison</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="operators">Operators</h2>
+<p><strong>Comparison</strong> — any comparable type</p>
+<table>
+<thead>
+<tr class="header">
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>eq</code></td>
+<td>Equal (<code>==</code>)</td>
+</tr>
+<tr class="even">
+<td><code>ne</code></td>
+<td>Not equal (<code>!=</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>gt</code></td>
+<td>Greater than (<code>&gt;</code>)</td>
+</tr>
+<tr class="even">
+<td><code>ge</code></td>
+<td>Greater than or equal (<code>&gt;=</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>lt</code></td>
+<td>Less than (<code>&lt;</code>)</td>
+</tr>
+<tr class="even">
+<td><code>le</code></td>
+<td>Less than or equal (<code>&lt;=</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>String</strong> — <code>string</code> properties only;
+automatically null-safe</p>
+<table>
+<thead>
+<tr class="header">
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>bw</code></td>
+<td>Begins with (<code>StartsWith</code>)</td>
+</tr>
+<tr class="even">
+<td><code>bn</code></td>
+<td>Does not begin with (<code>!StartsWith</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>ew</code></td>
+<td>Ends with (<code>EndsWith</code>)</td>
+</tr>
+<tr class="even">
+<td><code>en</code></td>
+<td>Does not end with (<code>!EndsWith</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>cn</code></td>
+<td>Contains (<code>Contains</code>)</td>
+</tr>
+<tr class="even">
+<td><code>nc</code></td>
+<td>Does not contain (<code>!Contains</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>String operators respect <code>CaseSensitive</code> and
+<code>Normalize</code> flags on the Filter.</p>
+<p><strong>Membership</strong> — <code>TestValue</code> must be an
+array</p>
+<table>
+<thead>
+<tr class="header">
+<th>Code</th>
+<th>Meaning</th>
+<th>Compiled form</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>in</code></td>
+<td>Value is in list</td>
+<td><code>new[] { v1, v2 }.Contains(property)</code> → SQL
+<code>IN (...)</code></td>
+</tr>
+<tr class="even">
+<td><code>nin</code></td>
+<td>Value is NOT in list</td>
+<td><code>!new[] { v1, v2 }.Contains(property)</code> → SQL
+<code>NOT IN (...)</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>TestValue</code> accepts <code>object[]</code>,
+<code>string[]</code>, <code>int[]</code>, JSON arrays, or any
+<code>IEnumerable</code>. Type coercion is applied per element.</p>
+<p><strong>Null checks</strong> — no <code>TestValue</code> required; do
+NOT set TestValue for these</p>
+<table>
+<thead>
+<tr class="header">
+<th>Code</th>
+<th>Meaning</th>
+<th>SQL</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>isnull</code></td>
+<td>Property IS NULL</td>
+<td><code>IS NULL</code></td>
+</tr>
+<tr class="even">
+<td><code>isnotnull</code></td>
+<td>Property IS NOT NULL</td>
+<td><code>IS NOT NULL</code></td>
+</tr>
+</tbody>
+</table>
+<p>For non-nullable value types, <code>isnull</code> compiles to
+<code>false</code> constant and <code>isnotnull</code> to
+<code>true</code> constant at expression-build time — no runtime
+check.</p>
+<p><strong>Date/time components</strong> — <code>DateTime</code> or
+<code>DateTimeOffset</code> properties only; nullable types are
+null-guarded automatically</p>
+<table>
+<thead>
+<tr class="header">
+<th>Code</th>
+<th>Meaning</th>
+<th>TestValue</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>year-eq</code></td>
+<td>Year component equals</td>
+<td>integer e.g. <code>2024</code></td>
+</tr>
+<tr class="even">
+<td><code>month-eq</code></td>
+<td>Month equals (1–12)</td>
+<td>integer e.g. <code>3</code></td>
+</tr>
+<tr class="odd">
+<td><code>day-eq</code></td>
+<td>Day of month equals (1–31)</td>
+<td>integer e.g. <code>15</code></td>
+</tr>
+<tr class="even">
+<td><code>hour-eq</code></td>
+<td>Hour equals (0–23)</td>
+<td>integer e.g. <code>9</code></td>
+</tr>
+<tr class="odd">
+<td><code>dow-eq</code></td>
+<td>Day of week equals</td>
+<td>string <code>"Monday"</code>…<code>"Sunday"</code> OR integer
+<code>0</code>=Sunday…<code>6</code>=Saturday</td>
+</tr>
+</tbody>
+</table>
+<p>EF Core translates each to the native SQL date function
+(<code>YEAR()</code>, <code>MONTH()</code>, <code>DAY()</code>,
+<code>DATEPART()</code>).</p>
+<p><strong>String length</strong> — <code>string</code> properties only;
+null strings evaluate to <code>false</code></p>
+<table>
+<thead>
+<tr class="header">
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>len-eq</code></td>
+<td><code>string.Length ==</code> value</td>
+</tr>
+<tr class="even">
+<td><code>len-ne</code></td>
+<td><code>string.Length !=</code> value</td>
+</tr>
+<tr class="odd">
+<td><code>len-gt</code></td>
+<td><code>string.Length &gt;</code> value</td>
+</tr>
+<tr class="even">
+<td><code>len-ge</code></td>
+<td><code>string.Length &gt;=</code> value</td>
+</tr>
+<tr class="odd">
+<td><code>len-lt</code></td>
+<td><code>string.Length &lt;</code> value</td>
+</tr>
+<tr class="even">
+<td><code>len-le</code></td>
+<td><code>string.Length &lt;=</code> value</td>
+</tr>
+</tbody>
+</table>
+<p>EF Core translates <code>string.Length</code> to <code>LEN()</code> /
+<code>LENGTH()</code> in SQL.</p>
+<hr />
+<h2 id="filtertype-enum--dynamic-rhs-strategies">FilterType enum —
+dynamic RHS strategies</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Value</th>
+<th>TestValue source</th>
+<th>SQL output</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Default</code></td>
+<td><code>Filter.TestValue</code> literal</td>
+<td>Constant in WHERE</td>
+<td>Static value known at authoring time</td>
+</tr>
+<tr class="even">
+<td><code>TestValueParam</code></td>
+<td><code>params1[ParamKey]</code> at call time</td>
+<td>Constant in WHERE</td>
+<td>Value varies per request</td>
+</tr>
+<tr class="odd">
+<td><code>TestValueFilterExpression</code></td>
+<td>Child FilterSet → <strong>first match</strong> → extract named
+property</td>
+<td>Scalar constant in WHERE</td>
+<td>Single value derived from another collection</td>
+</tr>
+<tr class="even">
+<td><code>TestValueFilterExpressionMulti</code></td>
+<td>Child FilterSet → <strong>all matches</strong> → extract named
+property from each → typed array</td>
+<td><code>WHERE col IN (v1,v2,...)</code></td>
+<td>Membership set derived from another collection</td>
+</tr>
+<tr class="odd">
+<td><code>TestValueJson</code></td>
+<td>JSONPath against <code>JsonDocument</code> in
+<code>params1</code></td>
+<td>Constant in WHERE</td>
+<td>Value in JSON config or sensor data</td>
+</tr>
+</tbody>
+</table>
+<p>All strategies resolve at expression-build time. EF Core receives a
+standard <code>Expression&lt;Func&lt;T,bool&gt;&gt;</code> for all of
+them.</p>
+<blockquote>
+<p><strong><code>TestValueFilterExpressionMulti</code>
+constraint:</strong> <code>Operation</code> must be <code>"in"</code> or
+<code>"nin"</code>. Using any other operator throws
+<code>InvalidOperationException</code> at expression-build time.</p>
+<p><strong>Large arrays:</strong> If the dataset query matches thousands
+of records, the SQL <code>IN (...)</code> clause grows proportionally.
+Query plan generation degrades above ~1,000 values. Pre-filter the
+dataset in <code>params1</code>.</p>
+<p><strong>Do not cache expressions built with
+<code>TestValueFilterExpressionMulti</code></strong> if the underlying
+dataset changes between calls — the array is a snapshot.</p>
+</blockquote>
+<p>All four strategies converge on a single <code>testValue</code>
+object before building the expression constant. If
+<code>TestValueExpression</code> is set, it is evaluated as a C#
+expression with variable <code>TestValue</code> bound to the resolved
+value, and the result replaces <code>testValue</code>.</p>
+<hr />
+<h2 id="filtersettype-enum--build-time-branching">FilterSetType enum —
+build-time branching</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Value</th>
+<th>Behaviour</th>
+<th>SQL output</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Standard</code> (default)</td>
+<td>Compiled directly to a predicate</td>
+<td>Normal WHERE</td>
+</tr>
+<tr class="even">
+<td><code>Branch</code></td>
+<td>Evaluates <code>ConditionFilterSet</code> against
+<code>params1[ConditionParamKey]</code>; compiles
+<code>BranchIfMatch</code> or <code>BranchIfNoMatch</code></td>
+<td>Normal WHERE from selected branch — no conditional in SQL</td>
+</tr>
+<tr class="odd">
+<td><code>Switch</code></td>
+<td>Evaluates <code>ConditionFilterSet</code>, extracts
+<code>SwitchValueProperty</code> from first match, compiles first
+<code>SwitchCase</code> whose <code>WhenValue</code> matches</td>
+<td>Normal WHERE from selected case — no conditional in SQL</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key constraint:</strong> Branch and Switch resolve entirely
+at expression-build time. EF Core receives a flat
+<code>Expression&lt;Func&lt;T,bool&gt;&gt;</code>. No
+<code>Expression.Condition</code> or runtime branching appears in the
+compiled output.</p>
+<p><strong>Condition datasets must be pre-materialized.</strong> Pass
+<code>List&lt;T&gt;</code> in <code>params1</code>. Never pass
+<code>IQueryable&lt;T&gt;</code> — it bypasses EF Core translation and
+iterates all rows into memory.</p>
+<p><strong><code>BranchIfNoMatch = null</code> and
+<code>SwitchDefault = null</code></strong> both compile to
+<code>Expression.Constant(true)</code> — matches every entity.</p>
+<p><strong>Branch and Switch are fully serializable</strong> — all
+properties round-trip through JSON. Branch logic stored in a database
+changes at data-edit time with zero code changes.</p>
+<p><strong>Nesting:</strong> Branch and Switch may be nested
+arbitrarily. A <code>BranchIfMatch</code> can be a <code>Switch</code>;
+a <code>SwitchCase.Then</code> can be another <code>Branch</code>. The
+compiler recurses through the same entry point.</p>
+<h3 id="filterset-branching-properties">FilterSet branching
+properties</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Type</th>
+<th>Used by</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>FilterSetType</code></td>
+<td><code>FilterSetType</code></td>
+<td>All</td>
+<td>Defaults to <code>Standard</code></td>
+</tr>
+<tr class="even">
+<td><code>ConditionFilterSet</code></td>
+<td><code>FilterSet?</code></td>
+<td>Branch, Switch</td>
+<td>Condition evaluated against dataset</td>
+</tr>
+<tr class="odd">
+<td><code>ConditionParamKey</code></td>
+<td><code>string?</code></td>
+<td>Branch, Switch</td>
+<td>Key to pre-materialized <code>List&lt;T&gt;</code> in
+<code>params1</code></td>
+</tr>
+<tr class="even">
+<td><code>BranchIfMatch</code></td>
+<td><code>FilterSet?</code></td>
+<td>Branch</td>
+<td>Compiled when condition matches any element</td>
+</tr>
+<tr class="odd">
+<td><code>BranchIfNoMatch</code></td>
+<td><code>FilterSet?</code></td>
+<td>Branch</td>
+<td>Compiled when condition matches nothing. <code>null</code> = match
+all</td>
+</tr>
+<tr class="even">
+<td><code>SwitchValueProperty</code></td>
+<td><code>string?</code></td>
+<td>Switch</td>
+<td>Property extracted from first condition match</td>
+</tr>
+<tr class="odd">
+<td><code>SwitchCases</code></td>
+<td><code>List&lt;FilterSetCase&gt;?</code></td>
+<td>Switch</td>
+<td>Ordered <code>{ WhenValue, Then }</code> pairs. First match
+wins</td>
+</tr>
+<tr class="even">
+<td><code>SwitchDefault</code></td>
+<td><code>FilterSet?</code></td>
+<td>Switch</td>
+<td>Compiled when no case matches. <code>null</code> = match all</td>
+</tr>
+</tbody>
+</table>
+<h3
+id="rule-1-collection-scope-is-determined-by-child-filterset-presence">Rule
+1: Collection scope is determined by child FilterSet presence</h3>
+<p>When a <code>PropertyPath</code> segment resolves to an
+<code>IEnumerable&lt;T&gt;</code> property (and is not
+<code>string</code>):</p>
+<p><strong>Child <code>FilterSet</code> PRESENT on the
+<code>Filter</code> targeting the collection → SAME-OBJECT
+scope</strong></p>
+<ul>
+<li>All conditions in the child FilterSet must be satisfied by the
+<strong>same</strong> collection element</li>
+<li>Compiled as a single
+<code>Any(e =&gt; condition1 &amp;&amp; condition2 &amp;&amp; ...)</code></li>
+</ul>
+<p><strong>Child <code>FilterSet</code> ABSENT → ANY-OBJECT
+scope</strong></p>
+<ul>
+<li>Each filter gets its own independent <code>Any()</code> call</li>
+<li>Different elements can satisfy different conditions</li>
+<li>Use dot-notation paths like <code>"Tags.Key"</code> to traverse past
+the collection</li>
+</ul>
+<p>This distinction is determined <strong>entirely by structure</strong>
+— no flag, no operator, no annotation. Getting this wrong produces
+silent logic errors where different semantics apply.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">// SAME-OBJECT: &quot;a Tag with Key=&#39;color&#39; AND Value=&#39;red&#39; on the SAME Tag&quot;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    PropertyPath <span class="op">=</span> <span class="st">&quot;Tags&quot;</span><span class="op">,</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span>           <span class="co">// child FilterSet present = same-object</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>            <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Key&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;color&quot;</span> <span class="op">},</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>            <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Value&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;red&quot;</span>   <span class="op">},</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">]</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co">// → orders.Where(o =&gt; o.Tags.Any(t =&gt; t.Key == &quot;color&quot; &amp;&amp; t.Value == &quot;red&quot;))</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co">// ANY-OBJECT: &quot;a Tag with Key=&#39;color&#39; AND separately a Tag with Value=&#39;red&#39; (may differ)&quot;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Tags.Key&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;color&quot;</span> <span class="op">},</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Tags.Value&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;red&quot;</span>   <span class="op">},</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="co">// → orders.Where(o =&gt; o.Tags.Any(t =&gt; t.Key == &quot;color&quot;) &amp;&amp; o.Tags.Any(t =&gt; t.Value == &quot;red&quot;))</span></span></code></pre></div>
+<h3
+id="rule-2-filters-and-filtersets-are-mutually-exclusive-at-each-level">Rule
+2: Filters and FilterSets are mutually exclusive at each level</h3>
+<p>A <code>FilterSet</code> node contains either:</p>
+<ul>
+<li><code>Filters</code> (leaf conditions) — making it a <strong>leaf
+group</strong></li>
+<li><code>FilterSets</code> (nested groups) — making it a <strong>branch
+group</strong></li>
+</ul>
+<p>Never both. Use nested <code>FilterSets</code> to build AND/OR trees
+of arbitrary depth.</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// CORRECT — (A AND B) OR (C AND D)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    Operator    <span class="op">=</span> Operator<span class="op">.</span><span class="fu">OR</span><span class="op">,</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    FilterSets  <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSet <span class="op">{</span> Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span> Filters <span class="op">=</span> <span class="op">[</span> A<span class="op">,</span> B <span class="op">]</span> <span class="op">},</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSet <span class="op">{</span> Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span> Filters <span class="op">=</span> <span class="op">[</span> C<span class="op">,</span> D <span class="op">]</span> <span class="op">},</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co">// WRONG — mixing Filters and FilterSets at same level</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    Operator    <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    Filters     <span class="op">=</span> <span class="op">[</span> A <span class="op">],</span>        <span class="co">// ← do not do this</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    FilterSets  <span class="op">=</span> <span class="op">[</span> <span class="op">...</span> <span class="op">],</span>      <span class="co">// ← at the same level</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="rule-3-null-safety-is-automatic">Rule 3: Null-safety is
+automatic</h3>
+<p>Multi-segment paths are null-checked at every navigation level
+automatically. <code>"A.B.C.Name"</code> generates null-guards at A, B,
+and C. No annotation required. Pass <code>enableNullChecks: true</code>
+(the default) and it just works.</p>
+<h3 id="rule-4-delimiter-is-per-filter-not-per-filterset">Rule 4:
+Delimiter is per-Filter, not per-FilterSet</h3>
+<p>Each <code>Filter</code> independently specifies its delimiter.
+Different filters in the same <code>FilterSet</code> can use different
+delimiters. When absent, defaults to <code>"."</code>.</p>
+<h3 id="rule-5-type-coercion-is-automatic">Rule 5: Type coercion is
+automatic</h3>
+<p><code>TestValue</code> is typed as <code>object?</code>. The compiler
+coerces it to the target property type at build time:</p>
+<ul>
+<li>Enums: by name string (<code>"Active"</code>) or integer value</li>
+<li><code>Guid</code>: from string</li>
+<li>Nullable types: unwrapped automatically</li>
+<li>Other primitives: via <code>Convert.ChangeType</code></li>
+</ul>
+<p>You do not need to cast <code>TestValue</code> — pass the natural
+JSON-representable value and the library handles it.</p>
+<h3
+id="rule-6-casesensitive-and-normalize-apply-only-to-string-properties">Rule
+6: CaseSensitive and Normalize apply only to string properties</h3>
+<p><code>CaseSensitive = false</code> lowercases both sides before any
+string comparison. <code>Normalize = true</code> trims both sides. When
+both are set, <strong>Normalize runs first, then CaseSensitive</strong>
+— so <code>"  Smith  "</code> → trim → <code>"Smith"</code> → lowercase
+→ <code>"smith"</code>. Both flags are silently ignored on non-string
+properties.</p>
+<h3
+id="rule-7-isnull--isnotnull-require-no-testvalue--never-set-one">Rule
+7: <code>isnull</code> / <code>isnotnull</code> require no TestValue —
+never set one</h3>
+<p>Do not set <code>TestValue</code>, <code>FilterType</code>, or any
+other field when using <code>isnull</code> or <code>isnotnull</code>.
+The compiler dispatches these before TestValue resolution. Setting
+TestValue has no effect but may cause type coercion errors on some
+inputs.</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">// CORRECT</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;DeletedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnull&quot;</span> <span class="op">}</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">// WRONG — TestValue is ignored and may cause confusion</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;DeletedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnull&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">null</span> <span class="op">}</span></span></code></pre></div>
+<h3
+id="rule-8-in--nin-testvalue-must-be-an-enumerable--never-a-scalar">Rule
+8: <code>in</code> / <code>nin</code> TestValue must be an enumerable —
+never a scalar</h3>
+<p>If you pass a scalar (e.g. <code>TestValue = "Active"</code>), the
+compiler throws at build time. Always pass an array or list.</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">// CORRECT</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;in&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">new</span><span class="op">[]</span> <span class="op">{</span> <span class="st">&quot;Active&quot;</span><span class="op">,</span> <span class="st">&quot;Pending&quot;</span> <span class="op">}</span> <span class="op">}</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co">// WRONG — scalar value for in/nin</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;in&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Active&quot;</span> <span class="op">}</span></span></code></pre></div>
+<h3
+id="rule-9-datetime-operators-only-work-on-datetime-and-datetimeoffset">Rule
+9: Date/time operators only work on DateTime and DateTimeOffset</h3>
+<p>Applying <code>year-eq</code>, <code>month-eq</code>,
+<code>day-eq</code>, <code>hour-eq</code>, or <code>dow-eq</code> to a
+non-date property throws a descriptive
+<code>InvalidOperationException</code> at expression-build time.</p>
+<h3
+id="rule-10-string-length-operators-only-work-on-string-properties">Rule
+10: String length operators only work on string properties</h3>
+<p>Applying <code>len-*</code> operators to a non-string property throws
+<code>InvalidOperationException</code> at expression-build time. Null
+string properties evaluate to <code>false</code> for all length
+comparisons — they do not throw.</p>
+<h3
+id="rule-11-branch-and-switch-output-is-always-a-flat-predicate--never-conditional">Rule
+11: Branch and Switch output is always a flat predicate — never
+conditional</h3>
+<p>The compiled output of <code>FilterSetType.Branch</code> and
+<code>FilterSetType.Switch</code> is a normal
+<code>Expression&lt;Func&lt;T,bool&gt;&gt;</code> with no
+<code>Expression.Condition</code> at the outermost level. If a proposed
+implementation produces runtime conditional logic in the expression
+tree, it is wrong. The branching must be fully resolved before the
+predicate is constructed.</p>
+<h3
+id="rule-12-condition-datasets-in-params1-must-be-pre-materialized">Rule
+12: Condition datasets in <code>params1</code> must be
+pre-materialized</h3>
+<p>For Branch, Switch, <code>TestValueFilterExpression</code>, and
+<code>TestValueFilterExpressionMulti</code>, any dataset passed in
+<code>params1</code> must be a <code>List&lt;T&gt;</code>, array, or
+other in-memory collection. Never pass <code>IQueryable&lt;T&gt;</code>.
+The compiler iterates condition datasets as
+<code>IEnumerable&lt;T&gt;</code> — passing an
+<code>IQueryable&lt;T&gt;</code> bypasses EF Core query execution and
+loads all rows into memory.</p>
+<h3
+id="rule-13-testvaluefilterexpressionmulti-requires-operation--in-or-nin">Rule
+13: <code>TestValueFilterExpressionMulti</code> requires
+<code>Operation = "in"</code> or <code>"nin"</code></h3>
+<p>This strategy builds an array and feeds it to the membership operator
+pipeline. Using any other operator (e.g. <code>"eq"</code>,
+<code>"gt"</code>) throws <code>InvalidOperationException</code> at
+expression-build time with a descriptive message.</p>
+<h3
+id="rule-14-do-not-cache-expressions-built-with-testvaluefilterexpressionmulti-if-the-dataset-changes">Rule
+14: Do not cache expressions built with
+<code>TestValueFilterExpressionMulti</code> if the dataset changes</h3>
+<p>The array is a snapshot of the dataset state at expression-build
+time. A cached expression reflects the dataset as it was when the
+expression was first built. If the underlying dataset changes between
+calls, rebuild the expression rather than reusing the cache.</p>
+<h3 id="rule-15-switchcasewhenvalue-comparison-is-case-insensitive">Rule
+15: <code>SwitchCase.WhenValue</code> comparison is
+case-insensitive</h3>
+<p>Switch case matching uses
+<code>StringComparison.OrdinalIgnoreCase</code>. <code>"VIP"</code>,
+<code>"vip"</code>, and <code>"Vip"</code> all match a
+<code>WhenValue</code> of <code>"VIP"</code>. This is intentional —
+switch values often originate from databases with inconsistent
+casing.</p>
+<h3 id="filterbuildert-primary-public-api">FilterBuilder&lt;T&gt;
+(primary public API)</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Compile FilterSet to typed predicate expression</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>Expression<span class="op">&lt;</span>Func<span class="op">&lt;</span>T<span class="op">,</span> <span class="dt">bool</span><span class="op">&gt;&gt;</span> FilterBuilder<span class="op">&lt;</span>T<span class="op">&gt;.</span><span class="fu">ProcessFilterSet</span><span class="op">(</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    FilterSet filterset<span class="op">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> enableNullChecks <span class="op">=</span> <span class="kw">true</span><span class="op">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;?</span> params1 <span class="op">=</span> <span class="kw">null</span><span class="op">)</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co">// First-match priority evaluation</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>FilterSet<span class="op">?</span> FilterBuilder<span class="op">&lt;</span>T<span class="op">&gt;.</span><span class="fu">FindFirstMatch</span><span class="op">(</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    ICollection<span class="op">&lt;</span>T<span class="op">&gt;</span> items<span class="op">,</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    List<span class="op">&lt;</span>FilterSet<span class="op">&gt;</span> filterSets<span class="op">)</span>   <span class="co">// sorted by Sequence internally</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Example-based FilterSet generation</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>FilterSet FilterBuilder<span class="op">&lt;</span>T<span class="op">&gt;.</span><span class="fu">BuildFilterSetItem</span><span class="op">(</span>T example<span class="op">)</span></span></code></pre></div>
+<h3 id="iqueryablet-extension">IQueryable&lt;T&gt; extension</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>IQueryable<span class="op">&lt;</span>T<span class="op">&gt;</span> source<span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    FilterSet<span class="op">?</span> filterSet <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    T<span class="op">?</span> filterItem <span class="op">=</span> <span class="kw">null</span><span class="op">,</span>                       <span class="co">// triggers BuildFilterSetItem internally</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> enableNullChecks <span class="op">=</span> <span class="kw">true</span><span class="op">,</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;?</span> params1 <span class="op">=</span> <span class="kw">null</span><span class="op">)</span></span></code></pre></div>
+<hr />
+<h2 id="json-serialization-format">JSON serialization format</h2>
+<p><code>FilterSet</code> serializes to idiomatic JSON. Property names
+follow C# PascalCase by default (configure with
+<code>JsonSerializerOptions</code> as needed). <code>FilterType</code>
+serializes as the enum name string.</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;operator&quot;</span><span class="fu">:</span> <span class="st">&quot;AND&quot;</span><span class="fu">,</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;filters&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;propertyPath&quot;</span><span class="fu">:</span> <span class="st">&quot;Status&quot;</span><span class="fu">,</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;eq&quot;</span><span class="fu">,</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;testValue&quot;</span><span class="fu">:</span> <span class="st">&quot;Active&quot;</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;propertyPath&quot;</span><span class="fu">:</span> <span class="st">&quot;Score&quot;</span><span class="fu">,</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;ge&quot;</span><span class="fu">,</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;testValue&quot;</span><span class="fu">:</span> <span class="dv">80</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p>Complex example with collection scope, dynamic param, and nested
+logic:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;operator&quot;</span><span class="fu">:</span> <span class="st">&quot;AND&quot;</span><span class="fu">,</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;filters&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;propertyPath&quot;</span><span class="fu">:</span> <span class="st">&quot;Tags&quot;</span><span class="fu">,</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;eq&quot;</span><span class="fu">,</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;filterSet&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;operator&quot;</span><span class="fu">:</span> <span class="st">&quot;AND&quot;</span><span class="fu">,</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;filters&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>          <span class="fu">{</span> <span class="dt">&quot;propertyPath&quot;</span><span class="fu">:</span> <span class="st">&quot;Key&quot;</span><span class="fu">,</span>   <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;eq&quot;</span><span class="fu">,</span> <span class="dt">&quot;testValue&quot;</span><span class="fu">:</span> <span class="st">&quot;priority&quot;</span> <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>          <span class="fu">{</span> <span class="dt">&quot;propertyPath&quot;</span><span class="fu">:</span> <span class="st">&quot;Value&quot;</span><span class="fu">,</span> <span class="dt">&quot;operation&quot;</span><span class="fu">:</span> <span class="st">&quot;eq&quot;</span><span class="fu">,</span> <span class="dt">&quot;testValue&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span>     <span class="fu">}</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        <span class="ot">]</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span><span class="ot">,</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;propertyPath&quot;</span><span class="fu">:</span> <span class="st">&quot;Score&quot;</span><span class="fu">,</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;operation&quot;</span><span class="fu">:</span>    <span class="st">&quot;ge&quot;</span><span class="fu">,</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;filterType&quot;</span><span class="fu">:</span>   <span class="st">&quot;TestValueParam&quot;</span><span class="fu">,</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;paramKey&quot;</span><span class="fu">:</span>     <span class="st">&quot;minScore&quot;</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="usage-patterns--complete-examples">Usage patterns — complete
+examples</h2>
+<h3 id="pattern-1-simple-flat-filter">Pattern 1: Simple flat filter</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsActive&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span>      <span class="op">},</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Score&quot;</span><span class="op">,</span>    Operation <span class="op">=</span> <span class="st">&quot;ge&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">75</span>         <span class="op">},</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Name&quot;</span><span class="op">,</span>     Operation <span class="op">=</span> <span class="st">&quot;cn&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Smith&quot;</span>   <span class="op">},</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Users</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-2-deep-navigation-path-auto-null-safe">Pattern 2: Deep
+navigation path (auto null-safe)</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer.Address.City&quot;</span><span class="op">,</span>    Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Richmond&quot;</span> <span class="op">},</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer.Address.ZipCode&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;bw&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;232&quot;</span>      <span class="op">},</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<h3 id="pattern-3-nested-andor">Pattern 3: Nested AND/OR</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">// (Status = &#39;Active&#39; AND Score &gt;= 80) OR (Status = &#39;VIP&#39;)</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    Operator   <span class="op">=</span> Operator<span class="op">.</span><span class="fu">OR</span><span class="op">,</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    FilterSets <span class="op">=</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSet</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>            Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>            Filters  <span class="op">=</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>            <span class="op">[</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>                <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Active&quot;</span> <span class="op">},</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>                <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Score&quot;</span><span class="op">,</span>  Operation <span class="op">=</span> <span class="st">&quot;ge&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">80</span>       <span class="op">},</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>            <span class="op">]</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        <span class="op">},</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSet</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>            Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>            Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;VIP&quot;</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<h3 id="pattern-4-collection-filtering--same-object">Pattern 4:
+Collection filtering — same-object</h3>
+<p>Use when ALL conditions must match the SAME element in the
+collection.</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Order must have a Tag where Key = &#39;color&#39; AND Value = &#39;red&#39; on THE SAME TAG</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>            PropertyPath <span class="op">=</span> <span class="st">&quot;Tags&quot;</span><span class="op">,</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>            Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>            FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet          <span class="co">// child FilterSet → same-object scope</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>            <span class="op">{</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>                Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>                Filters  <span class="op">=</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>                <span class="op">[</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Key&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;color&quot;</span> <span class="op">},</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Value&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;red&quot;</span>   <span class="op">},</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>                <span class="op">]</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<h3 id="pattern-5-collection-filtering--any-object">Pattern 5:
+Collection filtering — any-object</h3>
+<p>Use when conditions can be satisfied by DIFFERENT elements in the
+collection.</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Order has a tag with Key=&#39;color&#39; AND (separately) a tag with Value=&#39;red&#39; — may be different tags</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Tags.Key&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;color&quot;</span> <span class="op">},</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Tags.Value&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;red&quot;</span>   <span class="op">},</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<h3 id="pattern-6-runtime-parameter">Pattern 6: Runtime parameter</h3>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: the filter definition carries no hardcoded comparison value.</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="co">// The threshold is supplied at call time via params1. The FilterSet itself can</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co">// be stored in a database and reused across requests with different values.</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>        PropertyPath <span class="op">=</span> <span class="st">&quot;Price&quot;</span><span class="op">,</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>        Operation    <span class="op">=</span> <span class="st">&quot;le&quot;</span><span class="op">,</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>        FilterType   <span class="op">=</span> FilterType<span class="op">.</span><span class="fu">TestValueParam</span><span class="op">,</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        ParamKey     <span class="op">=</span> <span class="st">&quot;maxPrice&quot;</span>   <span class="co">// matches the key in params1 below</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}]</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> runtimeParams <span class="op">=</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;maxPrice&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="fl">49.99m</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-7-cross-type-dataset-query">Pattern 7: Cross-type
+dataset query</h3>
+<p>RHS value is derived by querying a separate typed dataset at
+expression-build time. The dataset type is completely independent from
+the entity being filtered. <code>Query</code> names the property to
+extract from the first matching element.</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co">// PricingRule is an entirely separate type from Product. MaxPrice is the property</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co">// that Query = &quot;MaxPrice&quot; extracts from the first matching rule.</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> PricingRule</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">string</span>  Category <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span> <span class="op">=</span> <span class="st">&quot;&quot;</span><span class="op">;</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">decimal</span> MaxPrice <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="co">// Pre-fetch the rules before building the filter. Must be a List&lt;T&gt;, not IQueryable&lt;T&gt;.</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> pricingRules <span class="op">=</span> <span class="kw">new</span> List<span class="op">&lt;</span>PricingRule<span class="op">&gt;</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span><span class="op">()</span> <span class="op">{</span> Category <span class="op">=</span> <span class="st">&quot;Electronics&quot;</span><span class="op">,</span> MaxPrice <span class="op">=</span> <span class="fl">999.00m</span> <span class="op">},</span></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span><span class="op">()</span> <span class="op">{</span> Category <span class="op">=</span> <span class="st">&quot;Accessories&quot;</span><span class="op">,</span>  MaxPrice <span class="op">=</span> <span class="fl">149.00m</span> <span class="op">},</span></span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: filter products by a price ceiling that comes from a PricingRule, not a</span></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a><span class="co">// hardcoded value. At expression-build time, FilterBuilder will:</span></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="co">//   1. Run the child FilterSet against pricingRules → find the rule where Category = &#39;Electronics&#39;</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="co">//   2. Extract MaxPrice from that rule → 999.00m</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="co">//   3. Use 999.00m as a constant in the WHERE clause</span></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="co">// EF Core SQL: WHERE Price &lt;= 999.00</span></span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>        PropertyPath <span class="op">=</span> <span class="st">&quot;Price&quot;</span><span class="op">,</span></span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>        Operation    <span class="op">=</span> <span class="st">&quot;le&quot;</span><span class="op">,</span></span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a>        FilterType   <span class="op">=</span> FilterType<span class="op">.</span><span class="fu">TestValueFilterExpression</span><span class="op">,</span></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a>        ParamKey     <span class="op">=</span> <span class="st">&quot;rules&quot;</span><span class="op">,</span>        <span class="co">// key into params1 for the dataset</span></span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a>        Query        <span class="op">=</span> <span class="st">&quot;MaxPrice&quot;</span><span class="op">,</span>     <span class="co">// property to extract from the matched PricingRule</span></span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>        FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet   <span class="co">// defines which PricingRule to match</span></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>            Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>            Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a>                PropertyPath <span class="op">=</span> <span class="st">&quot;Category&quot;</span><span class="op">,</span></span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a>                Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>                TestValue    <span class="op">=</span> <span class="st">&quot;Electronics&quot;</span></span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a>            <span class="op">}]</span></span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb16-40"><a href="#cb16-40" aria-hidden="true" tabindex="-1"></a>    <span class="op">}]</span></span>
+<span id="cb16-41"><a href="#cb16-41" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb16-42"><a href="#cb16-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> runtimeParams <span class="op">=</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;</span></span>
+<span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;rules&quot;</span><span class="op">]</span> <span class="op">=</span> pricingRules   <span class="co">// List&lt;PricingRule&gt; — a completely different type to Product</span></span>
+<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb16-47"><a href="#cb16-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-8-jsonpath-with-math-transform">Pattern 8: JSONPath with
+math transform</h3>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: comparison value comes from a JSON document field, then a math</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="co">// expression is applied before the constant is built. Here the filter matches</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="co">// sensors whose reading is within 5 degrees of a target angle from config.</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>        PropertyPath        <span class="op">=</span> <span class="st">&quot;Reading&quot;</span><span class="op">,</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>        Operation           <span class="op">=</span> <span class="st">&quot;le&quot;</span><span class="op">,</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>        FilterType          <span class="op">=</span> FilterType<span class="op">.</span><span class="fu">TestValueJson</span><span class="op">,</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>        ParamKey            <span class="op">=</span> <span class="st">&quot;config&quot;</span><span class="op">,</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>        Query               <span class="op">=</span> <span class="st">&quot;$.sensor.target&quot;</span><span class="op">,</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>        TestValueExpression <span class="op">=</span> <span class="st">&quot;Math.Abs(TestValue - 90)&quot;</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}]</span></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="co">// jsonDoc is a JsonDocument or JSON string loaded from config, a DB column, etc.</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> runtimeParams <span class="op">=</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;config&quot;</span><span class="op">]</span> <span class="op">=</span> jsonDoc</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> sensors<span class="op">.</span><span class="fu">AsQueryable</span><span class="op">().</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-9-first-match-priority-rules">Pattern 9: First-match
+priority rules</h3>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> rules <span class="op">=</span> <span class="kw">new</span> List<span class="op">&lt;</span>FilterSet<span class="op">&gt;</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>        Sequence       <span class="op">=</span> <span class="dv">1</span><span class="op">,</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>        Name           <span class="op">=</span> <span class="st">&quot;VIP&quot;</span><span class="op">,</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>        ReferenceValue <span class="op">=</span> <span class="st">&quot;tier-vip&quot;</span><span class="op">,</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>        Operator       <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        Filters        <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;TotalSpend&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;ge&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">10000</span>m <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>        Sequence       <span class="op">=</span> <span class="dv">2</span><span class="op">,</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>        Name           <span class="op">=</span> <span class="st">&quot;Gold&quot;</span><span class="op">,</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>        ReferenceValue <span class="op">=</span> <span class="st">&quot;tier-gold&quot;</span><span class="op">,</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>        Operator       <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>        Filters        <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;TotalSpend&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;ge&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">2500</span>m <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a><span class="co">// Rules are sorted by Sequence internally — insertion order does not matter</span></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>FilterSet<span class="op">?</span> matched <span class="op">=</span> FilterBuilder<span class="op">&lt;</span>Customer<span class="op">&gt;.</span><span class="fu">FindFirstMatch</span><span class="op">(</span>customers<span class="op">,</span> rules<span class="op">);</span></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a><span class="dt">string</span> tier <span class="op">=</span> matched<span class="op">?.</span><span class="fu">ReferenceValue</span> <span class="op">??</span> <span class="st">&quot;standard&quot;</span><span class="op">;</span></span></code></pre></div>
+<h3 id="pattern-10-example-based-generation">Pattern 10: Example-based
+generation</h3>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Generates a FilterSet from an example object&#39;s non-default property values</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> example <span class="op">=</span> <span class="kw">new</span> Product <span class="op">{</span> Category <span class="op">=</span> <span class="st">&quot;Electronics&quot;</span><span class="op">,</span> IsActive <span class="op">=</span> <span class="kw">true</span> <span class="op">};</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="co">// Price = 0m → excluded (default), Name = null → excluded (default)</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>FilterSet filter <span class="op">=</span> FilterBuilder<span class="op">&lt;</span>Product<span class="op">&gt;.</span><span class="fu">BuildFilterSetItem</span><span class="op">(</span>example<span class="op">);</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="co">// Equivalent to: WHERE Category = &#39;Electronics&#39; AND IsActive = true</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-11-custom-delimiter">Pattern 11: Custom delimiter</h3>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co">// All three are semantically identical to &quot;Customer.Address.City&quot;</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer/Address/City&quot;</span><span class="op">,</span>   Delimiter <span class="op">=</span> <span class="st">&quot;/&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Richmond&quot;</span> <span class="op">}</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer-&gt;Address-&gt;City&quot;</span><span class="op">,</span> Delimiter <span class="op">=</span> <span class="st">&quot;-&gt;&quot;</span><span class="op">,</span>  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Richmond&quot;</span> <span class="op">}</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer::Address::City&quot;</span><span class="op">,</span> Delimiter <span class="op">=</span> <span class="st">&quot;::&quot;</span><span class="op">,</span>  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Richmond&quot;</span> <span class="op">}</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="co">// Mixed delimiters in the same FilterSet — each Filter is independent</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;A/B/Name&quot;</span><span class="op">,</span>   Delimiter <span class="op">=</span> <span class="st">&quot;/&quot;</span><span class="op">,</span>  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;foo&quot;</span> <span class="op">},</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;X::Y::Score&quot;</span><span class="op">,</span> Delimiter <span class="op">=</span> <span class="st">&quot;::&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;gt&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">0</span>     <span class="op">},</span></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<hr />
+<h2 id="common-mistakes-to-avoid">Common mistakes to avoid</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Mistake</th>
+<th>Correct approach</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Using both <code>Filters</code> and <code>FilterSets</code> on the
+same node</td>
+<td>Choose one. Use <code>FilterSets</code> to compose groups,
+<code>Filters</code> for leaves</td>
+</tr>
+<tr class="even">
+<td>Expecting same-object collection semantics without a child
+<code>FilterSet</code></td>
+<td>Add a child <code>FilterSet</code> to the <code>Filter</code>
+targeting the collection property</td>
+</tr>
+<tr class="odd">
+<td>Putting conditions directly on the collection-targeting Filter</td>
+<td>Conditions targeting collection element properties go inside the
+child <code>FilterSet</code></td>
+</tr>
+<tr class="even">
+<td>Casting <code>TestValue</code> to the target type</td>
+<td>Don't — pass the natural value. Type coercion is automatic</td>
+</tr>
+<tr class="odd">
+<td>Setting <code>ParamKey</code> without setting
+<code>FilterType</code></td>
+<td><code>FilterType</code> must be <code>TestValueParam</code>,
+<code>TestValueFilterExpression</code>,
+<code>TestValueFilterExpressionMulti</code>, or
+<code>TestValueJson</code></td>
+</tr>
+<tr class="even">
+<td>Using <code>FindFirstMatch</code> and expecting insertion-order
+evaluation</td>
+<td>Evaluation order is determined by <code>Sequence</code> value, not
+list order</td>
+</tr>
+<tr class="odd">
+<td>Using string method operators on non-string properties</td>
+<td>String operators only work on <code>string</code> properties</td>
+</tr>
+<tr class="even">
+<td>Passing a scalar to <code>in</code> / <code>nin</code></td>
+<td><code>TestValue</code> must be an array —
+<code>new[] { "Active", "Pending" }</code></td>
+</tr>
+<tr class="odd">
+<td>Setting <code>TestValue</code> on <code>isnull</code> /
+<code>isnotnull</code></td>
+<td>No <code>TestValue</code> needed — omit it entirely</td>
+</tr>
+<tr class="even">
+<td>Using <code>year-eq</code> / etc. on a non-DateTime property</td>
+<td>Date component operators only work on <code>DateTime</code> /
+<code>DateTimeOffset</code></td>
+</tr>
+<tr class="odd">
+<td>Using <code>len-*</code> on a non-string property</td>
+<td>String length operators only work on <code>string</code>
+properties</td>
+</tr>
+<tr class="even">
+<td>Using <code>TestValueFilterExpressionMulti</code> with
+<code>Operation = "eq"</code></td>
+<td>Must use <code>"in"</code> or <code>"nin"</code> — multi-result
+produces an array</td>
+</tr>
+<tr class="odd">
+<td>Passing <code>IQueryable&lt;T&gt;</code> as a condition dataset in
+<code>params1</code></td>
+<td>Must be pre-materialized <code>List&lt;T&gt;</code> —
+<code>IQueryable&lt;T&gt;</code> bypasses EF Core translation</td>
+</tr>
+<tr class="even">
+<td>Caching an expression built with
+<code>TestValueFilterExpressionMulti</code> when the dataset
+changes</td>
+<td>Array is a snapshot — rebuild the expression if the underlying
+dataset changes</td>
+</tr>
+<tr class="odd">
+<td>Expecting Branch/Switch to produce conditional SQL</td>
+<td>Branch and Switch resolve at build time; EF Core receives a flat
+predicate with no conditional logic</td>
+</tr>
+<tr class="even">
+<td>Expecting <code>BranchIfNoMatch = null</code> to throw</td>
+<td><code>null</code> is valid — produces
+<code>Expression.Constant(true)</code> (match everything)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="decision-guide--which-operator--filtertype-to-use">Decision
+guide — which operator / FilterType to use?</h2>
+<pre><code>What are you testing?
+    ├── Equality / comparison on any type               → eq, ne, gt, ge, lt, le
+    ├── String content                                  → bw, bn, ew, en, cn, nc
+    │       └── Case-insensitive?                       → add CaseSensitive = false
+    │       └── Trim user input first?                  → add Normalize = true
+    ├── Membership in a known list                      → in / nin   (TestValue = array)
+    ├── Membership in a dynamically-computed set
+    │       └── All matches from another collection     → TestValueFilterExpressionMulti + in/nin
+    ├── Null / not-null                                 → isnull / isnotnull  (no TestValue)
+    ├── Date/time component
+    │       ├── Year                                    → year-eq
+    │       ├── Month (1–12)                            → month-eq
+    │       ├── Day of month (1–31)                     → day-eq
+    │       ├── Hour (0–23)                             → hour-eq
+    │       └── Day of week                             → dow-eq
+    └── String character count                          → len-eq / len-ne / len-gt / len-ge / len-lt / len-le
+
+What is the RHS value source?
+    ├── Known at authoring time                         → FilterType.Default
+    ├── Supplied per request                            → FilterType.TestValueParam
+    ├── First match from another collection             → FilterType.TestValueFilterExpression
+    ├── All matches from another collection (array)     → FilterType.TestValueFilterExpressionMulti
+    └── JSON document field                             → FilterType.TestValueJson
+
+Does the filter itself need to branch based on context?
+    ├── Binary if/else based on whether a condition matches  → FilterSetType.Branch
+    ├── Multi-way selection based on an extracted value      → FilterSetType.Switch
+    └── No branching                                         → FilterSetType.Standard (default)
+
+Can this be inside FilterBuilder or must it be external?
+    ├── Expressible as an EF Core-translatable expression tree  → inside FilterBuilder
+    ├── Geo/spatial distance (Haversine)                        → compose externally
+    └── Full-text search (CONTAINS, MATCH AGAINST)              → compose externally</code></pre>
+<h2
+id="decision-guide--same-object-vs-any-object-collection-scope">Decision
+guide — same-object vs any-object collection scope?</h2>
+<pre><code>Do ALL conditions need to match the SAME collection element?
+    YES → Put all conditions inside a child FilterSet on the collection-targeting Filter
+    NO  → Use dot-notation paths through the collection (no child FilterSet)</code></pre>
+<h2 id="generating-filtersets-from-natural-language">Generating
+FilterSets from natural language</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Natural language</th>
+<th>FilterSet structure</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>"where X equals Y"</td>
+<td><code>Filter { PropertyPath="X", Operation="eq", TestValue=Y }</code></td>
+</tr>
+<tr class="even">
+<td>"where X is greater than Y"</td>
+<td><code>Filter { PropertyPath="X", Operation="gt", TestValue=Y }</code></td>
+</tr>
+<tr class="odd">
+<td>"where X contains Y"</td>
+<td><code>Filter { PropertyPath="X", Operation="cn", TestValue=Y }</code></td>
+</tr>
+<tr class="even">
+<td>"where X contains Y (case-insensitive)"</td>
+<td>Same + <code>CaseSensitive=false</code></td>
+</tr>
+<tr class="odd">
+<td>"where X is one of [A, B, C]"</td>
+<td><code>Filter { Operation="in", TestValue=new[]{A,B,C} }</code></td>
+</tr>
+<tr class="even">
+<td>"where X is in the set of [active/matching] values from another
+collection"</td>
+<td><code>FilterType.TestValueFilterExpressionMulti</code> +
+<code>Operation="in"</code></td>
+</tr>
+<tr class="odd">
+<td>"where X is not A, B, or C"</td>
+<td><code>Filter { Operation="nin", TestValue=new[]{A,B,C} }</code></td>
+</tr>
+<tr class="even">
+<td>"where X is null / not set"</td>
+<td><code>Filter { Operation="isnull" }</code> — no TestValue</td>
+</tr>
+<tr class="odd">
+<td>"where X is not null / is set"</td>
+<td><code>Filter { Operation="isnotnull" }</code> — no TestValue</td>
+</tr>
+<tr class="even">
+<td>"where X is non-empty"</td>
+<td><code>Filter { Operation="len-gt", TestValue=0 }</code></td>
+</tr>
+<tr class="odd">
+<td>"where X has exactly N characters"</td>
+<td><code>Filter { Operation="len-eq", TestValue=N }</code></td>
+</tr>
+<tr class="even">
+<td>"records from year Y"</td>
+<td><code>Filter { Operation="year-eq", TestValue=Y }</code></td>
+</tr>
+<tr class="odd">
+<td>"records from month M"</td>
+<td><code>Filter { Operation="month-eq", TestValue=M }</code></td>
+</tr>
+<tr class="even">
+<td>"records on Mondays"</td>
+<td><code>Filter { Operation="dow-eq", TestValue="Monday" }</code></td>
+</tr>
+<tr class="odd">
+<td>"where A and B"</td>
+<td><code>FilterSet { Operator=AND, Filters=[A, B] }</code></td>
+</tr>
+<tr class="even">
+<td>"where A or B"</td>
+<td><code>FilterSet { Operator=OR, Filters=[A, B] }</code></td>
+</tr>
+<tr class="odd">
+<td>"(A and B) or (C and D)"</td>
+<td><code>FilterSet { Operator=OR, FilterSets=[{AND,[A,B]},{AND,[C,D]}] }</code></td>
+</tr>
+<tr class="even">
+<td>"if customer is VIP apply X filter, otherwise apply Y"</td>
+<td><code>FilterSetType.Branch</code></td>
+</tr>
+<tr class="odd">
+<td>"select filter based on customer tier"</td>
+<td><code>FilterSetType.Switch</code> with
+<code>SwitchValueProperty</code></td>
+</tr>
+<tr class="even">
+<td>"where any Tag has Key='x' and Value='y'"</td>
+<td>Collection filter with child FilterSet (same-object)</td>
+</tr>
+<tr class="odd">
+<td>"where there exists a Tag with Key='x' and also a Tag with
+Value='y'"</td>
+<td>Any-object scope — two dot-path filters</td>
+</tr>
+<tr class="even">
+<td>"ignore case / case-insensitive"</td>
+<td>Add <code>CaseSensitive=false</code> to any string Filter</td>
+</tr>
+<tr class="odd">
+<td>"trim whitespace / ignore spaces"</td>
+<td>Add <code>Normalize=true</code></td>
+</tr>
+<tr class="even">
+<td>"not deleted / active only"</td>
+<td><code>Filter { PropertyPath="DeletedAt", Operation="isnull" }</code></td>
+</tr>
+<tr class="odd">
+<td>"within X miles / km of location"</td>
+<td>Cannot be inside FilterBuilder — compose geo predicate
+externally</td>
+</tr>
+<tr class="even">
+<td>"full-text search / contains words"</td>
+<td>Cannot be inside FilterBuilder — compose via raw SQL</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="generating-filtersets-from-natural-language-1">Generating
+FilterSets from natural language</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Natural language</th>
+<th>FilterSet structure</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>"where X equals Y"</td>
+<td><code>Filter { PropertyPath="X", Operation="eq", TestValue=Y }</code></td>
+</tr>
+<tr class="even">
+<td>"where X is greater than Y"</td>
+<td><code>Filter { PropertyPath="X", Operation="gt", TestValue=Y }</code></td>
+</tr>
+<tr class="odd">
+<td>"where X contains Y"</td>
+<td><code>Filter { PropertyPath="X", Operation="cn", TestValue=Y }</code></td>
+</tr>
+<tr class="even">
+<td>"where X contains Y (case-insensitive)"</td>
+<td>Same + <code>CaseSensitive=false</code></td>
+</tr>
+<tr class="odd">
+<td>"where X is one of [A, B, C]"</td>
+<td><code>Filter { Operation="in", TestValue=new[]{A,B,C} }</code></td>
+</tr>
+<tr class="even">
+<td>"where X is not A, B, or C"</td>
+<td><code>Filter { Operation="nin", TestValue=new[]{A,B,C} }</code></td>
+</tr>
+<tr class="odd">
+<td>"where X is null / not set"</td>
+<td><code>Filter { Operation="isnull" }</code> — no TestValue</td>
+</tr>
+<tr class="even">
+<td>"where X is not null / is set"</td>
+<td><code>Filter { Operation="isnotnull" }</code> — no TestValue</td>
+</tr>
+<tr class="odd">
+<td>"where X is non-empty"</td>
+<td><code>Filter { Operation="len-gt", TestValue=0 }</code></td>
+</tr>
+<tr class="even">
+<td>"where X has exactly N characters"</td>
+<td><code>Filter { Operation="len-eq", TestValue=N }</code></td>
+</tr>
+<tr class="odd">
+<td>"records from year Y"</td>
+<td><code>Filter { Operation="year-eq", TestValue=Y }</code></td>
+</tr>
+<tr class="even">
+<td>"records from month M"</td>
+<td><code>Filter { Operation="month-eq", TestValue=M }</code></td>
+</tr>
+<tr class="odd">
+<td>"records on Mondays"</td>
+<td><code>Filter { Operation="dow-eq", TestValue="Monday" }</code></td>
+</tr>
+<tr class="even">
+<td>"where A and B"</td>
+<td><code>FilterSet { Operator=AND, Filters=[A, B] }</code></td>
+</tr>
+<tr class="odd">
+<td>"where A or B"</td>
+<td><code>FilterSet { Operator=OR, Filters=[A, B] }</code></td>
+</tr>
+<tr class="even">
+<td>"(A and B) or (C and D)"</td>
+<td><code>FilterSet { Operator=OR, FilterSets=[ {AND,[A,B]}, {AND,[C,D]} ] }</code></td>
+</tr>
+<tr class="odd">
+<td>"where any Tag has Key='x' and Value='y'"</td>
+<td>Collection filter with child FilterSet (same-object)</td>
+</tr>
+<tr class="even">
+<td>"where there exists a Tag with Key='x' and also a Tag with
+Value='y'"</td>
+<td>Any-object scope — two separate dot-path filters</td>
+</tr>
+<tr class="odd">
+<td>"where Name starts with 'Free'"</td>
+<td><code>Filter { PropertyPath="Name", Operation="bw", TestValue="Free" }</code></td>
+</tr>
+<tr class="even">
+<td>"where nav property City equals 'X'"</td>
+<td><code>Filter { PropertyPath="Nav.City", Operation="eq", TestValue="X" }</code>
+— null-safe automatically</td>
+</tr>
+<tr class="odd">
+<td>"ignore case / case-insensitive"</td>
+<td>Add <code>CaseSensitive=false</code> to any string Filter</td>
+</tr>
+<tr class="even">
+<td>"trim whitespace / ignore spaces"</td>
+<td>Add <code>Normalize=true</code> to any string Filter</td>
+</tr>
+<tr class="odd">
+<td>"not deleted / active only"</td>
+<td><code>Filter { PropertyPath="DeletedAt", Operation="isnull" }</code></td>
+</tr>
+<tr class="even">
+<td>"within X miles / km of location"</td>
+<td>Cannot be inside FilterBuilder — compose geo predicate
+externally</td>
+</tr>
+<tr class="odd">
+<td>"full-text search / contains words"</td>
+<td>Cannot be inside FilterBuilder — compose via raw SQL or external
+full-text predicate</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pattern-12-list-membership--in--nin">Pattern 12: List membership
+— in / nin</h3>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Status must be one of the provided values</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;in&quot;</span><span class="op">,</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>             TestValue <span class="op">=</span> <span class="kw">new</span><span class="op">[]</span> <span class="op">{</span> <span class="st">&quot;Active&quot;</span><span class="op">,</span> <span class="st">&quot;Pending&quot;</span><span class="op">,</span> <span class="st">&quot;Review&quot;</span> <span class="op">}</span> <span class="op">}</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Exclude specific values</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;nin&quot;</span><span class="op">,</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>             TestValue <span class="op">=</span> <span class="kw">new</span><span class="op">[]</span> <span class="op">{</span> <span class="st">&quot;Deleted&quot;</span><span class="op">,</span> <span class="st">&quot;Archived&quot;</span> <span class="op">}</span> <span class="op">}</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a><span class="co">// JSON representation</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="co">// { &quot;propertyPath&quot;: &quot;Status&quot;, &quot;operation&quot;: &quot;in&quot;, &quot;testValue&quot;: [&quot;Active&quot;,&quot;Pending&quot;,&quot;Review&quot;] }</span></span></code></pre></div>
+<h3 id="pattern-13-null-checks">Pattern 13: Null checks</h3>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Soft-delete: only non-deleted records</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;DeletedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnull&quot;</span> <span class="op">}</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Only records with a linked navigation property</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Customer.Address&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnotnull&quot;</span> <span class="op">}</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Compose with other conditions</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;DeletedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnull&quot;</span> <span class="op">},</span></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Status&quot;</span><span class="op">,</span>    Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;Active&quot;</span> <span class="op">},</span></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="pattern-14-datetime-component-filters">Pattern 14: Date/time
+component filters</h3>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Orders placed in March of any year</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;CreatedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;month-eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">3</span> <span class="op">}</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Events on Mondays — string name or integer both accepted</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;EventDate&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;dow-eq&quot;</span><span class="op">,</span>   TestValue <span class="op">=</span> <span class="st">&quot;Monday&quot;</span> <span class="op">}</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;EventDate&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;dow-eq&quot;</span><span class="op">,</span>   TestValue <span class="op">=</span> <span class="dv">1</span> <span class="op">}</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="co">// Records from 2024, in Q1 (AND composition)</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;CreatedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;year-eq&quot;</span><span class="op">,</span>  TestValue <span class="op">=</span> <span class="dv">2024</span> <span class="op">},</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;CreatedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;month-eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">3</span>    <span class="op">},</span></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="pattern-15-string-length-filters">Pattern 15: String length
+filters</h3>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Non-empty (null-safe — null string → false, no exception)</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Description&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;len-gt&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">0</span> <span class="op">}</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Postal code is exactly 5 characters</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;PostalCode&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;len-eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">5</span> <span class="op">}</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Within a column limit</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Name&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;len-le&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">100</span> <span class="op">}</span></span></code></pre></div>
+<h3
+id="pattern-16-case-insensitive-and-normalised-string-matching">Pattern
+16: Case-insensitive and normalised string matching</h3>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Case-insensitive contains</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Name&quot;</span><span class="op">,</span>  Operation <span class="op">=</span> <span class="st">&quot;cn&quot;</span><span class="op">,</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>             TestValue <span class="op">=</span> <span class="st">&quot;smith&quot;</span><span class="op">,</span> CaseSensitive <span class="op">=</span> <span class="kw">false</span> <span class="op">}</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Trim + lowercase — handles messy user input</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Email&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>             TestValue <span class="op">=</span> <span class="st">&quot;someone@somecompany.com&quot;</span><span class="op">,</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>             Normalize <span class="op">=</span> <span class="kw">true</span><span class="op">,</span> CaseSensitive <span class="op">=</span> <span class="kw">false</span> <span class="op">}</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Non-blank after trimming</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Name&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;len-gt&quot;</span><span class="op">,</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>             TestValue <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> Normalize <span class="op">=</span> <span class="kw">true</span> <span class="op">}</span></span></code></pre></div>
+<h3 id="pattern-17-soft-delete-base-filter-serializable">Pattern 17:
+Soft-delete base filter (serializable)</h3>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Option A — chain .Where() before ApplyFilters</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>dbContext<span class="op">.</span><span class="fu">Orders</span><span class="op">.</span><span class="fu">Where</span><span class="op">(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">DeletedAt</span> <span class="op">==</span> <span class="kw">null</span><span class="op">).</span><span class="fu">ApplyFilters</span><span class="op">(</span>userFilterSet<span class="op">);</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Option B — compose as nested FilterSet (fully serializable, storable in DB)</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> notDeleted <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;DeletedAt&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;isnull&quot;</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> combined <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    Operator   <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    FilterSets <span class="op">=</span> <span class="op">[</span> notDeleted<span class="op">,</span> userFilterSet <span class="op">]</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>dbContext<span class="op">.</span><span class="fu">Orders</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>combined<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-18-geo-distance--external-composition">Pattern 18:
+Geo-distance — external composition</h3>
+<p>FilterBuilder does not include a spatial operator (Haversine cannot
+be translated to SQL without a spatial database extension). Compose
+externally:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>Expression<span class="op">&lt;</span>Func<span class="op">&lt;</span>Property<span class="op">,</span> <span class="dt">bool</span><span class="op">&gt;&gt;</span> dataFilter <span class="op">=</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    FilterBuilder<span class="op">&lt;</span>Property<span class="op">&gt;.</span><span class="fu">ProcessFilterSet</span><span class="op">(</span>filterSet<span class="op">);</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>Expression<span class="op">&lt;</span>Func<span class="op">&lt;</span>Property<span class="op">,</span> <span class="dt">bool</span><span class="op">&gt;&gt;</span> geoFilter <span class="op">=</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=&gt;</span> GeoHelper<span class="op">.</span><span class="fu">DistanceKm</span><span class="op">(</span>p<span class="op">.</span><span class="fu">Latitude</span><span class="op">,</span> p<span class="op">.</span><span class="fu">Longitude</span><span class="op">,</span> <span class="fl">37.540</span><span class="op">,</span> <span class="op">-</span><span class="fl">77.434</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="fl">32.2</span><span class="op">;</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Compose with LinqKit — use AsExpandable() on IQueryable</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> combined <span class="op">=</span> dataFilter<span class="op">.</span><span class="fu">And</span><span class="op">(</span>geoFilter<span class="op">);</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results  <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Properties</span><span class="op">.</span><span class="fu">AsExpandable</span><span class="op">().</span><span class="fu">Where</span><span class="op">(</span>combined<span class="op">).</span><span class="fu">ToList</span><span class="op">();</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a><span class="co">// With NetTopologySuite + EF Core spatial extension (SQL Server / PostGIS):</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> target <span class="op">=</span> <span class="kw">new</span> <span class="fu">Point</span><span class="op">(</span>targetLng<span class="op">,</span> targetLat<span class="op">)</span> <span class="op">{</span> SRID <span class="op">=</span> <span class="dv">4326</span> <span class="op">};</span></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>Expression<span class="op">&lt;</span>Func<span class="op">&lt;</span>Property<span class="op">,</span> <span class="dt">bool</span><span class="op">&gt;&gt;</span> geoFilter <span class="op">=</span></span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">Location</span> <span class="op">!=</span> <span class="kw">null</span> <span class="op">&amp;&amp;</span> p<span class="op">.</span><span class="fu">Location</span><span class="op">.</span><span class="fu">Distance</span><span class="op">(</span>target<span class="op">)</span> <span class="op">&lt;=</span> radiusMetres<span class="op">;</span></span></code></pre></div>
+<h3 id="pattern-19-storing-filtersets-in-the-database">Pattern 19:
+Storing FilterSets in the database</h3>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> FilterRule</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">int</span>    Id            <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">string</span> TenantId      <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span> <span class="op">=</span> <span class="st">&quot;&quot;</span><span class="op">;</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">int</span>    Sequence      <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">string</span> FilterSetJson <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span> <span class="op">=</span> <span class="st">&quot;{}&quot;</span><span class="op">;</span> <span class="co">// nvarchar(max) / jsonb</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span>NotMapped<span class="op">]</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> FilterSet FilterSet</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>        get <span class="op">=&gt;</span> JsonSerializer<span class="op">.</span><span class="fu">Deserialize</span><span class="op">&lt;</span>FilterSet<span class="op">&gt;(</span>FilterSetJson<span class="op">)!;</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>        set <span class="op">=&gt;</span> FilterSetJson <span class="op">=</span> JsonSerializer<span class="op">.</span><span class="fu">Serialize</span><span class="op">(</span>value<span class="op">);</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Retrieve and apply</span></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> rules <span class="op">=</span> await db<span class="op">.</span><span class="fu">FilterRules</span></span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Where</span><span class="op">(</span>r <span class="op">=&gt;</span> r<span class="op">.</span><span class="fu">TenantId</span> <span class="op">==</span> tenantId<span class="op">).</span><span class="fu">OrderBy</span><span class="op">(</span>r <span class="op">=&gt;</span> r<span class="op">.</span><span class="fu">Sequence</span><span class="op">)</span></span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AsNoTracking</span><span class="op">().</span><span class="fu">ToListAsync</span><span class="op">();</span></span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true" tabindex="-1"></a>FilterSet<span class="op">?</span> matched <span class="op">=</span> FilterBuilder<span class="op">&lt;</span>Customer<span class="op">&gt;</span></span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">FindFirstMatch</span><span class="op">(</span>customers<span class="op">,</span> rules<span class="op">.</span><span class="fu">Select</span><span class="op">(</span>r <span class="op">=&gt;</span> r<span class="op">.</span><span class="fu">FilterSet</span><span class="op">).</span><span class="fu">ToList</span><span class="op">());</span></span></code></pre></div>
+<h3
+id="pattern-20-aspnet-core--receive-filterset-as-request-body">Pattern
+20: ASP.NET Core — receive FilterSet as request body</h3>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapPost</span><span class="op">(</span><span class="st">&quot;/api/orders/search&quot;</span><span class="op">,</span> <span class="fu">async</span> <span class="op">(</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span>FromBody<span class="op">]</span> FilterSearchRequest req<span class="op">,</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span>FromServices<span class="op">]</span> AppDbContext db<span class="op">,</span> CancellationToken ct<span class="op">)</span> <span class="op">=&gt;</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> filtered <span class="op">=</span> db<span class="op">.</span><span class="fu">Orders</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>req<span class="op">.</span><span class="fu">Filter</span><span class="op">,</span> params1<span class="op">:</span> req<span class="op">.</span><span class="fu">Params</span><span class="op">);</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> items    <span class="op">=</span> await filtered<span class="op">.</span><span class="fu">Skip</span><span class="op">((</span>req<span class="op">.</span><span class="fu">Page</span><span class="dv">-1</span><span class="op">)*</span>req<span class="op">.</span><span class="fu">PageSize</span><span class="op">).</span><span class="fu">Take</span><span class="op">(</span>req<span class="op">.</span><span class="fu">PageSize</span><span class="op">).</span><span class="fu">ToListAsync</span><span class="op">(</span>ct<span class="op">);</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> total    <span class="op">=</span> await filtered<span class="op">.</span><span class="fu">CountAsync</span><span class="op">(</span>ct<span class="op">);</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> Results<span class="op">.</span><span class="fu">Ok</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> items<span class="op">,</span> total <span class="op">});</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> record <span class="fu">FilterSearchRequest</span><span class="op">(</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    FilterSet<span class="op">?</span> Filter<span class="op">,</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;?</span> Params<span class="op">,</span></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> Page <span class="op">=</span> <span class="dv">1</span><span class="op">,</span> <span class="dt">int</span> PageSize <span class="op">=</span> <span class="dv">25</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Entity: Order → List&lt;LineItem&gt; Items → List&lt;Tag&gt; Tags</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="co">// &quot;Find orders where any LineItem has a Tag with Key=&#39;hazmat&#39; AND Value=&#39;true&#39; on the same Tag&quot;</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>            PropertyPath <span class="op">=</span> <span class="st">&quot;Items&quot;</span><span class="op">,</span>      <span class="co">// collection boundary 1</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>            Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>            FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="co">// same-object scope at LineItem level</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>            <span class="op">{</span></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>                Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>                Filters  <span class="op">=</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>                <span class="op">[</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">new</span> Filter</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>                    <span class="op">{</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>                        PropertyPath <span class="op">=</span> <span class="st">&quot;Tags&quot;</span><span class="op">,</span>   <span class="co">// collection boundary 2</span></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a>                        Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a>                        FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="co">// same-object scope at Tag level</span></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a>                        <span class="op">{</span></span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a>                            Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a>                            Filters  <span class="op">=</span></span>
+<span id="cb32-26"><a href="#cb32-26" aria-hidden="true" tabindex="-1"></a>                            <span class="op">[</span></span>
+<span id="cb32-27"><a href="#cb32-27" aria-hidden="true" tabindex="-1"></a>                                <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Key&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;hazmat&quot;</span> <span class="op">},</span></span>
+<span id="cb32-28"><a href="#cb32-28" aria-hidden="true" tabindex="-1"></a>                                <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Value&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;true&quot;</span>   <span class="op">},</span></span>
+<span id="cb32-29"><a href="#cb32-29" aria-hidden="true" tabindex="-1"></a>                            <span class="op">]</span></span>
+<span id="cb32-30"><a href="#cb32-30" aria-hidden="true" tabindex="-1"></a>                        <span class="op">}</span></span>
+<span id="cb32-31"><a href="#cb32-31" aria-hidden="true" tabindex="-1"></a>                    <span class="op">}</span></span>
+<span id="cb32-32"><a href="#cb32-32" aria-hidden="true" tabindex="-1"></a>                <span class="op">]</span></span>
+<span id="cb32-33"><a href="#cb32-33" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb32-34"><a href="#cb32-34" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb32-35"><a href="#cb32-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb32-36"><a href="#cb32-36" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb32-37"><a href="#cb32-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-38"><a href="#cb32-38" aria-hidden="true" tabindex="-1"></a><span class="co">// Compiles to:</span></span>
+<span id="cb32-39"><a href="#cb32-39" aria-hidden="true" tabindex="-1"></a><span class="co">// orders.Where(o =&gt;</span></span>
+<span id="cb32-40"><a href="#cb32-40" aria-hidden="true" tabindex="-1"></a><span class="co">//     o.Items.Any(item =&gt;</span></span>
+<span id="cb32-41"><a href="#cb32-41" aria-hidden="true" tabindex="-1"></a><span class="co">//         item.Tags.Any(tag =&gt; tag.Key == &quot;hazmat&quot; &amp;&amp; tag.Value == &quot;true&quot;)))</span></span></code></pre></div>
+<h3 id="pattern-21-multi-result-dataset-query">Pattern 21: Multi-result
+dataset query</h3>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Promotion is a separate type tracking which product categories are discounted.</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> Promotion</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">int</span>  CategoryId <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">bool</span> IsActive   <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> promotionList <span class="op">=</span> <span class="kw">new</span> List<span class="op">&lt;</span>Promotion<span class="op">&gt;</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span><span class="op">()</span> <span class="op">{</span> CategoryId <span class="op">=</span> <span class="dv">1</span><span class="op">,</span> IsActive <span class="op">=</span> <span class="kw">true</span>  <span class="op">},</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span><span class="op">()</span> <span class="op">{</span> CategoryId <span class="op">=</span> <span class="dv">4</span><span class="op">,</span> IsActive <span class="op">=</span> <span class="kw">true</span>  <span class="op">},</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span><span class="op">()</span> <span class="op">{</span> CategoryId <span class="op">=</span> <span class="dv">9</span><span class="op">,</span> IsActive <span class="op">=</span> <span class="kw">false</span> <span class="op">},</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span><span class="op">()</span> <span class="op">{</span> CategoryId <span class="op">=</span> <span class="dv">7</span><span class="op">,</span> IsActive <span class="op">=</span> <span class="kw">true</span>  <span class="op">},</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: filter products to only those in categories with an active promotion.</span></span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a><span class="co">// At expression-build time, FilterBuilder will:</span></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a><span class="co">//   1. Run child FilterSet against promotionList → collect ALL where IsActive = true</span></span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a><span class="co">//   2. Extract CategoryId from each match → int[] { 1, 4, 7 }</span></span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a><span class="co">//   3. Compile a membership test against that array</span></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a><span class="co">// EF Core SQL: WHERE CategoryId IN (1, 4, 7)</span></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>        PropertyPath <span class="op">=</span> <span class="st">&quot;CategoryId&quot;</span><span class="op">,</span></span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>        Operation    <span class="op">=</span> <span class="st">&quot;in&quot;</span><span class="op">,</span>                        <span class="co">// must be &quot;in&quot; or &quot;nin&quot;</span></span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a>        FilterType   <span class="op">=</span> FilterType<span class="op">.</span><span class="fu">TestValueFilterExpressionMulti</span><span class="op">,</span></span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a>        ParamKey     <span class="op">=</span> <span class="st">&quot;promotions&quot;</span><span class="op">,</span>                <span class="co">// key into params1 for the dataset</span></span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a>        Query        <span class="op">=</span> <span class="st">&quot;CategoryId&quot;</span><span class="op">,</span>                <span class="co">// property to extract from each match</span></span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true" tabindex="-1"></a>        FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true" tabindex="-1"></a>            Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true" tabindex="-1"></a>            Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsActive&quot;</span><span class="op">,</span></span>
+<span id="cb33-34"><a href="#cb33-34" aria-hidden="true" tabindex="-1"></a>                                      Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span> <span class="op">}]</span></span>
+<span id="cb33-35"><a href="#cb33-35" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb33-36"><a href="#cb33-36" aria-hidden="true" tabindex="-1"></a>    <span class="op">}]</span></span>
+<span id="cb33-37"><a href="#cb33-37" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb33-38"><a href="#cb33-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-39"><a href="#cb33-39" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> runtimeParams <span class="op">=</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;</span></span>
+<span id="cb33-40"><a href="#cb33-40" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb33-41"><a href="#cb33-41" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;promotions&quot;</span><span class="op">]</span> <span class="op">=</span> promotionList</span>
+<span id="cb33-42"><a href="#cb33-42" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb33-43"><a href="#cb33-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-44"><a href="#cb33-44" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-22-branch--binary-conditional-filter-selection">Pattern
+22: Branch — binary conditional filter selection</h3>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co">// VipRecord is a simple lookup type. vipList is pre-fetched before the filter runs.</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> VipRecord <span class="op">{</span> <span class="kw">public</span> Guid CustomerId <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span> <span class="op">}</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> vipList <span class="op">=</span> await dbContext<span class="op">.</span><span class="fu">VipRecords</span><span class="op">.</span><span class="fu">AsNoTracking</span><span class="op">().</span><span class="fu">ToListAsync</span><span class="op">();</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>Guid currentCustomerId <span class="op">=</span> <span class="op">...;</span> <span class="co">// from session, auth token, etc.</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: at expression-build time, check whether the current customer appears in</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a><span class="co">// the vipList. If yes, compile the VIP filter; if no, compile the standard filter.</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a><span class="co">// EF Core receives a single flat predicate either way — no conditional logic in SQL.</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>    FilterSetType      <span class="op">=</span> FilterSetType<span class="op">.</span><span class="fu">Branch</span><span class="op">,</span></span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>    ConditionParamKey  <span class="op">=</span> <span class="st">&quot;vipList&quot;</span><span class="op">,</span>              <span class="co">// key into params1 for the lookup dataset</span></span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>    ConditionFilterSet <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>            PropertyPath <span class="op">=</span> <span class="st">&quot;CustomerId&quot;</span><span class="op">,</span></span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a>            Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a>            FilterType   <span class="op">=</span> FilterType<span class="op">.</span><span class="fu">TestValueParam</span><span class="op">,</span></span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>            ParamKey     <span class="op">=</span> <span class="st">&quot;customerId&quot;</span></span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a>        <span class="op">}]</span></span>
+<span id="cb34-22"><a href="#cb34-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb34-23"><a href="#cb34-23" aria-hidden="true" tabindex="-1"></a>    BranchIfMatch <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span>              <span class="co">// compiled when customer IS in vipList</span></span>
+<span id="cb34-24"><a href="#cb34-24" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb34-25"><a href="#cb34-25" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span></span>
+<span id="cb34-26"><a href="#cb34-26" aria-hidden="true" tabindex="-1"></a>            <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsVipEligible&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span> <span class="op">},</span></span>
+<span id="cb34-27"><a href="#cb34-27" aria-hidden="true" tabindex="-1"></a>            <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Stock&quot;</span><span class="op">,</span>         Operation <span class="op">=</span> <span class="st">&quot;gt&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">0</span>    <span class="op">},</span></span>
+<span id="cb34-28"><a href="#cb34-28" aria-hidden="true" tabindex="-1"></a>        <span class="op">]</span></span>
+<span id="cb34-29"><a href="#cb34-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb34-30"><a href="#cb34-30" aria-hidden="true" tabindex="-1"></a>    BranchIfNoMatch <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span>            <span class="co">// compiled when customer is NOT in vipList</span></span>
+<span id="cb34-31"><a href="#cb34-31" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb34-32"><a href="#cb34-32" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsPublic&quot;</span><span class="op">,</span></span>
+<span id="cb34-33"><a href="#cb34-33" aria-hidden="true" tabindex="-1"></a>                                  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb34-34"><a href="#cb34-34" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb34-35"><a href="#cb34-35" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb34-36"><a href="#cb34-36" aria-hidden="true" tabindex="-1"></a><span class="co">// EF Core SQL (VIP):      WHERE IsVipEligible = 1 AND Stock &gt; 0</span></span>
+<span id="cb34-37"><a href="#cb34-37" aria-hidden="true" tabindex="-1"></a><span class="co">// EF Core SQL (standard): WHERE IsPublic = 1</span></span>
+<span id="cb34-38"><a href="#cb34-38" aria-hidden="true" tabindex="-1"></a><span class="co">// Branch decided at build time — no conditional logic in SQL</span></span>
+<span id="cb34-39"><a href="#cb34-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-40"><a href="#cb34-40" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> runtimeParams <span class="op">=</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;</span></span>
+<span id="cb34-41"><a href="#cb34-41" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb34-42"><a href="#cb34-42" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;vipList&quot;</span><span class="op">]</span>    <span class="op">=</span> vipList<span class="op">,</span>           <span class="co">// List&lt;VipRecord&gt; — the lookup dataset</span></span>
+<span id="cb34-43"><a href="#cb34-43" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;customerId&quot;</span><span class="op">]</span> <span class="op">=</span> currentCustomerId  <span class="co">// scalar compared against VipRecord.CustomerId</span></span>
+<span id="cb34-44"><a href="#cb34-44" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb34-45"><a href="#cb34-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-46"><a href="#cb34-46" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
+<h3
+id="pattern-23-switch--multi-case-filter-selection-by-extracted-value">Pattern
+23: Switch — multi-case filter selection by extracted value</h3>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co">// TierRule maps a customer to a named tier. tierRuleList is pre-fetched before the filter runs.</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> TierRule</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> Guid   CustomerId <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">string</span> TierName   <span class="op">{</span> <span class="kw">get</span><span class="op">;</span> <span class="kw">set</span><span class="op">;</span> <span class="op">}</span> <span class="op">=</span> <span class="st">&quot;&quot;</span><span class="op">;</span>  <span class="co">// e.g. &quot;VIP&quot;, &quot;Gold&quot;, &quot;Standard&quot;</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> tierRuleList <span class="op">=</span> await dbContext<span class="op">.</span><span class="fu">TierRules</span><span class="op">.</span><span class="fu">AsNoTracking</span><span class="op">().</span><span class="fu">ToListAsync</span><span class="op">();</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>Guid currentCustomerId <span class="op">=</span> <span class="op">...;</span> <span class="co">// from session, auth token, etc.</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a><span class="co">// Strategy: at expression-build time, look up the customer&#39;s TierName from tierRuleList,</span></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a><span class="co">// then select the matching filter case. EF Core receives a single flat predicate —</span></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a><span class="co">// no CASE WHEN in the generated SQL.</span></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>    FilterSetType       <span class="op">=</span> FilterSetType<span class="op">.</span><span class="fu">Switch</span><span class="op">,</span></span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>    ConditionParamKey   <span class="op">=</span> <span class="st">&quot;tierRules&quot;</span><span class="op">,</span>           <span class="co">// key into params1 for the lookup dataset</span></span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>    ConditionFilterSet  <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span></span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a>            PropertyPath <span class="op">=</span> <span class="st">&quot;CustomerId&quot;</span><span class="op">,</span></span>
+<span id="cb35-22"><a href="#cb35-22" aria-hidden="true" tabindex="-1"></a>            Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb35-23"><a href="#cb35-23" aria-hidden="true" tabindex="-1"></a>            FilterType   <span class="op">=</span> FilterType<span class="op">.</span><span class="fu">TestValueParam</span><span class="op">,</span></span>
+<span id="cb35-24"><a href="#cb35-24" aria-hidden="true" tabindex="-1"></a>            ParamKey     <span class="op">=</span> <span class="st">&quot;customerId&quot;</span></span>
+<span id="cb35-25"><a href="#cb35-25" aria-hidden="true" tabindex="-1"></a>        <span class="op">}]</span></span>
+<span id="cb35-26"><a href="#cb35-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb35-27"><a href="#cb35-27" aria-hidden="true" tabindex="-1"></a>    SwitchValueProperty <span class="op">=</span> <span class="st">&quot;TierName&quot;</span><span class="op">,</span>            <span class="co">// property to extract from the matched TierRule</span></span>
+<span id="cb35-28"><a href="#cb35-28" aria-hidden="true" tabindex="-1"></a>    SwitchCases         <span class="op">=</span></span>
+<span id="cb35-29"><a href="#cb35-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb35-30"><a href="#cb35-30" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSetCase <span class="op">{</span></span>
+<span id="cb35-31"><a href="#cb35-31" aria-hidden="true" tabindex="-1"></a>            WhenValue <span class="op">=</span> <span class="st">&quot;VIP&quot;</span><span class="op">,</span>       <span class="co">// case-insensitive match</span></span>
+<span id="cb35-32"><a href="#cb35-32" aria-hidden="true" tabindex="-1"></a>            Then      <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb35-33"><a href="#cb35-33" aria-hidden="true" tabindex="-1"></a>                Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb35-34"><a href="#cb35-34" aria-hidden="true" tabindex="-1"></a>                Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsVipEligible&quot;</span><span class="op">,</span></span>
+<span id="cb35-35"><a href="#cb35-35" aria-hidden="true" tabindex="-1"></a>                                          Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb35-36"><a href="#cb35-36" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb35-37"><a href="#cb35-37" aria-hidden="true" tabindex="-1"></a>        <span class="op">},</span></span>
+<span id="cb35-38"><a href="#cb35-38" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSetCase <span class="op">{</span></span>
+<span id="cb35-39"><a href="#cb35-39" aria-hidden="true" tabindex="-1"></a>            WhenValue <span class="op">=</span> <span class="st">&quot;Gold&quot;</span><span class="op">,</span></span>
+<span id="cb35-40"><a href="#cb35-40" aria-hidden="true" tabindex="-1"></a>            Then      <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb35-41"><a href="#cb35-41" aria-hidden="true" tabindex="-1"></a>                Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb35-42"><a href="#cb35-42" aria-hidden="true" tabindex="-1"></a>                Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;MinimumOrderValue&quot;</span><span class="op">,</span></span>
+<span id="cb35-43"><a href="#cb35-43" aria-hidden="true" tabindex="-1"></a>                                          Operation <span class="op">=</span> <span class="st">&quot;le&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="dv">500</span>m <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb35-44"><a href="#cb35-44" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb35-45"><a href="#cb35-45" aria-hidden="true" tabindex="-1"></a>        <span class="op">},</span></span>
+<span id="cb35-46"><a href="#cb35-46" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSetCase <span class="op">{</span></span>
+<span id="cb35-47"><a href="#cb35-47" aria-hidden="true" tabindex="-1"></a>            WhenValue <span class="op">=</span> <span class="st">&quot;Standard&quot;</span><span class="op">,</span></span>
+<span id="cb35-48"><a href="#cb35-48" aria-hidden="true" tabindex="-1"></a>            Then      <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb35-49"><a href="#cb35-49" aria-hidden="true" tabindex="-1"></a>                Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb35-50"><a href="#cb35-50" aria-hidden="true" tabindex="-1"></a>                Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsPublic&quot;</span><span class="op">,</span></span>
+<span id="cb35-51"><a href="#cb35-51" aria-hidden="true" tabindex="-1"></a>                                          Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb35-52"><a href="#cb35-52" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb35-53"><a href="#cb35-53" aria-hidden="true" tabindex="-1"></a>        <span class="op">},</span></span>
+<span id="cb35-54"><a href="#cb35-54" aria-hidden="true" tabindex="-1"></a>    <span class="op">],</span></span>
+<span id="cb35-55"><a href="#cb35-55" aria-hidden="true" tabindex="-1"></a>    SwitchDefault <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span>              <span class="co">// no matching tier → return nothing</span></span>
+<span id="cb35-56"><a href="#cb35-56" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb35-57"><a href="#cb35-57" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Id&quot;</span><span class="op">,</span></span>
+<span id="cb35-58"><a href="#cb35-58" aria-hidden="true" tabindex="-1"></a>                                  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> Guid<span class="op">.</span><span class="fu">Empty</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb35-59"><a href="#cb35-59" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb35-60"><a href="#cb35-60" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb35-61"><a href="#cb35-61" aria-hidden="true" tabindex="-1"></a><span class="co">// EF Core SQL: flat WHERE from selected case — no CASE WHEN in SQL</span></span>
+<span id="cb35-62"><a href="#cb35-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-63"><a href="#cb35-63" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> runtimeParams <span class="op">=</span> <span class="kw">new</span> Dictionary<span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">object</span><span class="op">?&gt;</span></span>
+<span id="cb35-64"><a href="#cb35-64" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb35-65"><a href="#cb35-65" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;tierRules&quot;</span><span class="op">]</span>  <span class="op">=</span> tierRuleList<span class="op">,</span></span>
+<span id="cb35-66"><a href="#cb35-66" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="st">&quot;customerId&quot;</span><span class="op">]</span> <span class="op">=</span> currentCustomerId</span>
+<span id="cb35-67"><a href="#cb35-67" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb35-68"><a href="#cb35-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-69"><a href="#cb35-69" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> results <span class="op">=</span> dbContext<span class="op">.</span><span class="fu">Products</span><span class="op">.</span><span class="fu">ApplyFilters</span><span class="op">(</span>filter<span class="op">,</span> params1<span class="op">:</span> runtimeParams<span class="op">);</span></span></code></pre></div>
+<h3 id="pattern-24-nested-branch-inside-switch">Pattern 24: Nested
+Branch inside Switch</h3>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Switch selects tier; VIP case itself branches on a feature flag</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> vipCase <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    FilterSetType      <span class="op">=</span> FilterSetType<span class="op">.</span><span class="fu">Branch</span><span class="op">,</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    ConditionParamKey  <span class="op">=</span> <span class="st">&quot;featureFlags&quot;</span><span class="op">,</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    ConditionFilterSet <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Flag&quot;</span><span class="op">,</span></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>                                  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;PremiumCatalog&quot;</span> <span class="op">}]</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>    BranchIfMatch   <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span>  <span class="co">// premium catalog on</span></span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsPremium&quot;</span><span class="op">,</span></span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a>                                  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb36-16"><a href="#cb36-16" aria-hidden="true" tabindex="-1"></a>    BranchIfNoMatch <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span>  <span class="co">// premium catalog off</span></span>
+<span id="cb36-17"><a href="#cb36-17" aria-hidden="true" tabindex="-1"></a>        Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb36-18"><a href="#cb36-18" aria-hidden="true" tabindex="-1"></a>        Filters  <span class="op">=</span> <span class="op">[</span> <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;IsVipEligible&quot;</span><span class="op">,</span></span>
+<span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a>                                  Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="kw">true</span> <span class="op">}</span> <span class="op">]</span></span>
+<span id="cb36-20"><a href="#cb36-20" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb36-21"><a href="#cb36-21" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb36-22"><a href="#cb36-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-23"><a href="#cb36-23" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb36-24"><a href="#cb36-24" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb36-25"><a href="#cb36-25" aria-hidden="true" tabindex="-1"></a>    FilterSetType       <span class="op">=</span> FilterSetType<span class="op">.</span><span class="fu">Switch</span><span class="op">,</span></span>
+<span id="cb36-26"><a href="#cb36-26" aria-hidden="true" tabindex="-1"></a>    ConditionParamKey   <span class="op">=</span> <span class="st">&quot;tierRules&quot;</span><span class="op">,</span></span>
+<span id="cb36-27"><a href="#cb36-27" aria-hidden="true" tabindex="-1"></a>    ConditionFilterSet  <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span> <span class="co">/* find customer tier */</span> <span class="op">},</span></span>
+<span id="cb36-28"><a href="#cb36-28" aria-hidden="true" tabindex="-1"></a>    SwitchValueProperty <span class="op">=</span> <span class="st">&quot;TierName&quot;</span><span class="op">,</span></span>
+<span id="cb36-29"><a href="#cb36-29" aria-hidden="true" tabindex="-1"></a>    SwitchCases         <span class="op">=</span></span>
+<span id="cb36-30"><a href="#cb36-30" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb36-31"><a href="#cb36-31" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSetCase <span class="op">{</span> WhenValue <span class="op">=</span> <span class="st">&quot;VIP&quot;</span><span class="op">,</span>      Then <span class="op">=</span> vipCase            <span class="op">},</span></span>
+<span id="cb36-32"><a href="#cb36-32" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> FilterSetCase <span class="op">{</span> WhenValue <span class="op">=</span> <span class="st">&quot;Standard&quot;</span><span class="op">,</span> Then <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="op">{</span> <span class="co">/* ... */</span> <span class="op">}</span> <span class="op">},</span></span>
+<span id="cb36-33"><a href="#cb36-33" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb36-34"><a href="#cb36-34" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb36-35"><a href="#cb36-35" aria-hidden="true" tabindex="-1"></a><span class="co">// Compiler recurses through the same ProcessFilterSet entry point for each nested level.</span></span>
+<span id="cb36-36"><a href="#cb36-36" aria-hidden="true" tabindex="-1"></a><span class="co">// Final output: a single flat Expression&lt;Func&lt;T,bool&gt;&gt; — EF Core generates normal SQL.</span></span></code></pre></div>
+<hr />
+<h2 id="nested-collection-example-advanced">Nested collection example
+(advanced)</h2>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Entity: Order → List&lt;LineItem&gt; Items → List&lt;Tag&gt; Tags</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="co">// &quot;Find orders where any LineItem has a Tag with Key=&#39;hazmat&#39; AND Value=&#39;true&#39; on the same Tag&quot;</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> filter <span class="op">=</span> <span class="kw">new</span> FilterSet</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>    Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>    Filters  <span class="op">=</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">new</span> Filter</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>            PropertyPath <span class="op">=</span> <span class="st">&quot;Items&quot;</span><span class="op">,</span>      <span class="co">// collection boundary 1</span></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>            Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>            FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="co">// same-object scope at LineItem level</span></span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>            <span class="op">{</span></span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>                Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a>                Filters  <span class="op">=</span></span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a>                <span class="op">[</span></span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a>                    <span class="kw">new</span> Filter</span>
+<span id="cb37-19"><a href="#cb37-19" aria-hidden="true" tabindex="-1"></a>                    <span class="op">{</span></span>
+<span id="cb37-20"><a href="#cb37-20" aria-hidden="true" tabindex="-1"></a>                        PropertyPath <span class="op">=</span> <span class="st">&quot;Tags&quot;</span><span class="op">,</span>   <span class="co">// collection boundary 2</span></span>
+<span id="cb37-21"><a href="#cb37-21" aria-hidden="true" tabindex="-1"></a>                        Operation    <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span></span>
+<span id="cb37-22"><a href="#cb37-22" aria-hidden="true" tabindex="-1"></a>                        FilterSet    <span class="op">=</span> <span class="kw">new</span> FilterSet <span class="co">// same-object scope at Tag level</span></span>
+<span id="cb37-23"><a href="#cb37-23" aria-hidden="true" tabindex="-1"></a>                        <span class="op">{</span></span>
+<span id="cb37-24"><a href="#cb37-24" aria-hidden="true" tabindex="-1"></a>                            Operator <span class="op">=</span> Operator<span class="op">.</span><span class="fu">AND</span><span class="op">,</span></span>
+<span id="cb37-25"><a href="#cb37-25" aria-hidden="true" tabindex="-1"></a>                            Filters  <span class="op">=</span></span>
+<span id="cb37-26"><a href="#cb37-26" aria-hidden="true" tabindex="-1"></a>                            <span class="op">[</span></span>
+<span id="cb37-27"><a href="#cb37-27" aria-hidden="true" tabindex="-1"></a>                                <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Key&quot;</span><span class="op">,</span>   Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;hazmat&quot;</span> <span class="op">},</span></span>
+<span id="cb37-28"><a href="#cb37-28" aria-hidden="true" tabindex="-1"></a>                                <span class="kw">new</span> Filter <span class="op">{</span> PropertyPath <span class="op">=</span> <span class="st">&quot;Value&quot;</span><span class="op">,</span> Operation <span class="op">=</span> <span class="st">&quot;eq&quot;</span><span class="op">,</span> TestValue <span class="op">=</span> <span class="st">&quot;true&quot;</span>   <span class="op">},</span></span>
+<span id="cb37-29"><a href="#cb37-29" aria-hidden="true" tabindex="-1"></a>                            <span class="op">]</span></span>
+<span id="cb37-30"><a href="#cb37-30" aria-hidden="true" tabindex="-1"></a>                        <span class="op">}</span></span>
+<span id="cb37-31"><a href="#cb37-31" aria-hidden="true" tabindex="-1"></a>                    <span class="op">}</span></span>
+<span id="cb37-32"><a href="#cb37-32" aria-hidden="true" tabindex="-1"></a>                <span class="op">]</span></span>
+<span id="cb37-33"><a href="#cb37-33" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb37-34"><a href="#cb37-34" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb37-35"><a href="#cb37-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">]</span></span>
+<span id="cb37-36"><a href="#cb37-36" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb37-37"><a href="#cb37-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-38"><a href="#cb37-38" aria-hidden="true" tabindex="-1"></a><span class="co">// Compiles to:</span></span>
+<span id="cb37-39"><a href="#cb37-39" aria-hidden="true" tabindex="-1"></a><span class="co">// orders.Where(o =&gt;</span></span>
+<span id="cb37-40"><a href="#cb37-40" aria-hidden="true" tabindex="-1"></a><span class="co">//     o.Items.Any(item =&gt;</span></span>
+<span id="cb37-41"><a href="#cb37-41" aria-hidden="true" tabindex="-1"></a><span class="co">//         item.Tags.Any(tag =&gt; tag.Key == &quot;hazmat&quot; &amp;&amp; tag.Value == &quot;true&quot;)))</span></span></code></pre></div>
+</body>
+</html>
