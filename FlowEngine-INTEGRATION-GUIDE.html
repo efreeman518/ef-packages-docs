@@ -85,200 +85,498 @@ or <code>Cosmos</code></td>
 </tr>
 </tbody>
 </table>
-<h3 id="decide-the-hosting-model">Decide the hosting model</h3>
-<p>There are two supported topologies:</p>
-<ol type="1">
-<li>Co-host everything in one ASP.NET Core app.</li>
-<li>Host the dashboard separately and point it at a remote Admin
-API.</li>
-</ol>
-<p>If you co-host, your app needs the engine, Admin API, dashboard
-services, and Blazor hosting. If you split them, the main app only needs
-FlowEngine and the Admin API, while the dashboard app only needs
-<code>EF.FlowEngine.Dashboard</code> plus the Admin API URL.</p>
+<h3 id="central-package-management">Central Package Management</h3>
+<p>Teams using <code>Directory.Packages.props</code> with
+<code>ManagePackageVersionsCentrally=true</code> should pin every
+FlowEngine sub-package at the same version. Paste this
+<code>ItemGroup</code> block into <code>Directory.Packages.props</code>
+and reference what you need (versionless) from each csproj:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">ItemGroup</span><span class="ot"> Label=</span><span class="st">&quot;EF.FlowEngine&quot;</span>&gt;</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine&quot;</span><span class="ot">                          Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.AdminApi&quot;</span><span class="ot">                 Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Dashboard&quot;</span><span class="ot">                Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Testing&quot;</span><span class="ot">                  Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.StateStore.Sql&quot;</span><span class="ot">           Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Locks.Sql&quot;</span><span class="ot">                Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.WorkflowRegistry.Sql&quot;</span><span class="ot">     Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.HumanTaskStore.Sql&quot;</span><span class="ot">       Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Outbox.Sql&quot;</span><span class="ot">               Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.CircuitBreaker.Sql&quot;</span><span class="ot">       Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Http&quot;</span><span class="ot">             Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.ServiceBus&quot;</span><span class="ot">       Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.OpenAI&quot;</span><span class="ot">           Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Sql&quot;</span><span class="ot">              Version=</span><span class="st">&quot;1.1.0&quot;</span> /&gt;</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
+<p>Then in each consuming csproj:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageReference</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine&quot;</span> /&gt;</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageReference</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.StateStore.Sql&quot;</span> /&gt;</span></code></pre></div>
+<p>(no <code>Version</code> attribute — CPM resolves it from
+<code>Directory.Packages.props</code>).</p>
+<h3 id="choosing-your-database-layout">Choosing your database
+layout</h3>
+<p>The FlowEngine state-store tables can live in the same database as
+your application data or in a dedicated database. <strong>This is the
+most important architectural decision in the integration</strong>,
+because it determines whether outbox writes remain atomic with state
+writes.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Variant</th>
+<th>Atomic outbox</th>
+<th>Resource isolation</th>
+<th>Cross-DB joins</th>
+<th>Ops cost</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>A. Same DB, application tables + FlowEngine tables
+together</strong></td>
+<td>✅ kept (single <code>SaveChangesAsync</code>)</td>
+<td>shared instance / pool; per-context separation via
+<code>AddPooledDbContextFactory</code></td>
+<td>n/a — single DB</td>
+<td>lowest — one resource, one backup window, one connection string</td>
+<td>Monoliths, demos, small teams; anywhere <code>message</code> /
+<code>agent</code> / <code>integration</code> nodes rely on FlowEngine's
+outbox</td>
+</tr>
+<tr class="even">
+<td><strong>B. Separate DB on the same server/instance</strong></td>
+<td>❌ lost — different DbContext, different connection</td>
+<td>full buffer pool / IO isolation; shared compute</td>
+<td>possible via 3-part names</td>
+<td>medium — second DB, second migration history</td>
+<td>Connection-pool / buffer-cache isolation without paying for a second
+SQL instance</td>
+</tr>
+<tr class="odd">
+<td><strong>C. Separate DB on a separate server</strong></td>
+<td>❌ lost</td>
+<td>full IO + compute isolation</td>
+<td>not practical</td>
+<td>highest — second instance, separate failure domain, separate PITR
+coordination</td>
+<td>Platform-team-owned FlowEngine serving many apps; SaaS pattern;
+aggressive blast-radius / compliance</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Hinge:</strong> the atomic-outbox guarantee.
+<code>SqlOutboxStore</code> writes outbox rows in the same
+<code>SaveChangesAsync</code> as the execution instance — but only if
+both entity sets are mapped on the same <code>DbContext</code>. The
+moment FlowEngine tables live in a different DbContext (Variants B or
+C), this guarantee disappears. Use B/C only if your app already has an
+at-least-once publisher (Service Bus + transactional outbox,
+MassTransit) and you route FlowEngine <code>message</code> sends through
+it via <a
+href="#delegatingmessageclient"><code>DelegatingMessageClient</code></a>.</p>
+<p><strong>Migration coordination (B/C):</strong> two migration
+histories, two deploy steps. Recommend the table name
+<code>__EFMigrationsHistory_FlowEngine</code> to make grep / audit
+trivial.</p>
+<p><strong>PITR drift (B/C):</strong> workflow <code>Entity</code> JSON
+snapshots reference business-data IDs by value. Point-in-time-restoring
+one database without the other surfaces dangling references in
+suspended-instance context. Co-located backup windows mitigate but do
+not eliminate.</p>
+<p><strong>Once data exists, moving between variants requires data
+migration.</strong> Decide upfront.</p>
+<h3 id="composing-flowengine-into-your-dbcontext">Composing FlowEngine
+into your DbContext</h3>
+<p>FlowEngine SQL providers consume any <code>DbContext</code> that
+exposes the right <code>DbSet</code> properties and applies the right
+entity configurations. There is no abstract base class to inherit
+from.</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> EF<span class="op">.</span><span class="fu">FlowEngine</span><span class="op">.</span><span class="fu">Sql</span><span class="op">;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> EF<span class="op">.</span><span class="fu">FlowEngine</span><span class="op">.</span><span class="fu">Outbox</span><span class="op">.</span><span class="fu">Sql</span><span class="op">;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> EF<span class="op">.</span><span class="fu">FlowEngine</span><span class="op">.</span><span class="fu">CircuitBreaker</span><span class="op">.</span><span class="fu">Sql</span><span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> <span class="fu">AppDbContext</span><span class="op">(</span>DbContextOptions<span class="op">&lt;</span>AppDbContext<span class="op">&gt;</span> options<span class="op">)</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span> <span class="fu">DbContext</span><span class="op">(</span>options<span class="op">),</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>      IFlowEngineStateDbContext<span class="op">,</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>      IFlowEngineOutboxDbContext<span class="op">,</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>      IFlowEngineCircuitBreakerDbContext</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Your own DbSets ...</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>Order<span class="op">&gt;</span>    Orders    <span class="op">=&gt;</span> Set<span class="op">&lt;</span>Order<span class="op">&gt;();</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>Customer<span class="op">&gt;</span> Customers <span class="op">=&gt;</span> Set<span class="op">&lt;</span>Customer<span class="op">&gt;();</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">// FlowEngine state</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>FlowEngineWorkflowRow<span class="op">&gt;</span>    Workflows    <span class="op">=&gt;</span> Set<span class="op">&lt;</span>FlowEngineWorkflowRow<span class="op">&gt;();</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>FlowEngineExecutionRow<span class="op">&gt;</span>   Executions   <span class="op">=&gt;</span> Set<span class="op">&lt;</span>FlowEngineExecutionRow<span class="op">&gt;();</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>FlowEngineHumanTaskRow<span class="op">&gt;</span>   HumanTasks   <span class="op">=&gt;</span> Set<span class="op">&lt;</span>FlowEngineHumanTaskRow<span class="op">&gt;();</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>FlowEngineChildSignalRow<span class="op">&gt;</span> ChildSignals <span class="op">=&gt;</span> Set<span class="op">&lt;</span>FlowEngineChildSignalRow<span class="op">&gt;();</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Outbox (optional)</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>FlowEngineOutboxRow<span class="op">&gt;</span> Outbox <span class="op">=&gt;</span> Set<span class="op">&lt;</span>FlowEngineOutboxRow<span class="op">&gt;();</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">StageOutboxEntry</span><span class="op">(</span>EF<span class="op">.</span><span class="fu">FlowEngine</span><span class="op">.</span><span class="fu">Model</span><span class="op">.</span><span class="fu">OutboxEntry</span> entry<span class="op">)</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        <span class="op">=&gt;</span> OutboxDbContextHelpers<span class="op">.</span><span class="fu">StageOutboxEntry</span><span class="op">(</span><span class="kw">this</span><span class="op">,</span> entry<span class="op">);</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Circuit-breaker store (optional)</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> DbSet<span class="op">&lt;</span>FlowEngineCircuitBreakerRow<span class="op">&gt;</span> CircuitBreakers <span class="op">=&gt;</span> Set<span class="op">&lt;</span>FlowEngineCircuitBreakerRow<span class="op">&gt;();</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    <span class="kw">protected</span> <span class="kw">override</span> <span class="dt">void</span> <span class="fu">OnModelCreating</span><span class="op">(</span>ModelBuilder mb<span class="op">)</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="kw">base</span><span class="op">.</span><span class="fu">OnModelCreating</span><span class="op">(</span>mb<span class="op">);</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Your own configuration ...</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>        mb<span class="op">.</span><span class="fu">ApplyFlowEngineState</span><span class="op">();</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        mb<span class="op">.</span><span class="fu">ApplyFlowEngineOutbox</span><span class="op">();</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>        mb<span class="op">.</span><span class="fu">ApplyFlowEngineCircuitBreaker</span><span class="op">();</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Because the FlowEngine concerns are mixin extensions on
+<code>ModelBuilder</code>, your app's <code>DbContext</code> can still
+inherit from your own audit / multi-tenant base class — no
+diamond-inheritance forced choice.</p>
 <h3 id="configure-flowengine">Configure FlowEngine</h3>
 <p>Select the backing stores first, then register your workflow
 clients.</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> flowEngineBuilder <span class="op">=</span> builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">();</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseWorkflowRegistrySql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseLockProviderSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> flowEngineBuilder <span class="op">=</span> builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">();</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseWorkflowRegistrySql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseLockProviderSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseHumanTaskStoreSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseOutboxSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;()</span>             <span class="co">// requires IFlowEngineOutboxDbContext</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseCircuitBreakerSql</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;();</span>    <span class="co">// requires IFlowEngineCircuitBreakerDbContext</span></span></code></pre></div>
 <p>For Redis deployments, swap to the Redis provider extensions. For
 local development, you can use the file or in-memory defaults, but those
 are not production choices.</p>
+<p>All 19 built-in node executors are registered automatically by
+<code>AddFlowEngine()</code>. If you're composing FlowEngine into a
+custom service collection that does not call
+<code>AddFlowEngine()</code>, use:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddBuiltInNodeExecutors</span><span class="op">();</span></span></code></pre></div>
 <h3 id="add-sql-migration-support">Add SQL migration support</h3>
 <p>If you use SQL-backed providers, register the DbContext factory and
 the migration hosted service before the app starts serving traffic.</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddDbContextFactory</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span>opts <span class="op">=&gt;</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">UseSqlServer</span><span class="op">(</span>builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">(</span><span class="st">&quot;FlowEngineDb&quot;</span><span class="op">)));</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHostedService</span><span class="op">&lt;</span>MigrationStartupTask<span class="op">&gt;();</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddDbContextFactory</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span>opts <span class="op">=&gt;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">UseSqlServer</span><span class="op">(</span>builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">(</span><span class="st">&quot;FlowEngineDb&quot;</span><span class="op">)));</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHostedService</span><span class="op">&lt;</span>MigrationStartupTask<span class="op">&gt;();</span></span></code></pre></div>
 <p>If you also have a demo or sample database, register that separately.
 Keep production workflow storage and demo data migrations distinct.</p>
 <h3 id="register-required-clients">Register required clients</h3>
 <p>FlowEngine does not own your business integrations. Register the
-clients your workflows reference by name or via typed adapters.</p>
-<p>Typical examples:</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddHttpClient</span><span class="op">(</span><span class="st">&quot;payment-api&quot;</span><span class="op">)</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddClient</span><span class="op">(</span>sp <span class="op">=&gt;</span> <span class="kw">new</span> EfQueryClient<span class="op">&lt;</span>MyQueryDbContext<span class="op">&gt;(</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        clientRef<span class="op">:</span> <span class="st">&quot;query-client&quot;</span><span class="op">,</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        factory<span class="op">:</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IDbContextFactory<span class="op">&lt;</span>MyQueryDbContext<span class="op">&gt;&gt;(),</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        typeMap<span class="op">:</span> MyQueryDbContext<span class="op">.</span><span class="fu">EntityTypeMap</span><span class="op">,</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        setResolver<span class="op">:</span> ResolveSet<span class="op">));</span></span></code></pre></div>
-<p>If a workflow uses Service Bus, OpenAI, SQL query clients, or other
-integrations, register those clients in the same composition root before
-the engine starts.</p>
+clients your workflows reference by name.</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddHttpClient</span><span class="op">(</span><span class="st">&quot;payment-api&quot;</span><span class="op">);</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co">// Service Bus — connection string variant</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddServiceBusClient</span><span class="op">(</span><span class="st">&quot;order-events&quot;</span><span class="op">,</span> connectionString<span class="op">:</span> cs<span class="op">,</span> queueOrTopic<span class="op">:</span> <span class="st">&quot;orders&quot;</span><span class="op">);</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">// Service Bus — factory variant (typical for Microsoft.Extensions.Azure callers)</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddServiceBusClient</span><span class="op">(</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;order-events&quot;</span><span class="op">,</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    sp <span class="op">=&gt;</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IAzureClientFactory<span class="op">&lt;</span>ServiceBusClient<span class="op">&gt;&gt;().</span><span class="fu">CreateClient</span><span class="op">(</span><span class="st">&quot;my-bus&quot;</span><span class="op">),</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    queueOrTopic<span class="op">:</span> <span class="st">&quot;orders&quot;</span><span class="op">);</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure OpenAI — factory variant that bridges AzureOpenAIClient to IChatClient</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddAzureOpenAIAgentClient</span><span class="op">(</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;gpt4o&quot;</span><span class="op">,</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    sp <span class="op">=&gt;</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>AzureOpenAIClient<span class="op">&gt;(),</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    deploymentName<span class="op">:</span> <span class="st">&quot;gpt-4o-prod&quot;</span><span class="op">,</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    modelName<span class="op">:</span> <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span></code></pre></div>
+<p>If your app already has an <code>IIntegrationEventPublisher</code>
+(or MassTransit, or a custom bus) and you want FlowEngine
+<code>message</code> nodes to delegate to it (preserving tenant headers,
+correlation IDs, OTel baggage), wrap it with
+<code>DelegatingMessageClient</code>:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IFlowClient<span class="op">&gt;(</span>sp <span class="op">=&gt;</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> publisher <span class="op">=</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IIntegrationEventPublisher<span class="op">&gt;();</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">return</span> <span class="kw">new</span> <span class="fu">DelegatingMessageClient</span><span class="op">(</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        clientRef<span class="op">:</span> <span class="st">&quot;domain-events&quot;</span><span class="op">,</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        sendAsync<span class="op">:</span> <span class="fu">async</span> <span class="op">(</span>req<span class="op">,</span> ct<span class="op">)</span> <span class="op">=&gt;</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>            await publisher<span class="op">.</span><span class="fu">PublishAsync</span><span class="op">(</span>req<span class="op">.</span><span class="fu">Subject</span><span class="op">,</span> req<span class="op">.</span><span class="fu">Body</span><span class="op">,</span> req<span class="op">.</span><span class="fu">Properties</span><span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>            <span class="kw">return</span> <span class="kw">new</span> MessageResult <span class="op">{</span> Sent <span class="op">=</span> <span class="kw">true</span><span class="op">,</span> Outcome <span class="op">=</span> DecisionOutcome<span class="op">.</span><span class="fu">Match</span> <span class="op">};</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">});</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<h3 id="seed-workflow-definitions-from-json-files">Seed workflow
+definitions from JSON files</h3>
+<p>Ship workflow JSON files in a <code>Workflows/</code> directory and
+have FlowEngine seed them on startup:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddWorkflowJsonSeeding</span><span class="op">(</span>opts <span class="op">=&gt;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">Directory</span>                <span class="op">=</span> <span class="st">&quot;Workflows&quot;</span><span class="op">;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">SearchPattern</span>            <span class="op">=</span> <span class="st">&quot;*.json&quot;</span><span class="op">;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">ActivateOnSeed</span>           <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>   <span class="co">// saves as Draft, then transitions → Active</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">OverwriteExistingVersion</span> <span class="op">=</span> <span class="kw">false</span><span class="op">;</span>  <span class="co">// skip on duplicates</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<p>The seeder reads each file with
+<code>WorkflowDefinitionJsonOptions.Default</code> (camelCase,
+string-named enums with integer fallback). If you build your own seeder,
+use that same options instance — never raw
+<code>JsonSerializerOptions()</code>:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> def <span class="op">=</span> JsonSerializer<span class="op">.</span><span class="fu">Deserialize</span><span class="op">&lt;</span>WorkflowDefinition<span class="op">&gt;(</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    json<span class="op">,</span> WorkflowDefinitionJsonOptions<span class="op">.</span><span class="fu">Default</span><span class="op">)!;</span></span></code></pre></div>
+<p>Equivalently,
+<code>WorkflowDefinitionBuilder.FromJson(json).Build()</code> uses the
+same options internally and fails fast with a clear message if the JSON
+shape didn't match.</p>
 <h3 id="add-the-admin-api">Add the Admin API</h3>
 <p>The dashboard talks to the Admin API, so the API must be exposed
 somewhere in your solution.</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineAdminPolicies</span><span class="op">();</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFlowEngineAdmin</span><span class="op">(</span>prefix<span class="op">:</span> <span class="st">&quot;/api/flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineAdminPolicies</span><span class="op">();</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFlowEngineAdmin</span><span class="op">();</span>                              <span class="co">// default prefix /api/flowengine</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFlowEngineAdmin</span><span class="op">(</span>prefix<span class="op">:</span> <span class="st">&quot;/admin/flowengine&quot;</span><span class="op">);</span>   <span class="co">// or override</span></span></code></pre></div>
 <p>The Admin API requires the engine services to already be registered.
 It exposes instance management, workflow registry operations,
 circuit-breaker operations, compatibility analysis, and human-task
 endpoints.</p>
+<h3 id="multi-tenancy-end-to-end">Multi-tenancy: end-to-end</h3>
+<p><code>StartRequest.TenantId</code> is propagated to
+<code>ExecutionInstance.TenantId</code>. The engine does not enforce
+tenant isolation — each store implementation filters on it. Enable
+Admin-API tenant scoping by calling
+<code>AddFlowEngineAdminTenantPolicy</code> alongside
+<code>AddFlowEngineAdminPolicies</code>:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddFlowEngineAdminPolicies</span><span class="op">()</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddFlowEngineAdminTenantPolicy</span><span class="op">(</span>opts <span class="op">=&gt;</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">TenantClaimType</span> <span class="op">=</span> <span class="st">&quot;tid&quot;</span><span class="op">;</span>      <span class="co">// OIDC claim</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">FallbackHeader</span>  <span class="op">=</span> <span class="st">&quot;X-Tenant&quot;</span><span class="op">;</span> <span class="co">// optional, off by default</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">RequireTenant</span>   <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>       <span class="co">// 403 when neither resolves</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">});</span></span></code></pre></div>
+<p>When enabled, an endpoint filter resolves the tenant for every Admin
+API request and populates a request-scoped
+<code>FlowEngineTenantContext</code>. Endpoints honor it in two
+ways:</p>
+<ul>
+<li><code>GET /instances</code> injects <code>tenant.TenantId</code>
+into <code>ExecutionQuery.TenantId</code>.</li>
+<li><code>GET /instances/{id}</code> returns 404 if the instance's
+<code>TenantId</code> doesn't match the caller's tenant.</li>
+</ul>
+<p>For asynchronous trigger handlers (Service Bus consumers, hosted
+services) that call <code>IFlowEngine.StartAsync</code> outside an HTTP
+request, capture the tenant on the inbound message and pass it
+explicitly:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> async Task <span class="fu">HandleAsync</span><span class="op">(</span>OrderCreatedEvent evt<span class="op">,</span> CancellationToken ct<span class="op">)</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    await engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        WorkflowId <span class="op">=</span> <span class="st">&quot;order-flow&quot;</span><span class="op">,</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>        TenantId   <span class="op">=</span> evt<span class="op">.</span><span class="fu">TenantId</span><span class="op">,</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>        Entity     <span class="op">=</span> JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span>evt<span class="op">)</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span> ct<span class="op">);</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p><strong>Dashboard:</strong> the Dashboard does not currently filter
+by tenant — host one Dashboard per tenant, or wrap the Admin API call
+inside a <code>DelegatingHandler</code> that forces the caller's tenant
+claim onto the upstream request.</p>
 <h3 id="add-the-dashboard-ui">Add the Dashboard UI</h3>
 <p>If you want the UI inside the same ASP.NET Core app, register the
-dashboard and map Blazor endpoints.</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    adminApiBaseUrl<span class="op">:</span> builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">[</span><span class="st">&quot;FlowEngine:AdminApiBaseUrl&quot;</span><span class="op">]!);</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapBlazorHub</span><span class="op">();</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFallbackToPage</span><span class="op">(</span><span class="st">&quot;/_Host&quot;</span><span class="op">);</span></span></code></pre></div>
-<p>If the dashboard is hosted separately, set
-<code>adminApiBaseUrl</code> to the remote API host and configure
-authentication headers in the optional <code>configureClient</code>
-callback.</p>
+dashboard.</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    adminApiBaseUrl<span class="op">:</span> builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">[</span><span class="st">&quot;FlowEngine:AdminApiBaseUrl&quot;</span><span class="op">]!);</span></span></code></pre></div>
+<p><code>AddFlowEngineDashboard</code> registers a startup-time
+validator (<code>DashboardStartupValidator</code>) that throws a clear
+exception if MudBlazor services (<code>IDialogService</code>,
+<code>ISnackbar</code>) are missing — surfacing host-misconfiguration
+before the user hits a Dashboard route.</p>
+<h4 id="net-8-razor-components-host">.NET 8+ Razor Components host</h4>
+<p>The Dashboard's pages use <code>@page</code> routing. In a
+<code>MapRazorComponents&lt;App&gt;()</code> host, the Dashboard
+assembly must be added to <code>Router.AdditionalAssemblies</code> for
+those routes to be discovered. Without this, navigation to
+<code>/workflows/registry</code>, <code>/workflows/new</code>, etc.
+returns 404 with no startup error.</p>
+<p>In <code>App.razor</code>:</p>
+<pre class="razor"><code>&lt;Router AppAssembly=&quot;@typeof(App).Assembly&quot;
+        AdditionalAssemblies=&quot;new[] { typeof(EF.FlowEngine.Dashboard.DashboardServiceExtensions).Assembly }&quot;&gt;
+    &lt;Found Context=&quot;routeData&quot;&gt;
+        &lt;RouteView RouteData=&quot;@routeData&quot; DefaultLayout=&quot;@typeof(MainLayout)&quot; /&gt;
+    &lt;/Found&gt;
+&lt;/Router&gt;</code></pre>
+<p>In <code>_Imports.razor</code>:</p>
+<pre class="razor"><code>@using EF.FlowEngine.Dashboard
+@using EF.FlowEngine.Dashboard.Pages</code></pre>
+<p>Required MudBlazor providers in the host's root component (typically
+<code>MainLayout.razor</code>):</p>
+<pre class="razor"><code>&lt;MudThemeProvider /&gt;
+&lt;MudPopoverProvider /&gt;
+&lt;MudDialogProvider /&gt;
+&lt;MudSnackbarProvider /&gt;</code></pre>
+<p>The package itself does NOT render these — the host's layout owns
+them. Missing providers fail silently when the user navigates to a page
+that opens a dialog or snackbar.</p>
+<p><strong>MudBlazor version window:</strong> the Dashboard targets
+MudBlazor 9.x. Verify your host pins a compatible major version.</p>
+<h4 id="forwarding-user-authentication-to-the-admin-api">Forwarding user
+authentication to the Admin API</h4>
+<p>When the Dashboard sits in the same app as the Admin API (or talks to
+a remote API behind the same identity provider), forward the inbound
+user's bearer token to the Admin API call so per-tenant / per-scope
+authorization is enforced upstream:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">BearerForwardingHandler</span><span class="op">(</span>IHttpContextAccessor accessor<span class="op">)</span> <span class="op">:</span> DelegatingHandler</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">protected</span> <span class="kw">override</span> Task<span class="op">&lt;</span>HttpResponseMessage<span class="op">&gt;</span> <span class="fu">SendAsync</span><span class="op">(</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>        HttpRequestMessage request<span class="op">,</span> CancellationToken ct<span class="op">)</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> token <span class="op">=</span> accessor<span class="op">.</span><span class="fu">HttpContext</span><span class="op">?.</span><span class="fu">Request</span><span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">Authorization</span><span class="op">.</span><span class="fu">ToString</span><span class="op">();</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(!</span><span class="dt">string</span><span class="op">.</span><span class="fu">IsNullOrEmpty</span><span class="op">(</span>token<span class="op">))</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>            request<span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">TryAddWithoutValidation</span><span class="op">(</span><span class="st">&quot;Authorization&quot;</span><span class="op">,</span> token<span class="op">);</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> <span class="kw">base</span><span class="op">.</span><span class="fu">SendAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHttpContextAccessor</span><span class="op">();</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddTransient</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;();</span></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">)</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddHttpMessageHandler</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;();</span></span></code></pre></div>
+<h4 id="dashboard-package-dependencies">Dashboard package
+dependencies</h4>
+<p><code>EF.FlowEngine.Dashboard</code> transitively pulls
+<code>EF.FlowEngine.Clients.Sql</code> — the in-Dashboard "Add SQL Query
+Client" feature constructs <code>AdHocSqlQueryClient</code>. If you do
+not use that feature, the package payload still includes it; treat it as
+part of the Dashboard's surface area.</p>
 <h3 id="suggested-composition-order">Suggested composition order</h3>
 <ol type="1">
 <li>Add the FlowEngine package.</li>
-<li>Pick the state store, lock provider, and workflow registry.</li>
+<li>Pick the state store, lock provider, workflow registry, and
+human-task store.</li>
+<li>Compose them into your DbContext
+(<code>IFlowEngineStateDbContext</code> +
+<code>ApplyFlowEngineState()</code>, plus optional outbox /
+circuit-breaker mixins).</li>
 <li>Add SQL migration startup tasks if the selected providers need
 them.</li>
 <li>Register all workflow clients that the solution uses.</li>
-<li>Add the Admin API and policies.</li>
-<li>Add the dashboard package and Blazor hosting.</li>
-<li>For sample or demo workflows, add any extra client registrations and
-sample seeders separately.</li>
+<li>Add <code>AddWorkflowJsonSeeding</code> if you ship JSON workflow
+files.</li>
+<li>Add the Admin API and policies, plus the tenant policy if
+multi-tenant.</li>
+<li>Add the dashboard package and Razor Components hosting
+(Router.AdditionalAssemblies + MudBlazor providers).</li>
 </ol>
 <h3 id="testing-workflows">Testing Workflows</h3>
 <h4 id="unit-tests">Unit Tests</h4>
 <p>Unit tests validate individual node execution logic without database
 setup. Use <code>EF.FlowEngine.Testing</code> to build test
 contexts:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> testContext <span class="op">=</span> TestExecutionContext<span class="op">.</span><span class="fu">Create</span><span class="op">()</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithEntity</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> OrderId <span class="op">=</span> <span class="st">&quot;ORD-001&quot;</span><span class="op">,</span> Amount <span class="op">=</span> <span class="dv">5000</span> <span class="op">})</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithContext</span><span class="op">(</span><span class="st">&quot;approvalThreshold&quot;</span><span class="op">,</span> <span class="dv">3000</span><span class="op">)</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> executor <span class="op">=</span> <span class="kw">new</span> <span class="fu">FilterNodeExecutor</span><span class="op">(</span><span class="co">/* ... */</span><span class="op">);</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> result <span class="op">=</span> await executor<span class="op">.</span><span class="fu">ExecuteAsync</span><span class="op">(</span>nodeConfig<span class="op">,</span> testContext<span class="op">);</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>DecisionOutcome<span class="op">.</span><span class="fu">Match</span><span class="op">,</span> result<span class="op">.</span><span class="fu">Outcome</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> testContext <span class="op">=</span> TestExecutionContext<span class="op">.</span><span class="fu">Create</span><span class="op">()</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithEntity</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> OrderId <span class="op">=</span> <span class="st">&quot;ORD-001&quot;</span><span class="op">,</span> Amount <span class="op">=</span> <span class="dv">5000</span> <span class="op">})</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithContext</span><span class="op">(</span><span class="st">&quot;approvalThreshold&quot;</span><span class="op">,</span> <span class="dv">3000</span><span class="op">)</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> executor <span class="op">=</span> <span class="kw">new</span> <span class="fu">FilterNodeExecutor</span><span class="op">(</span><span class="co">/* ... */</span><span class="op">);</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> result <span class="op">=</span> await executor<span class="op">.</span><span class="fu">ExecuteAsync</span><span class="op">(</span>nodeConfig<span class="op">,</span> testContext<span class="op">);</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>DecisionOutcome<span class="op">.</span><span class="fu">Match</span><span class="op">,</span> result<span class="op">.</span><span class="fu">Outcome</span><span class="op">);</span></span></code></pre></div>
 <p>For transient failures or store resilience, wrap the state store with
 <code>FaultableExecutionStateStore</code> to inject single-fault
 scenarios:</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> faultable <span class="op">=</span> <span class="kw">new</span> <span class="fu">FaultableExecutionStateStore</span><span class="op">(</span>realStateStore<span class="op">);</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>faultable<span class="op">.</span><span class="fu">FaultOnNextSave</span> <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>  <span class="co">// Next save throws; auto-clears</span></span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> faultable <span class="op">=</span> <span class="kw">new</span> <span class="fu">FaultableExecutionStateStore</span><span class="op">(</span>realStateStore<span class="op">);</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>faultable<span class="op">.</span><span class="fu">FaultOnNextSave</span> <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>  <span class="co">// Next save throws; auto-clears</span></span></code></pre></div>
 <h4 id="integration-tests">Integration Tests</h4>
 <p>Integration tests run complete workflows against real infrastructure
 (SQL, Redis, Cosmos). Use <strong>TestContainers</strong> to manage
 ephemeral databases per test assembly:</p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestClass<span class="op">]</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>ClassInitialize<span class="op">]</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">static</span> async Task <span class="fu">AssemblyInit</span><span class="op">(</span>TestContext _<span class="op">)</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> sqlContainer <span class="op">=</span> <span class="kw">new</span> <span class="fu">MsSqlBuilder</span><span class="op">(</span><span class="st">&quot;mcr.microsoft.com/mssql/server:2025-latest&quot;</span><span class="op">).</span><span class="fu">Build</span><span class="op">();</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    await sqlContainer<span class="op">.</span><span class="fu">StartAsync</span><span class="op">();</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    _connectionString <span class="op">=</span> sqlContainer<span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">();</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>Build a fresh DI container per test with in-memory or SQL
-providers:</p>
-<div class="sourceCode" id="cb9"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestInitialize<span class="op">]</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">TestInit</span><span class="op">()</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> services <span class="op">=</span> <span class="kw">new</span> <span class="fu">ServiceCollection</span><span class="op">();</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseLockProviderSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>FilterNodeExecutor<span class="op">&gt;()</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ... register all executors and clients</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">AddHttpClient</span><span class="op">(</span><span class="st">&quot;api&quot;</span><span class="op">);</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    _provider <span class="op">=</span> services<span class="op">.</span><span class="fu">BuildServiceProvider</span><span class="op">();</span></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    _engine <span class="op">=</span> _provider<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IFlowEngine<span class="op">&gt;();</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p><strong>Testing human workflows:</strong></p>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Start workflow — should suspend at human node</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest <span class="op">{</span> WorkflowId <span class="op">=</span> <span class="st">&quot;approval-flow&quot;</span><span class="op">,</span> Entity <span class="op">=</span> order <span class="op">});</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Suspended</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Submit human response</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>await _humanTasks<span class="op">.</span><span class="fu">RespondAsync</span><span class="op">(</span>humanTaskId<span class="op">,</span> <span class="kw">new</span> HumanTaskResponse </span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="op">{</span> </span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    FormValues <span class="op">=</span> <span class="kw">new</span> <span class="op">{</span> decision <span class="op">=</span> <span class="st">&quot;approved&quot;</span> <span class="op">},</span></span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    RespondedBy <span class="op">=</span> <span class="st">&quot;manager@company.com&quot;</span> </span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
-<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Resume workflow from the human node</span></span>
-<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span>instance<span class="op">.</span><span class="fu">InstanceId</span><span class="op">,</span> eventName<span class="op">:</span> <span class="st">&quot;human.response&quot;</span><span class="op">,</span> correlationKey<span class="op">:</span> humanTaskId<span class="op">);</span></span>
-<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Completed</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestClass<span class="op">]</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>ClassInitialize<span class="op">]</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">static</span> async Task <span class="fu">AssemblyInit</span><span class="op">(</span>TestContext _<span class="op">)</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> sqlContainer <span class="op">=</span> <span class="kw">new</span> <span class="fu">MsSqlBuilder</span><span class="op">(</span><span class="st">&quot;mcr.microsoft.com/mssql/server:2025-latest&quot;</span><span class="op">).</span><span class="fu">Build</span><span class="op">();</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    await sqlContainer<span class="op">.</span><span class="fu">StartAsync</span><span class="op">();</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    _connectionString <span class="op">=</span> sqlContainer<span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">();</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Build a fresh DI container per test with SQL providers:</p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestInitialize<span class="op">]</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">TestInit</span><span class="op">()</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> services <span class="op">=</span> <span class="kw">new</span> <span class="fu">ServiceCollection</span><span class="op">();</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    services<span class="op">.</span><span class="fu">AddDbContextFactory</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">UseSqlServer</span><span class="op">(</span>_connectionString<span class="op">));</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseLockProviderSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseWorkflowRegistrySql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">AddHttpClient</span><span class="op">(</span><span class="st">&quot;api&quot;</span><span class="op">);</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>    _provider <span class="op">=</span> services<span class="op">.</span><span class="fu">BuildServiceProvider</span><span class="op">();</span></span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>    _engine <span class="op">=</span> _provider<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IFlowEngine<span class="op">&gt;();</span></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>All 19 built-in node executors are registered by
+<code>AddFlowEngine()</code> — you do not need to enumerate them.</p>
+<h4 id="testing-human-workflows">Testing human workflows</h4>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest <span class="op">{</span> WorkflowId <span class="op">=</span> <span class="st">&quot;approval-flow&quot;</span><span class="op">,</span> Entity <span class="op">=</span> order <span class="op">});</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Suspended</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>await _humanTasks<span class="op">.</span><span class="fu">RespondAsync</span><span class="op">(</span>humanTaskId<span class="op">,</span> <span class="kw">new</span> HumanTaskResponse</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    FormValues  <span class="op">=</span> <span class="kw">new</span> <span class="op">{</span> decision <span class="op">=</span> <span class="st">&quot;approved&quot;</span> <span class="op">},</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    RespondedBy <span class="op">=</span> <span class="st">&quot;manager@company.com&quot;</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span>instance<span class="op">.</span><span class="fu">InstanceId</span><span class="op">,</span> eventName<span class="op">:</span> <span class="st">&quot;human.response&quot;</span><span class="op">,</span> correlationKey<span class="op">:</span> humanTaskId<span class="op">);</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Completed</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span></code></pre></div>
 <p><strong>Reference implementation:</strong> the source repository
 includes 9 realistic end-to-end use cases covering healthcare, loans,
 e-commerce, AI, compliance, scheduling, and orchestration patterns.</p>
-<h4 id="testing-via-the-dashboard-ui">Testing via the Dashboard UI</h4>
-<p>For manual validation or E2E testing, host the Blazor dashboard in
-your own ASP.NET Core app (see <a
-href="#decide-the-hosting-model">Decide the hosting model</a> above).
-Point it at a real SQL Server and Redis (or use .NET Aspire to spin them
-up as containers during development), and use the dashboard's
-<strong>Run Workflow</strong> page to test workflows with custom input
-and the <strong>Instance List</strong> to trace execution history.</p>
 <h4 id="in-memory-testing-for-local-development">In-Memory Testing for
 Local Development</h4>
-<p>For fast local unit/integration tests without containers, use the
-in-memory providers:</p>
-<div class="sourceCode" id="cb11"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseAllInMemoryProviders</span><span class="op">()</span>  <span class="co">// in-memory state, locks, registry, human tasks</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddNodeExecutor</span><span class="op">&lt;</span>FilterNodeExecutor<span class="op">&gt;()</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ... add executors</span></span></code></pre></div>
-<p><strong>Important:</strong> in-memory providers are <strong>not
-distributed</strong> — use only for single-instance local development
-and unit tests. For multi-instance or production, use SQL/Redis/Cosmos
-providers.</p>
-<h4 id="test-infrastructure">Test Infrastructure</h4>
-<p>The integration test projects provide reusable fixtures and base
-classes:</p>
-<ul>
-<li><strong>TestContainers fixtures</strong> for SQL, Redis, Cosmos,
-RabbitMQ, ServiceBus</li>
-<li><strong>Test base classes</strong> that handle DI isolation, hosted
-service lifecycle, and backend state cleanup</li>
-<li><strong>Mock clients</strong> (WireMock, stubs) for simulating
-external dependencies</li>
-<li><strong>TestExecutionContext builder</strong> for creating isolated
-execution contexts in unit tests</li>
-</ul>
+<p>For fast local unit/integration tests without containers:</p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">().</span><span class="fu">UseAllInMemoryProviders</span><span class="op">();</span></span></code></pre></div>
+<p><strong>Important:</strong> in-memory providers are not distributed —
+use only for single-instance local development and unit tests. For
+multi-instance or production, use SQL / Redis / Cosmos providers.</p>
+<h3 id="known-issues">Known issues</h3>
+<h4
+id="roslyn-version-conflict-with-microsoftentityframeworkcoredesign">Roslyn
+version conflict with
+<code>Microsoft.EntityFrameworkCore.Design</code></h4>
+<p><code>EF.FlowEngine</code> depends on
+<code>Microsoft.CodeAnalysis.CSharp.Scripting 5.3.0</code> (for the
+workflow expression evaluator used by <code>compute</code>,
+<code>wait</code>, and edge-guard nodes). EF Core Design 10.x pulls in
+older <code>Microsoft.CodeAnalysis.Workspaces 5.0.0</code>. Pinning only
+<code>Microsoft.CodeAnalysis.Common</code> lets restore succeed but
+<code>dotnet ef migrations add</code> then crashes with
+<code>TypeLoadException: Method 'ReduceExtensionMember' ... not have an implementation</code>.
+Pin <strong>all four</strong> Roslyn packages to 5.3.0:</p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Common&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Workspaces.Common&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp.Workspaces&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span></code></pre></div>
+<p>Plus an explicit <code>&lt;PackageReference&gt;</code> to all four in
+the project that runs <code>dotnet ef</code>. The error is misleading
+because <code>dotnet restore</code> succeeds with only two pins.</p>
 <h3 id="reference-packages">Reference packages</h3>
-<p>Install these NuGet packages to get the components described in this
-guide:</p>
 <ul>
 <li><code>EF.FlowEngine</code> — core workflow engine</li>
 <li><code>EF.FlowEngine.AdminApi</code> — Admin API extensions
-(<code>FlowEngineAdminApiExtensions</code>)</li>
+(<code>FlowEngineAdminApiExtensions</code>,
+<code>TenantPolicyExtensions</code>)</li>
 <li><code>EF.FlowEngine.Dashboard</code> — Blazor dashboard services
 (<code>DashboardServiceExtensions</code>)</li>
 <li><code>EF.FlowEngine.Testing</code> — test fixtures and helpers</li>
