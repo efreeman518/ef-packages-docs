@@ -180,7 +180,7 @@
   <tr><th>Feature</th><th>Description</th></tr>
   <tr><td><strong>Declarative JSON workflows</strong></td><td>Every workflow is a directed graph of typed nodes and conditional edges — fully serializable, storable, and versioned as data</td></tr>
   <tr><td><strong>19 node types</strong></td><td><code>filter</code>, <code>decision</code>, <code>store</code>, <code>compute</code>, <code>transform</code>, <code>integration</code>, <code>fetch</code>, <code>query</code>, <code>agent</code>, <code>message</code>, <code>loop</code>, <code>workflow</code>, <code>parallel</code>, <code>human</code>, <code>wait</code>, <code>timer</code>, <code>output</code>, <code>checkpoint</code>, <code>document</code></td></tr>
-  <tr><td><strong>Durable async execution</strong></td><td>Suspend at any async boundary, persist full state, resume on any server — workflows survive process restarts and server failures</td></tr>
+  <tr><td><strong>Durable async execution</strong></td><td>Suspend at explicit wait boundaries (<code>human</code>, <code>wait</code>, <code>timer</code>, <code>message</code> RequestReply), persist full state, resume on any server — workflows survive process restarts and server failures. Nodes that call external systems inline (<code>query</code>, <code>integration</code>, <code>fetch</code>, etc.) execute and advance without suspending.</td></tr>
   <tr><td><strong>FilterBuilder integration</strong></td><td><code>filter</code> and <code>query</code> nodes use FilterBuilder for typed, null-safe, EF Core-translatable conditions</td></tr>
   <tr><td><strong>Distributed locking</strong></td><td>Pluggable <code>IDistributedLockProvider</code> — Redis, Azure Blob, SQL — prevents duplicate execution across server instances</td></tr>
   <tr><td><strong>Pluggable state stores</strong></td><td>SQL Server, Postgres, Redis, CosmosDB, Azure Table, local file — implement <code>IExecutionStateStore</code> for any backend</td></tr>
@@ -2085,7 +2085,9 @@ await registry.TransitionStatusAsync("order-processing", "1.0", DefinitionStatus
 <h3>Phase 3 — Trigger execution</h3>
 <p>Any event calls <code>IFlowEngine.StartAsync</code> or <code>StartBackgroundAsync</code>. The engine resolves the latest <code>Active</code> definition, creates an <code>ExecutionInstance</code>, and runs the node graph.</p>
 
-<div class="callout callout-blue"><strong>Synchronous vs background entry points.</strong> <code>StartAsync</code>, <code>ResumeAsync</code> / <code>ResumeByInstanceIdAsync</code>, and <code>IHumanTaskStore.SubmitResponseAsync</code> await the execution loop — the calling thread blocks until the workflow reaches its next suspension point or terminal state. For workflows with many nodes, this holds the HTTP request open. Use the background counterparts — <code>StartBackgroundAsync</code>, <code>ResumeBackgroundAsync</code>, <code>ResumeByInstanceIdBackgroundAsync</code>, <code>SubmitResponseBackgroundAsync</code> — to return immediately so callers can respond before the workflow completes. Without an intake queue, background methods fire execution on the thread pool and return <code>Status=Running</code>. When an <code>IIntakeQueue</code> is registered, <code>StartBackgroundAsync</code> enqueues the instance instead and returns <code>Status=Queued</code>; <code>IntakeDrainService</code> drains the queue concurrently. <code>StartAsync</code> always executes synchronously — it bypasses the intake queue regardless of registration. The client polls <code>IExecutionStateStore.LoadAsync</code> for final status using the returned <code>instanceId</code>.</div>
+<div class="callout callout-blue"><strong>Synchronous vs background entry points.</strong> <code>StartAsync</code>, <code>ResumeAsync</code> / <code>ResumeByInstanceIdAsync</code>, and <code>IHumanTaskStore.SubmitResponseAsync</code> await the execution loop — the calling thread blocks until the workflow reaches its next suspension point or terminal state. For workflows with many nodes, this holds the HTTP request open. Use the background counterparts — <code>StartBackgroundAsync</code>, <code>ResumeBackgroundAsync</code>, <code>ResumeByInstanceIdBackgroundAsync</code>, <code>SubmitResponseBackgroundAsync</code> — to return immediately so callers can respond before the workflow completes. Without an intake queue, background methods fire execution on the thread pool and return <code>Status=Running</code>. When an <code>IIntakeQueue</code> is registered, <code>StartBackgroundAsync</code> enqueues the instance instead and returns <code>Status=Queued</code>; <code>IntakeDrainService</code> drains the queue concurrently. <code>StartAsync</code> always executes synchronously — it bypasses the intake queue regardless of registration.
+<br><br>
+<strong>Sync request-response pattern (no polling).</strong> Only <code>human</code>, <code>wait</code>, <code>timer</code>, and <code>message</code> (RequestReply) nodes cause suspension. All other node types — <code>query</code>, <code>integration</code>, <code>fetch</code>, <code>compute</code>, <code>decision</code>, etc. — execute their external calls inline and advance without suspending. A workflow composed entirely of non-suspending nodes will return <code>Status=Completed</code> from a single <code>StartAsync</code> call with the full output context available immediately. No polling required. Use <code>StartBackgroundAsync</code> only when you explicitly want fire-and-forget behavior (event handlers, bulk launches, or workflows expected to suspend).</div>
 
 <p><strong>HTTP — synchronous (returns final or suspended state)</strong></p>
 <pre><span class="lang-tag">csharp</span><code>app.MapPost("/orders", async (CreateOrderRequest req, IFlowEngine engine) =&gt;
@@ -2121,6 +2123,24 @@ app.MapGet("/orders/{instanceId}", async (string instanceId, IExecutionStateStor
 {
     var inst = await store.LoadAsync(instanceId, ct);
     return inst is null ? Results.NotFound() : Results.Ok(new { inst.Status, inst.CurrentNodeId });
+});</code></pre>
+
+<p><strong>HTTP — sync request-response (workflow completes inline, result returned immediately)</strong></p>
+<p>Use this pattern when the workflow contains only non-suspending nodes (<code>query</code>, <code>integration</code>, <code>fetch</code>, <code>compute</code>, <code>decision</code>, etc.). <code>StartAsync</code> returns <code>Status=Completed</code> with the full output context — no polling, no <code>instanceId</code> round-trip.</p>
+<pre><span class="lang-tag">csharp</span><code>app.MapPost("/eligibility-check", async (EligibilityRequest req, IFlowEngine engine) =&gt;
+{
+    var instance = await engine.StartAsync(new StartRequest
+    {
+        WorkflowId    = "eligibility-check",   // query + decision nodes only — no human/wait/timer
+        Entity        = new JsonContextValue { Value = JsonSerializer.SerializeToElement(req) },
+        CorrelationId = req.MemberId
+    });
+
+    // Status is Completed — output context is available immediately
+    if (instance.Status != ExecStatus.Completed)
+        return Results.Problem("Unexpected workflow status: " + instance.Status);
+
+    return Results.Ok(instance.Context["eligibilityResult"]);
 });</code></pre>
 
 <p><strong>Service Bus / message handler</strong></p>
