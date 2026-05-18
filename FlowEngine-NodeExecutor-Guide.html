@@ -708,17 +708,17 @@ public async Task WaitNode_SignalReceived_Resumes()
 
 <script>
 (function() {
-  const toggle = document.getElementById('themeToggle');
-  const html   = document.documentElement;
-  const stored = localStorage.getItem('theme');
-  if (stored) html.setAttribute('data-theme', stored);
-  toggle.textContent = html.getAttribute('data-theme') === 'light' ? '🌙' : '☀️';
-  toggle.addEventListener('click', () => {
-    const next = html.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-    html.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-    toggle.textContent = next === 'light' ? '🌙' : '☀️';
-  });
+  const html     = document.documentElement;
+  const toggle   = document.getElementById('themeToggle');
+  const saved    = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(saved);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
 })();
 </script>
 

@@ -30,7 +30,6 @@
 <nav class="sidebar">
   <div class="sidebar-label">Overview</div>
   <a href="#docs">Supporting Docs</a>
-  <a href="#whats-new">What's New</a>
   <a href="#why">Why FlowEngine?</a>
   <a href="#orch-choreo">Orchestration Patterns</a>
   <a href="#features">Features</a>
@@ -105,50 +104,6 @@
     <li><a href="FlowEngine-INTEGRATION-GUIDE.html" target="_blank" rel="noopener noreferrer">FlowEngine-INTEGRATION-GUIDE</a> — Integration guide: add FlowEngine, Admin API, and Dashboard to an existing .NET solution; package selection; hosting models; configuration</li>
   </ul>
 </div>
-
-<h2 id="whats-new">What's New</h2>
-<p>The following enhancements were landed in response to an external integrator's gap report against <code>EF.FlowEngine 1.0.98</code>. Full details and code examples live in the <a href="FlowEngine-INTEGRATION-GUIDE.html" target="_blank" rel="noopener noreferrer">FlowEngine Integration Guide</a> — this section summarises what changed and why it matters.</p>
-
-<h3>Composable persistence (no more inheritance)</h3>
-<p>The SQL providers no longer require your <code>DbContext</code> to inherit from a FlowEngine base class. Instead, your DbContext implements the marker interface(s) and calls one or more <code>ModelBuilder</code> extension methods inside <code>OnModelCreating</code>:</p>
-<ul>
-  <li><code>IFlowEngineStateDbContext</code> + <code>mb.ApplyFlowEngineState()</code> — workflow, execution, human-task, child-signal tables</li>
-  <li><code>IFlowEngineOutboxDbContext</code> + <code>mb.ApplyFlowEngineOutbox()</code> — transactional outbox (extends <code>IOutboxCapableDbContext</code>)</li>
-  <li><code>IFlowEngineCircuitBreakerDbContext</code> + <code>mb.ApplyFlowEngineCircuitBreaker()</code> — distributed circuit-breaker state</li>
-</ul>
-<p>This removes two previously-blocking constraints: (1) consumer DbContexts that already inherit from an audit / multi-tenant base class can now host FlowEngine tables, and (2) Outbox <em>and</em> Circuit Breaker can coexist on the same DbContext (the prior diamond-inheritance forced an either/or choice). Atomic outbox writes are preserved — a single <code>SaveChangesAsync</code> still persists execution state + outbox rows together.</p>
-
-<h3>Canonical JSON serializer options</h3>
-<p>New static <code>WorkflowDefinitionJsonOptions.Default</code> (and <code>Pretty</code>) in <code>EF.FlowEngine.Definition</code> is the canonical <code>JsonSerializerOptions</code> for all workflow JSON — camelCase property names plus <code>JsonStringEnumConverter</code> with integer fallback. <code>WorkflowDefinitionBuilder.FromJson</code>, the file/Redis/SQL/Cosmos registries, and the new JSON-file seeder all share this instance. Use it directly when hand-deserialising:</p>
-<pre><span class="lang-tag">csharp</span><code>var def = JsonSerializer.Deserialize&lt;WorkflowDefinition&gt;(
-    json, WorkflowDefinitionJsonOptions.Default)!;</code></pre>
-<p><code>Build()</code> now fails fast with a clear <code>InvalidOperationException</code> when the builder is empty, instead of producing a silently-empty definition that confused the validator with an <code>'@'</code> error.</p>
-
-<h3>Workflow JSON seeding</h3>
-<p>Drop workflow definitions in a directory and have FlowEngine seed them at host startup — replaces the 30-40 lines of bespoke seeding code most integrators wrote by hand:</p>
-<pre><span class="lang-tag">csharp</span><code>flowEngineBuilder.AddWorkflowJsonSeeding(opts =&gt;
-{
-    opts.Directory                = "Workflows";
-    opts.ActivateOnSeed           = true;
-    opts.OverwriteExistingVersion = false;
-});</code></pre>
-
-<h3>One-call built-in node executor registration</h3>
-<p><code>AddFlowEngine()</code> already registers all 19 built-in executors. The new public <code>services.AddBuiltInNodeExecutors()</code> extension exposes the same registration block for callers building a service collection without <code>AddFlowEngine()</code> (custom test bootstraps, embedded scenarios). Use <code>AddNodeExecutor&lt;T&gt;()</code> for selective or custom registration.</p>
-
-<h3>Connector ergonomics — factory overloads + delegating message client</h3>
-<ul>
-  <li><code>AddAzureOpenAIAgentClient(builder, clientRef, sp =&gt; azureClient, deploymentName, modelName)</code> — encapsulates the <code>GetChatClient(...).AsIChatClient()</code> bridge so Azure-hosted apps don't need to know the adapter package.</li>
-  <li><code>AddServiceBusClient(builder, clientRef, sp =&gt; serviceBusClient, queueOrTopic)</code> — factory overload for <code>IAzureClientFactory&lt;ServiceBusClient&gt;</code> consumers (the common Azure SDK pattern).</li>
-  <li><code>DelegatingMessageClient</code> in <code>EF.FlowEngine.Clients</code> — wraps a <code>Func&lt;MessageRequest, CancellationToken, Task&lt;MessageResult&gt;&gt;</code> so apps with an existing <code>IIntegrationEventPublisher</code> / MassTransit / custom bus can route FlowEngine <code>message</code> nodes through it while preserving tenant headers, correlation IDs, and OTel baggage.</li>
-</ul>
-
-<h3>Admin API tenant scoping</h3>
-<p>New opt-in <code>services.AddFlowEngineAdminTenantPolicy(opts =&gt; ...)</code> resolves the current tenant from a configurable claim type (default <code>tid</code>) with optional header fallback, populates a request-scoped <code>FlowEngineTenantContext</code>, and scopes the two security-sensitive Admin API endpoints (<code>GET /instances</code>, <code>GET /instances/{id}</code>) to that tenant. Off by default — no behaviour change for single-tenant apps.</p>
-<p>Also: the default Admin API prefix on <code>MapFlowEngineAdmin()</code> is now <code>/api/flowengine</code>, matching the documented examples.</p>
-
-<h3>Reference</h3>
-<p>End-to-end setup, multi-tenancy walkthrough, .NET 8+ Razor Components hosting (Router.AdditionalAssemblies, required MudBlazor providers, bearer-token forwarding), database-layout tradeoffs (same-DB / separate-DB / separate-instance, with the atomic-outbox hinge), and the Roslyn pin workaround for downstream consumers all live in the <a href="FlowEngine-INTEGRATION-GUIDE.html" target="_blank" rel="noopener noreferrer">FlowEngine Integration Guide</a>.</p>
 
 <h2 id="why">Why FlowEngine?</h2>
 <p>Business workflows are hard to get right. Human approvals take days. External APIs fail and need retries. Long-running processes span server restarts. Multiple team members act in sequence. Rules change frequently. The whole thing needs to be auditable.</p>

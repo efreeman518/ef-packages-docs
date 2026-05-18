@@ -1827,8 +1827,8 @@ shuts down.</p>
 <p>Configure in DI:</p>
 <div class="sourceCode" id="cb41"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">ScriptTimeoutSeconds</span> <span class="op">=</span> <span class="dv">10</span><span class="op">);</span></span></code></pre></div>
-<h4 id="sweep-service--bounded-concurrency">Sweep service — bounded
-concurrency</h4>
+<h4 id="sweep-service--bounded-concurrency-and-partitioning">Sweep
+service — bounded concurrency and partitioning</h4>
 <p><code>ExecutionSweepService</code> wakes on a configurable interval
 and processes up to <code>SweepBatchSize</code> (default:
 <code>100</code>) resumable instances per tick. Each resumption is
@@ -1840,6 +1840,27 @@ concurrent tasks than the engine can handle, a
 set in <code>FlowEngineOptions</code>, otherwise
 <code>SweepBatchSize</code>. This means the sweep never queues more live
 tasks than the engine is configured to handle simultaneously.</p>
+<p>For multi-replica deployments, assign each replica a disjoint
+partition via <code>SweepPartitionCount</code> (total replicas) and
+<code>SweepPartitionIndex</code> (this replica's ordinal). The sweep
+then filters instances by
+<code>Math.Abs(instanceId.GetHashCode()) % partitionCount == partitionIndex</code>
+— no coordination needed, no overlapping scans across pods.</p>
+<h4 id="intake-queue--execstatusqueued">Intake queue —
+ExecStatus.Queued</h4>
+<p>When an intake queue (<code>UseInMemoryIntakeQueue</code>,
+<code>UseIntakeQueueSql</code>, <code>UseIntakeQueueRedis</code>, or
+<code>UseIntakeQueueServiceBus</code>) is registered,
+<code>StartAsync</code> and <code>StartBackgroundAsync</code> return the
+instance in <code>ExecStatus.Queued</code> status immediately. The
+<code>IntakeDrainService</code> pulls from the queue and executes within
+<code>MaxConcurrentExecutions</code>.</p>
+<p><code>ExecStatus.Queued</code> instances are excluded from sweep
+processing — they are intentionally deferred and must flow through the
+drain service. When designing workflows that check instance status after
+start, account for the
+<code>Queued → Running → Suspended|Completed</code> lifecycle when an
+intake queue is active.</p>
 <hr />
 <h3 id="natural-language--workflow-mapping">Natural language → workflow
 mapping</h3>

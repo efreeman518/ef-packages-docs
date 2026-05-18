@@ -343,17 +343,19 @@ public static class ClientRefs
 </div>
 
 <script>
-  const toggle = document.getElementById('themeToggle');
-  const root   = document.documentElement;
-  const saved  = localStorage.getItem('theme') || 'dark';
-  root.setAttribute('data-theme', saved);
-  toggle.textContent = saved === 'dark' ? '☀️' : '🌙';
-  toggle.addEventListener('click', () => {
-    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-    toggle.textContent = next === 'dark' ? '☀️' : '🌙';
-  });
+(function() {
+  const html     = document.documentElement;
+  const toggle   = document.getElementById('themeToggle');
+  const saved    = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(saved);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
 </script>
 </body>
 </html>
