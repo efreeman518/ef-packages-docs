@@ -43,41 +43,64 @@
 
 <hr>
 
-<h2 id="client-concurrency">Client Concurrency Limits</h2>
-<p>All <code>IFlowClient</code> implementations can declare a <code>ConcurrencyLimit</code> property. When non-null, <code>ClientRegistry</code> automatically wraps the client in a process-local semaphore — no executor changes needed. Every call to the client (from any parallel loop branch, parallel node, or concurrent workflow) must acquire a slot before proceeding and releases it when done, even on cancellation or exception.</p>
+<h2 id="client-concurrency">Client Throttle Policies</h2>
+<p>All <code>IFlowClient</code> implementations can declare two throttle policies. When either is set, <code>ClientRegistry</code> automatically wraps the client — no executor changes needed. Both policies apply cluster-wide when a distributed throttle provider is registered (default: in-process only).</p>
 
-<h3>When to use</h3>
+<h3>ConcurrencyLimit — max simultaneous in-flight calls</h3>
+<p>Override <code>ConcurrencyLimit</code> to cap how many calls to this client can be in-flight at once. The registry wraps the client; each caller acquires a slot before the call and releases it on completion or exception.</p>
+
 <div class="table-wrap"><table>
   <tr><th>Scenario</th><th>Recommended limit</th></tr>
   <tr><td>Client wraps a non-thread-safe resource (e.g. raw <code>DbContext</code>)</td><td><code>1</code></td></tr>
-  <tr><td>External API with a documented rate limit (e.g. 10 req/s)</td><td><code>N</code> matching the limit</td></tr>
+  <tr><td>External API with a documented concurrent-call quota</td><td><code>N</code> matching the quota</td></tr>
   <tr><td>Database connection pool protection</td><td>Fraction of pool size (e.g. pool/2)</td></tr>
-  <tr><td>Thread-safe client, no external constraint</td><td><code>null</code> (default — no semaphore)</td></tr>
+  <tr><td>Thread-safe client, no external constraint</td><td><code>null</code> (default — no limit)</td></tr>
+</table></div>
+
+<h3>RateLimit — max calls per time window</h3>
+<p>Override <code>RateLimit</code> to cap how many calls can be made within a sliding time window. Uses a <code>RateLimitPolicy</code> record:</p>
+<div class="table-wrap"><table>
+  <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+  <tr><td><code>Limit</code></td><td>int</td><td>Maximum calls within the window</td></tr>
+  <tr><td><code>Window</code></td><td>TimeSpan</td><td>Sliding window duration (e.g. <code>TimeSpan.FromMinutes(1)</code>)</td></tr>
+  <tr><td><code>Overflow</code></td><td>ThrottleOverflowPolicy</td><td><code>Block</code> (default) — waits until a slot is available; <code>Reject</code> — throws <code>ThrottleCapacityExceededException</code> immediately</td></tr>
 </table></div>
 
 <h3>Usage</h3>
-<p>Override <code>ConcurrencyLimit</code> in your client implementation:</p>
 <pre><span class="lang-tag">csharp</span><code>public class MyApiClient : IRequestResponseClient
 {
-    public string ClientRef        => "rate-limited-api";
-    public int?   ConcurrencyLimit => 5;   // at most 5 concurrent calls in this process
+    public string             ClientRef        => "rate-limited-api";
+    public int?               ConcurrencyLimit => 5;   // max 5 simultaneous calls
+    public RateLimitPolicy?   RateLimit        => new(Limit: 100, Window: TimeSpan.FromMinutes(1));
 
     public Task ValidateAsync(CancellationToken ct = default) => Task.CompletedTask;
 
     public async Task&lt;ClientResponse&gt; ExecuteAsync(ClientRequest request, CancellationToken ct)
     {
-        // semaphore already acquired by the registry wrapper before this is called
+        // throttle already applied by the registry wrapper before this is called
         var response = await _http.PostAsJsonAsync("/api/call", request.Body, ct);
         return new ClientResponse { StatusCode = (int)response.StatusCode, ... };
     }
 }
 </code></pre>
 
-<p>Or set it on a built-in client that supports it — for example <code>EfQueryClient&lt;TContext&gt;</code> exposes a constructor overload that sets the limit.</p>
+<h3>Distributed Throttle Providers</h3>
+<p>By default both policies are enforced in-process (<code>InMemoryDistributedThrottleProvider</code>). In a multi-node deployment each replica enforces limits independently — total cluster concurrency is <em>limit × node-count</em>. Replace the default with a distributed provider to share limits across all replicas:</p>
 
-<div class="callout callout-amber">
-  <strong>Process-local only.</strong> The semaphore lives in the current process. In a multi-node deployment each host enforces its own limit independently — total concurrent calls across the cluster can reach <em>limit × node-count</em>. For strict cluster-wide throttling, a future <code>IDistributedConcurrencyLimiter</code> extension point (backed by a Redis counter or similar distributed primitive) will replace or supplement this mechanism.
-</div>
+<div class="table-wrap"><table>
+  <tr><th>Provider</th><th>Package</th><th>Use when</th></tr>
+  <tr><td><strong>InMemory</strong> (default)</td><td>Built into <code>EF.FlowEngine</code></td><td>Single process, dev/test, or when cluster-wide throttling is not required</td></tr>
+  <tr><td><strong>Redis</strong></td><td><code>EF.FlowEngine.Throttles.Redis</code></td><td>Multi-node — fast atomic Lua scripts; sliding-window rate + INCR concurrency counter</td></tr>
+  <tr><td><strong>SQL</strong></td><td><code>EF.FlowEngine.Throttles.Sql</code></td><td>Multi-node without Redis — EF Core optimistic-concurrency; fixed-window rate</td></tr>
+</table></div>
+
+<pre><span class="lang-tag">csharp</span><code>// Redis — requires IConnectionMultiplexer in DI
+builder.UseThrottleProviderRedis();
+
+// SQL — TContext must implement IFlowEngineThrottleDbContext
+// and call mb.ApplyFlowEngineThrottle() in OnModelCreating
+builder.UseThrottleProviderSql&lt;AppDbContext&gt;();
+</code></pre>
 
 <div class="callout callout-blue">
   <strong>Interaction with <code>MaxConcurrency</code> on loop/parallel nodes.</strong> The loop node's <code>maxConcurrency</code> controls how many child workflows are spawned simultaneously. <code>ConcurrencyLimit</code> on a client controls how many of those children can call that specific client at the same time. Both limits apply independently — you can have 20 parallel branches with a client limit of 3, meaning 17 branches wait for a slot while 3 are calling the client.

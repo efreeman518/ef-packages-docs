@@ -92,6 +92,12 @@ into <code>StateStore.Redis</code>), <code>Cosmos</code> (built into
 <td><code>EF.FlowEngine.CircuitBreaker.Sql</code> or
 <code>Redis</code></td>
 </tr>
+<tr class="even">
+<td>Optional throttle provider</td>
+<td><code>EF.FlowEngine.Throttles.Redis</code> or
+<code>Throttles.Sql</code> (default in-process provider built into
+<code>EF.FlowEngine</code>)</td>
+</tr>
 </tbody>
 </table>
 <h3 id="central-package-management">Central Package Management</h3>
@@ -147,12 +153,16 @@ class="sourceCode xml"><code class="sourceCode xml"><span id="cb1-1"><a href="#c
 <span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.CircuitBreaker.Sql&quot;</span><span class="ot">        Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
 <span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.CircuitBreaker.Redis&quot;</span><span class="ot">      Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
 <span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- Connector clients --&gt;</span></span>
-<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Http&quot;</span><span class="ot">              Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.ServiceBus&quot;</span><span class="ot">        Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.OpenAI&quot;</span><span class="ot">            Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Sql&quot;</span><span class="ot">               Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- Throttle providers (optional — pick one; default in-process provider is built in) --&gt;</span></span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Throttles.Redis&quot;</span><span class="ot">           Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Throttles.Sql&quot;</span><span class="ot">             Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- Connector clients --&gt;</span></span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Http&quot;</span><span class="ot">              Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.ServiceBus&quot;</span><span class="ot">        Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.OpenAI&quot;</span><span class="ot">            Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Sql&quot;</span><span class="ot">               Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
 <p>Then in each consuming csproj:</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode xml"><code class="sourceCode xml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageReference</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine&quot;</span> /&gt;</span>

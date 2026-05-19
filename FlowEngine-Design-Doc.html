@@ -1647,17 +1647,22 @@ builder.Services.AddFlowEngine()
 </table>
 </div>
 
-<h3>Client concurrency limits</h3>
+<h3>Client throttle policies</h3>
 <p>All clients are registered as <strong>singletons</strong> — the same instance is called by every parallel loop branch and parallel node. Clients backed by thread-safe resources (<code>HttpClient</code>, <code>IDbContextFactory&lt;T&gt;</code>, pooled SDK clients) handle this naturally. Clients backed by non-thread-safe resources need additional protection.</p>
-<p>Override <code>ConcurrencyLimit</code> on <code>IFlowClient</code> to declare a process-local cap. <code>ClientRegistry</code> auto-wraps the client in a <code>SemaphoreSlim</code> — callers acquire a slot before calling through and release it on completion or exception.</p>
+<p><code>IFlowClient</code> exposes two throttle policy properties. <code>ClientRegistry</code> auto-wraps any client that declares either one:</p>
+<ul>
+  <li><strong><code>ConcurrencyLimit</code></strong> — max simultaneous in-flight calls. Applied via <code>IDistributedConcurrencyLimiter</code> (default: in-process <code>SemaphoreSlim</code> per resource).</li>
+  <li><strong><code>RateLimit</code></strong> — max calls per sliding time window via <code>RateLimitPolicy(Limit, Window, Overflow)</code>. <code>Overflow = Block</code> retries; <code>Overflow = Reject</code> throws <code>ThrottleCapacityExceededException</code>.</li>
+</ul>
 <pre><span class="lang-tag">csharp</span><code>public class MyApiClient : IRequestResponseClient
 {
-    public string ClientRef        =&gt; "rate-limited-api";
-    public int?   ConcurrencyLimit =&gt; 5;   // at most 5 concurrent calls in this process
+    public string           ClientRef        =&gt; "rate-limited-api";
+    public int?             ConcurrencyLimit =&gt; 5;   // max 5 simultaneous calls
+    public RateLimitPolicy? RateLimit        =&gt; new(Limit: 100, Window: TimeSpan.FromMinutes(1));
     // ...
 }</code></pre>
-<div class="callout callout-amber">
-  <strong>Process-local only.</strong> The semaphore is per-process. In a multi-node deployment each host enforces its own limit independently — total cluster concurrency is <em>limit × node-count</em>. For strict cluster-wide throttling a future <code>IDistributedConcurrencyLimiter</code> extension point (Redis counter or similar) will replace or supplement this mechanism. See <a href="FlowEngine-Connectors.html#client-concurrency">Connectors — Client Concurrency Limits</a> for full guidance.
+<div class="callout callout-blue">
+  <strong>Distributed throttle providers.</strong> By default both policies are enforced in-process (<code>InMemoryDistributedThrottleProvider</code>). Replace with a distributed provider for cluster-wide limits: <code>builder.UseThrottleProviderRedis()</code> (Lua-script atomic counters) or <code>builder.UseThrottleProviderSql&lt;TContext&gt;()</code> (EF Core optimistic-concurrency). See <a href="FlowEngine-Connectors.html#client-concurrency">Connectors — Client Throttle Policies</a> for full guidance and provider selection.
 </div>
 
 <h3>Implementing IQueryClient</h3>
