@@ -684,6 +684,37 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href=
 <p><strong>Important:</strong> in-memory providers are not distributed —
 use only for single-instance local development and unit tests. For
 multi-instance or production, use SQL / Redis / Cosmos providers.</p>
+<h4
+id="suppressing-the-engine-in-webapplicationfactory-tests">Suppressing
+the Engine in WebApplicationFactory Tests</h4>
+<p>When your service's integration tests use
+<code>WebApplicationFactory&lt;TProgram&gt;</code>, the test host runs
+the real <code>Program.cs</code>, which calls
+<code>AddFlowEngine()</code>. For scenarios that don't exercise workflow
+execution — API audits, controller tests, health checks — the full
+engine initialization (background hosted services, possible DB schema
+creation) is unnecessary overhead and can cause failures when the test
+environment lacks the required infrastructure.</p>
+<p>Use <code>AddFlowEngineTesting()</code> from
+<code>EF.FlowEngine.Testing</code> inside <code>ConfigureServices</code>
+to replace the engine with a no-op stub:</p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co">// In your WebApplicationFactory subclass:</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">protected</span> <span class="kw">override</span> <span class="dt">void</span> <span class="fu">ConfigureWebHost</span><span class="op">(</span>IWebHostBuilder builder<span class="op">)</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    builder<span class="op">.</span><span class="fu">ConfigureServices</span><span class="op">(</span>services <span class="op">=&gt;</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Replaces IFlowEngine with NullFlowEngine (all methods return</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ExecStatus.Completed immediately) and removes the four background</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">// hosted services: FlowEngineInitializationService, ExecutionSweepService,</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">// LeaseRenewalService, FlowEngineShutdownService.</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddFlowEngineTesting</span><span class="op">();</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">});</span></span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>To suppress only the background services while keeping the real
+engine (e.g. you control init and sweep explicitly):</p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">RemoveFlowEngineHostedServices</span><span class="op">();</span></span></code></pre></div>
 <h3 id="known-issues">Known issues</h3>
 <h4
 id="roslyn-version-conflict-with-microsoftentityframeworkcoredesign">Roslyn
@@ -698,11 +729,11 @@ older <code>Microsoft.CodeAnalysis.Workspaces 5.0.0</code>. Pinning only
 <code>dotnet ef migrations add</code> then crashes with
 <code>TypeLoadException: Method 'ReduceExtensionMember' ... not have an implementation</code>.
 Pin <strong>all four</strong> Roslyn packages to 5.3.0:</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode xml"><code class="sourceCode xml"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Common&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Workspaces.Common&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp.Workspaces&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Common&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Workspaces.Common&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp.Workspaces&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span></code></pre></div>
 <p>Plus an explicit <code>&lt;PackageReference&gt;</code> to all four in
 the project that runs <code>dotnet ef</code>. The error is misleading
 because <code>dotnet restore</code> succeeds with only two pins.</p>
