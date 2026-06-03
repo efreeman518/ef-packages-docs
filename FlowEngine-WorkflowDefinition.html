@@ -272,6 +272,16 @@ public sealed class NodeDefinition
     /// Null = no per-node timeout (workflow deadline still applies).
     /// &lt;/summary&gt;
     public TimeSpan? ExecutionTimeout { get; init; }
+
+    /// &lt;summary&gt;
+    /// Process-wide concurrency cap for this node type. Enforced by a semaphore
+    /// inside ExecuteWithRetryAsync — at most MaxConcurrentNodeExecutions instances
+    /// of this node type may execute simultaneously within a single process.
+    /// 0 (default) = unlimited concurrency.
+    /// Useful for throttling expensive or externally rate-limited node types
+    /// (e.g. LLM agent nodes) without changing the workflow definition.
+    /// &lt;/summary&gt;
+    public int MaxConcurrentNodeExecutions { get; init; } = 0;
 }
 </code></pre>
 <hr />
@@ -608,6 +618,15 @@ public sealed class AggregationStrategy
 
     /// &lt;summary&gt;ID of the workflow to invoke.&lt;/summary&gt;
     public string WorkflowId   { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional Roslyn C# expression evaluated at runtime to determine the child workflow ID.
+    /// Takes precedence over the static WorkflowId when set.
+    /// Variables in scope: Context, Entity, Params, Engine (same as WhenEvaluator globals).
+    /// Must evaluate to a non-null string matching a registered workflow ID.
+    /// Example: &quot;Context[\&quot;customerTier\&quot;]?.ToString() == \&quot;VIP\&quot; ? \&quot;vip-fulfillment\&quot; : \&quot;standard-fulfillment\&quot;&quot;
+    /// &lt;/summary&gt;
+    public string? WorkflowIdExpression { get; init; }
 
     /// &lt;summary&gt;Version constraint. Null = latest active.&lt;/summary&gt;
     public string? Version     { get; init; }

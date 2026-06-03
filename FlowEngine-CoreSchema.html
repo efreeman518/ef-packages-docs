@@ -885,6 +885,28 @@ public interface IExecutionStateStore
     Task                      DeleteAsync(string instanceId,
                                            CancellationToken ct = default);
 
+    /// &lt;summary&gt;
+    /// Bulk-delete terminal instances older than the given cutoff, filtered by status.
+    /// Called by InstanceRetentionService. Implementations should use a single
+    /// batched DELETE rather than loading instances into memory.
+    /// Only statuses listed in the statuses array are considered — never deletes
+    /// Running or Suspended instances regardless of age.
+    /// &lt;/summary&gt;
+    Task                      ArchiveAsync(
+                                  DateTimeOffset      olderThan,
+                                  ExecStatus[]        statuses,
+                                  CancellationToken   ct = default);
+
+    /// &lt;summary&gt;
+    /// Stream instances matching the filter as IAsyncEnumerable.
+    /// Use for large result sets where loading all items into memory would be expensive.
+    /// Implementations should use server-side pagination or cursor-based streaming
+    /// rather than buffering all results.
+    /// &lt;/summary&gt;
+    IAsyncEnumerable&lt;ExecutionInstance&gt; StreamAsync(
+                                  ExecutionQuery      filter,
+                                  CancellationToken   ct = default);
+
     // ── Signal / Resume ───────────────────────────────────────────────────────
 
     /// &lt;summary&gt;
@@ -2233,6 +2255,89 @@ this to be a performance concern.</p>
 </code></pre>
 <p>Or call at startup (acceptable for smaller deployments):</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">await registryDbContext.Database.MigrateAsync();
+</code></pre>
+
+<hr />
+<h2>IFlowEngineInitializable</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Optional interface implemented by store and provider types that require
+/// async initialization at startup (e.g. creating Redis keys, ensuring
+/// SQL schema exists). Called by FlowEngineInitializationService before
+/// the engine accepts traffic.
+/// &lt;/summary&gt;
+public interface IFlowEngineInitializable
+{
+    Task InitializeAsync(CancellationToken ct = default);
+}
+</code></pre>
+<p><strong>Providers that implement <code>IFlowEngineInitializable</code>:</strong> <code>RedisExecutionStateStore</code>, <code>RedisDistributedLockProvider</code>, <code>RedisWorkflowRegistry</code>, <code>RedisHumanTaskStore</code> (all Redis providers), and <code>SqlDistributedLockProvider</code>. These implementations use <code>InitializeAsync</code> to create required Redis data structures or SQL schema objects on first startup.</p>
+
+<hr />
+<h2>New Models (Gap Closure)</h2>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Represents a faulted instance that has been enqueued to the dead-letter store.
+/// Created by the engine after EmitFinalEvent when Status == Faulted and
+/// IDeadLetterStore is registered. Replay via engine.ReplayFromDeadLetterAsync(instanceId).
+/// &lt;/summary&gt;
+public sealed class DeadLetterEntry
+{
+    /// &lt;summary&gt;The faulted instance ID.&lt;/summary&gt;
+    public string         InstanceId      { get; init; }
+
+    /// &lt;summary&gt;Workflow definition ID.&lt;/summary&gt;
+    public string         WorkflowId      { get; init; }
+
+    /// &lt;summary&gt;Pinned version at the time of fault.&lt;/summary&gt;
+    public string         WorkflowVersion { get; init; }
+
+    /// &lt;summary&gt;Human-readable fault reason.&lt;/summary&gt;
+    public string         Reason          { get; init; }
+
+    /// &lt;summary&gt;When the entry was enqueued to the dead-letter store.&lt;/summary&gt;
+    public DateTimeOffset EnqueuedAt      { get; init; }
+
+    /// &lt;summary&gt;The ExecutionError from the instance at enqueue time.&lt;/summary&gt;
+    public ExecutionError? LastError      { get; init; }
+}
+
+/// &lt;summary&gt;
+/// Controls how InstanceRetentionService archives terminal instances.
+/// Registered via FlowEngineBuilder.UseRetentionPolicy(policy).
+/// &lt;/summary&gt;
+public sealed class RetentionPolicy
+{
+    /// &lt;summary&gt;
+    /// Retain instances for this duration after reaching a terminal state.
+    /// Instances older than (now - RetainFor) matching Statuses are archived.
+    /// &lt;/summary&gt;
+    public TimeSpan     RetainFor { get; init; } = TimeSpan.FromDays(90);
+
+    /// &lt;summary&gt;
+    /// Which terminal statuses to archive. Defaults to Completed and Cancelled.
+    /// Running and Suspended are never archived regardless of this list.
+    /// &lt;/summary&gt;
+    public ExecStatus[] Statuses  { get; init; } = [ExecStatus.Completed, ExecStatus.Cancelled];
+
+    /// &lt;summary&gt;How often InstanceRetentionService runs. Default: 6 hours.&lt;/summary&gt;
+    public TimeSpan     RunEvery  { get; init; } = TimeSpan.FromHours(6);
+}
+
+/// &lt;summary&gt;
+/// Configuration for UseStoreResiliency() — wraps IExecutionStateStore with a
+/// Polly retry pipeline. ConcurrencyException is never retried (it is handled
+/// separately by SaveWithRetryAsync with a reload-and-merge strategy).
+/// &lt;/summary&gt;
+public sealed class StoreResilienceOptions
+{
+    /// &lt;summary&gt;Maximum number of retry attempts on transient store failures. Default: 3.&lt;/summary&gt;
+    public int     MaxRetryAttempts    { get; init; } = 3;
+
+    /// &lt;summary&gt;Base delay between retry attempts. Default: 500 ms.&lt;/summary&gt;
+    public TimeSpan RetryDelay         { get; init; } = TimeSpan.FromMilliseconds(500);
+
+    /// &lt;summary&gt;Number of consecutive failures before the circuit breaker opens. Default: 5.&lt;/summary&gt;
+    public int     CircuitBreakerErrors { get; init; } = 5;
+}
 </code></pre>
 </div>
 

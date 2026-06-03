@@ -70,6 +70,7 @@ Central piece that all node executors, state store implementations, and backgrou
     { ... }
 }
 </code></pre>
+<p><strong>IDeadLetterStore — optional dependency:</strong> The engine resolves <code>IDeadLetterStore</code> optionally from DI via <code>_services.GetService&lt;IDeadLetterStore&gt;()</code> during construction. When registered (via <code>UseDeadLetterStore&lt;T&gt;()</code>), the store is consulted at the end of the execution loop to automatically enqueue instances that fault without a recovery path. No configuration is needed beyond registering the implementation.</p>
 <h3>Public API</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;Start a new workflow instance.&lt;/summary&gt;
 public Task&lt;ExecutionInstance&gt; StartAsync(StartRequest request, CancellationToken ct = default);
@@ -635,6 +636,23 @@ from the sequence.</p>
 
         EmitFinalEvent(instance);
 
+        // Dead-letter: if the instance faulted and IDeadLetterStore is registered,
+        // auto-enqueue so operators can inspect and replay via ReplayFromDeadLetterAsync.
+        if (instance.Status == ExecStatus.Faulted)
+        {
+            var deadLetterStore = _services.GetService&lt;IDeadLetterStore&gt;();
+            if (deadLetterStore != null)
+                await deadLetterStore.EnqueueAsync(new DeadLetterEntry
+                {
+                    InstanceId      = instance.InstanceId,
+                    WorkflowId      = instance.WorkflowId,
+                    WorkflowVersion = instance.WorkflowVersion,
+                    Reason          = instance.Error?.Message ?? &quot;Faulted&quot;,
+                    EnqueuedAt      = DateTimeOffset.UtcNow,
+                    LastError       = instance.Error
+                }, hostCt);
+        }
+
         // After suspension: flush any child signals enqueued while the parent's lock was
         // held (e.g. sequential loop items that completed synchronously before the parent
         // could suspend). Without this, those signals would be stuck until the sweep fires.
@@ -1192,6 +1210,60 @@ public sealed class FlowEngineBuilder
     public FlowEngineBuilder UseDocumentStore&lt;T&gt;()       where T : class, IDocumentStore       { _services.AddSingleton&lt;IDocumentStore, T&gt;();       return this; }
     public FlowEngineBuilder UseTelemetry&lt;T&gt;()           where T : class, IFlowEngineTelemetry { _services.AddSingleton&lt;IFlowEngineTelemetry, T&gt;(); return this; }
     public FlowEngineBuilder UseHumanTaskStore&lt;T&gt;()      where T : class, IHumanTaskStore      { _services.AddSingleton&lt;IHumanTaskStore, T&gt;();      return this; }
+
+    /// &lt;summary&gt;
+    /// Wrap the registered IWorkflowRegistry with an IMemoryCache-backed cache.
+    /// Definitions are cached for the specified TTL (default 30 seconds).
+    /// Useful when the workflow registry is backed by a remote store (SQL, Redis)
+    /// and GetAsync is called frequently (once per node execution in a long chain).
+    /// &lt;/summary&gt;
+    public FlowEngineBuilder UseWorkflowRegistryCache(TimeSpan? ttl = null)
+    {
+        _services.Decorate&lt;IWorkflowRegistry, CachedWorkflowRegistry&gt;();
+        _services.AddSingleton(new WorkflowRegistryCacheOptions
+            { Ttl = ttl ?? TimeSpan.FromSeconds(30) });
+        return this;
+    }
+
+    /// &lt;summary&gt;
+    /// Wrap the registered IExecutionStateStore with a Polly retry pipeline.
+    /// Transient store failures are retried up to StoreResilienceOptions.MaxRetryAttempts times.
+    /// ConcurrencyException is never retried by this wrapper — it is handled by
+    /// SaveWithRetryAsync with a reload-and-merge strategy.
+    /// &lt;/summary&gt;
+    public FlowEngineBuilder UseStoreResiliency(StoreResilienceOptions? options = null)
+    {
+        _services.AddSingleton(options ?? new StoreResilienceOptions());
+        _services.Decorate&lt;IExecutionStateStore, ResilientExecutionStateStore&gt;();
+        return this;
+    }
+
+    /// &lt;summary&gt;Register a dead-letter store implementation.&lt;/summary&gt;
+    public FlowEngineBuilder UseDeadLetterStore&lt;T&gt;() where T : class, IDeadLetterStore
+    {
+        _services.AddSingleton&lt;IDeadLetterStore, T&gt;();
+        return this;
+    }
+
+    /// &lt;summary&gt;Register a retention policy and start InstanceRetentionService.&lt;/summary&gt;
+    public FlowEngineBuilder UseRetentionPolicy(RetentionPolicy policy)
+    {
+        _services.AddSingleton(policy);
+        _services.AddHostedService&lt;InstanceRetentionService&gt;();
+        return this;
+    }
+
+    /// &lt;summary&gt;
+    /// Enable System.Diagnostics.Metrics instrumentation.
+    /// Registers MeterFlowEngineTelemetry as IFlowEngineTelemetry.
+    /// Use AddFlowEngineInstrumentation() on MeterProviderBuilder/TracerProviderBuilder
+    /// to include FlowEngine metrics/traces in your OTel pipeline.
+    /// &lt;/summary&gt;
+    public FlowEngineBuilder UseMetrics()
+    {
+        _services.AddSingleton&lt;IFlowEngineTelemetry, MeterFlowEngineTelemetry&gt;();
+        return this;
+    }
 }
 </code></pre>
 <hr />
