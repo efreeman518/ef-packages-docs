@@ -1101,6 +1101,12 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href=
 <span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table</span></span>
 <span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseLockProviderAzureTable</span><span class="op">();</span></span></code></pre></div>
+<p><code>FindResumableInstanceIdsAsync(...)</code> has the same sweep
+contract for every lock provider: it returns crashed
+<code>Running</code> instances with missing or expired claims,
+<code>Suspended</code> waits whose timeout has elapsed, and
+<code>Suspended</code> waits whose accumulated signal count has reached
+<code>MinSignalCount</code>.</p>
 <h4 id="workflow-registries">Workflow Registries</h4>
 <div class="sourceCode" id="cb14"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="co">// JSON files in a directory (dev/test)</span></span>
@@ -2331,8 +2337,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb65-1"><a href=
 outbox documents atomically.</p>
 <div class="sourceCode" id="cb66"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">()</span></span>
-<span id="cb66-3"><a href="#cb66-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseOutboxCosmos</span><span class="op">();</span></span></code></pre></div>
+<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">)</span></span>
+<span id="cb66-3"><a href="#cb66-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">UseOutboxCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
 <h4 id="azure-table-outbox-efflowenginestatestoreazuretable">Azure Table
 outbox (EF.FlowEngine.StateStore.AzureTable)</h4>
 <p><code>AzureTableExecutionStateStore</code> uses Azure Table entity
