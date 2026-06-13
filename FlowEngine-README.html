@@ -485,10 +485,11 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="
 <span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a><span class="co"># Connector clients (optional — ready-made IFlowClient / IMessageClient / IAgentClient implementations)</span></span>
 <span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.Http           <span class="at">--source</span> efreeman518</span>
 <span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.ServiceBus     <span class="at">--source</span> efreeman518</span>
-<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.OpenAI         <span class="at">--source</span> efreeman518</span>
-<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a><span class="co"># Testing helpers (test projects only)</span></span>
-<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Testing                <span class="at">--source</span> efreeman518  <span class="co"># TestExecutionContext, in-memory test helpers</span></span></code></pre></div>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.AI             <span class="at">--source</span> efreeman518</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Clients.OpenAI         <span class="at">--source</span> efreeman518</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a><span class="co"># Testing helpers (test projects only)</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a><span class="ex">dotnet</span> add package EF.FlowEngine.Testing                <span class="at">--source</span> efreeman518  <span class="co"># TestExecutionContext, in-memory test helpers</span></span></code></pre></div>
 <hr />
 <h3 id="quick-start">Quick Start</h3>
 <h4 id="1-register-flowengine">1. Register FlowEngine</h4>
@@ -2408,15 +2409,35 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb72-1"><a href=
 <span id="cb72-3"><a href="#cb72-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddServiceBusClient</span><span class="op">(</span><span class="st">&quot;order-events&quot;</span><span class="op">,</span></span>
 <span id="cb72-4"><a href="#cb72-4" aria-hidden="true" tabindex="-1"></a>        connectionString<span class="op">:</span> builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">[</span><span class="st">&quot;ServiceBus:ConnectionString&quot;</span><span class="op">]!,</span></span>
 <span id="cb72-5"><a href="#cb72-5" aria-hidden="true" tabindex="-1"></a>        topicOrQueueName<span class="op">:</span> <span class="st">&quot;orders&quot;</span><span class="op">);</span></span></code></pre></div>
-<h4 id="openai--azure-ai-efflowengineclientsopenai">OpenAI / Azure AI
-(<code>EF.FlowEngine.Clients.OpenAI</code>)</h4>
+<h4 id="ai-agent--ichatclient-efflowengineclientsai">AI agent —
+<code>IChatClient</code> (<code>EF.FlowEngine.Clients.AI</code>)</h4>
+<p>Default connector for new workflows. Binds an <code>agent</code>-node
+<code>clientRef</code> to a DI-resolved
+<code>Microsoft.Extensions.AI.IChatClient</code>, so the same workflow
+JSON runs against any OpenAI-compatible endpoint (Foundry Local, Azure
+AI Foundry, OpenAI, Ollama, …) - only the host registration differs. No
+Azure SDK dependency. When a node declares an <code>outputSchema</code>,
+it is sent to the model as a JSON-schema response format.</p>
 <div class="sourceCode" id="cb73"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="co">// OpenAIAgentClient backed by Microsoft.Extensions.AI IChatClient</span></span>
-<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a><span class="co">// Emits token usage via IFlowEngineTelemetry</span></span>
-<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddOpenAIAgentClient</span><span class="op">(</span><span class="st">&quot;gpt4o&quot;</span><span class="op">,</span></span>
-<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a>        chatClient<span class="op">:</span> openAIClient<span class="op">.</span><span class="fu">AsChatClient</span><span class="op">(</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">),</span></span>
-<span id="cb73-6"><a href="#cb73-6" aria-hidden="true" tabindex="-1"></a>        modelName<span class="op">:</span>  <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span></code></pre></div>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Host registers an IChatClient (e.g. Aspire&#39;s Aspire.Azure.AI.Inference):</span></span>
+<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddAzureAIInferenceChatClient</span><span class="op">(</span><span class="st">&quot;chat&quot;</span><span class="op">).</span><span class="fu">AsIChatClient</span><span class="op">();</span></span>
+<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddChatClientAgentClient</span><span class="op">(</span><span class="st">&quot;ai-agent&quot;</span><span class="op">,</span> sp <span class="op">=&gt;</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IChatClient<span class="op">&gt;());</span></span>
+<span id="cb73-6"><a href="#cb73-6" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyed hosts: .AddChatClientAgentClient(&quot;ai-agent&quot;, serviceKey: &quot;chat&quot;);</span></span></code></pre></div>
+<h4 id="openai--azure-openai-efflowengineclientsopenai">OpenAI / Azure
+OpenAI (<code>EF.FlowEngine.Clients.OpenAI</code>)</h4>
+<p>Compatibility connector for Azure-OpenAI-specific setups;
+<code>OpenAIAgentClient</code> derives from
+<code>ChatClientAgentClient</code> and satisfies the same
+<code>agent</code>-node contract.</p>
+<div class="sourceCode" id="cb74"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="co">// OpenAIAgentClient backed by Microsoft.Extensions.AI IChatClient</span></span>
+<span id="cb74-2"><a href="#cb74-2" aria-hidden="true" tabindex="-1"></a><span class="co">// Emits token usage via IFlowEngineTelemetry</span></span>
+<span id="cb74-3"><a href="#cb74-3" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb74-4"><a href="#cb74-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddOpenAIAgentClient</span><span class="op">(</span><span class="st">&quot;gpt4o&quot;</span><span class="op">,</span></span>
+<span id="cb74-5"><a href="#cb74-5" aria-hidden="true" tabindex="-1"></a>        chatClient<span class="op">:</span> openAIClient<span class="op">.</span><span class="fu">AsChatClient</span><span class="op">(</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">),</span></span>
+<span id="cb74-6"><a href="#cb74-6" aria-hidden="true" tabindex="-1"></a>        modelName<span class="op">:</span>  <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span></code></pre></div>
 <p>See <a
 href="FlowEngine-Connectors.html">FlowEngine-Connectors.html</a> for
 full configuration options and custom client patterns.</p>
@@ -2425,19 +2446,19 @@ full configuration options and custom client patterns.</p>
 <h4 id="content-filtering">Content Filtering</h4>
 <p>Register a named <code>IContentFilter</code> and reference it by name
 in <code>AgentNodeConfig.ContentFilterPolicy</code>:</p>
-<div class="sourceCode" id="cb74"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register a custom content filter</span></span>
-<span id="cb74-2"><a href="#cb74-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IContentFilter<span class="op">,</span> MyAzureContentSafetyFilter<span class="op">&gt;();</span></span></code></pre></div>
 <div class="sourceCode" id="cb75"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb75-2"><a href="#cb75-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent&quot;</span><span class="fu">,</span></span>
-<span id="cb75-3"><a href="#cb75-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb75-4"><a href="#cb75-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span>           <span class="st">&quot;gpt4o&quot;</span><span class="fu">,</span></span>
-<span id="cb75-5"><a href="#cb75-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;promptTemplate&quot;</span><span class="fu">:</span>      <span class="st">&quot;Summarise the document: {{$.context.documentText}}&quot;</span><span class="fu">,</span></span>
-<span id="cb75-6"><a href="#cb75-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;contentFilterPolicy&quot;</span><span class="fu">:</span> <span class="st">&quot;azure-content-safety&quot;</span><span class="fu">,</span></span>
-<span id="cb75-7"><a href="#cb75-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;promptVersion&quot;</span><span class="fu">:</span>       <span class="st">&quot;v2.1-summarise&quot;</span></span>
-<span id="cb75-8"><a href="#cb75-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb75-9"><a href="#cb75-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register a custom content filter</span></span>
+<span id="cb75-2"><a href="#cb75-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IContentFilter<span class="op">,</span> MyAzureContentSafetyFilter<span class="op">&gt;();</span></span></code></pre></div>
+<div class="sourceCode" id="cb76"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;agent&quot;</span><span class="fu">,</span></span>
+<span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb76-4"><a href="#cb76-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span>           <span class="st">&quot;gpt4o&quot;</span><span class="fu">,</span></span>
+<span id="cb76-5"><a href="#cb76-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;promptTemplate&quot;</span><span class="fu">:</span>      <span class="st">&quot;Summarise the document: {{$.context.documentText}}&quot;</span><span class="fu">,</span></span>
+<span id="cb76-6"><a href="#cb76-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;contentFilterPolicy&quot;</span><span class="fu">:</span> <span class="st">&quot;azure-content-safety&quot;</span><span class="fu">,</span></span>
+<span id="cb76-7"><a href="#cb76-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;promptVersion&quot;</span><span class="fu">:</span>       <span class="st">&quot;v2.1-summarise&quot;</span></span>
+<span id="cb76-8"><a href="#cb76-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb76-9"><a href="#cb76-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
 <p><code>FilterInputAsync</code> runs before the LLM call;
 <code>FilterOutputAsync</code> runs after. If either returns
 <code>IsAllowed: false</code>, the node short-circuits with
@@ -2500,15 +2521,15 @@ the workflow definition ID.</p>
 </tbody>
 </table>
 <p>Configure per-model rates:</p>
-<div class="sourceCode" id="cb76"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>options <span class="op">=&gt;</span></span>
-<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">AgentModelRates</span><span class="op">[</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="kw">new</span> ModelCostRate</span>
-<span id="cb76-4"><a href="#cb76-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb76-5"><a href="#cb76-5" aria-hidden="true" tabindex="-1"></a>        InputCostPerToken  <span class="op">=</span> <span class="fl">0.000005m</span><span class="op">,</span>   <span class="co">// $5 / M input tokens</span></span>
-<span id="cb76-6"><a href="#cb76-6" aria-hidden="true" tabindex="-1"></a>        OutputCostPerToken <span class="op">=</span> <span class="fl">0.000015m</span>    <span class="co">// $15 / M output tokens</span></span>
-<span id="cb76-7"><a href="#cb76-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
-<span id="cb76-8"><a href="#cb76-8" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<div class="sourceCode" id="cb77"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">(</span>options <span class="op">=&gt;</span></span>
+<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb77-3"><a href="#cb77-3" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">AgentModelRates</span><span class="op">[</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">]</span> <span class="op">=</span> <span class="kw">new</span> ModelCostRate</span>
+<span id="cb77-4"><a href="#cb77-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb77-5"><a href="#cb77-5" aria-hidden="true" tabindex="-1"></a>        InputCostPerToken  <span class="op">=</span> <span class="fl">0.000005m</span><span class="op">,</span>   <span class="co">// $5 / M input tokens</span></span>
+<span id="cb77-6"><a href="#cb77-6" aria-hidden="true" tabindex="-1"></a>        OutputCostPerToken <span class="op">=</span> <span class="fl">0.000015m</span>    <span class="co">// $15 / M output tokens</span></span>
+<span id="cb77-7"><a href="#cb77-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb77-8"><a href="#cb77-8" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
 <p>See <a
 href="FlowEngine-Connectors.html#agent-governance">FlowEngine-Connectors.html</a>
 for the full <code>IContentFilter</code> contract and telemetry
@@ -2517,13 +2538,13 @@ integration.</p>
 <h3 id="admin-api--dashboard">Admin API &amp; Dashboard</h3>
 <h4 id="admin-api-efflowengineadminapi">Admin API
 (<code>EF.FlowEngine.AdminApi</code>)</h4>
-<div class="sourceCode" id="cb77"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb77-1"><a href="#cb77-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register policies + services</span></span>
-<span id="cb77-2"><a href="#cb77-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineAdminPolicies</span><span class="op">();</span>   <span class="co">// adds FlowEngine.Admin + FlowEngine.HumanTask policies</span></span>
-<span id="cb77-3"><a href="#cb77-3" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">();</span>                 <span class="co">// FlowEngineAdminService registered automatically</span></span>
-<span id="cb77-4"><a href="#cb77-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb77-5"><a href="#cb77-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Map endpoints</span></span>
-<span id="cb77-6"><a href="#cb77-6" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFlowEngineAdmin</span><span class="op">(</span>prefix<span class="op">:</span> <span class="st">&quot;/api/flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb78"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register policies + services</span></span>
+<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineAdminPolicies</span><span class="op">();</span>   <span class="co">// adds FlowEngine.Admin + FlowEngine.HumanTask policies</span></span>
+<span id="cb78-3"><a href="#cb78-3" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">();</span>                 <span class="co">// FlowEngineAdminService registered automatically</span></span>
+<span id="cb78-4"><a href="#cb78-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb78-5"><a href="#cb78-5" aria-hidden="true" tabindex="-1"></a><span class="co">// Map endpoints</span></span>
+<span id="cb78-6"><a href="#cb78-6" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFlowEngineAdmin</span><span class="op">(</span>prefix<span class="op">:</span> <span class="st">&quot;/api/flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
 <p>Endpoints exposed under <code>{prefix}/</code>:</p>
 <table>
 <thead>
@@ -2581,21 +2602,21 @@ returns immediately with <code>Running</code> status)</td>
 <p>Authorization uses the registered <code>FlowEngine.Admin</code> and
 <code>FlowEngine.HumanTask</code> policies. Configure them to match your
 identity provider:</p>
-<div class="sourceCode" id="cb78"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddAuthorization</span><span class="op">(</span>o <span class="op">=&gt;</span></span>
-<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb78-3"><a href="#cb78-3" aria-hidden="true" tabindex="-1"></a>    o<span class="op">.</span><span class="fu">AddPolicy</span><span class="op">(</span><span class="st">&quot;FlowEngine.Admin&quot;</span><span class="op">,</span> p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">RequireClaim</span><span class="op">(</span><span class="st">&quot;role&quot;</span><span class="op">,</span> <span class="st">&quot;flowengine-admin&quot;</span><span class="op">));</span></span>
-<span id="cb78-4"><a href="#cb78-4" aria-hidden="true" tabindex="-1"></a>    o<span class="op">.</span><span class="fu">AddPolicy</span><span class="op">(</span><span class="st">&quot;FlowEngine.HumanTask&quot;</span><span class="op">,</span> p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">RequireClaim</span><span class="op">(</span><span class="st">&quot;role&quot;</span><span class="op">,</span> <span class="st">&quot;task-worker&quot;</span><span class="op">));</span></span>
-<span id="cb78-5"><a href="#cb78-5" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<div class="sourceCode" id="cb79"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddAuthorization</span><span class="op">(</span>o <span class="op">=&gt;</span></span>
+<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb79-3"><a href="#cb79-3" aria-hidden="true" tabindex="-1"></a>    o<span class="op">.</span><span class="fu">AddPolicy</span><span class="op">(</span><span class="st">&quot;FlowEngine.Admin&quot;</span><span class="op">,</span> p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">RequireClaim</span><span class="op">(</span><span class="st">&quot;role&quot;</span><span class="op">,</span> <span class="st">&quot;flowengine-admin&quot;</span><span class="op">));</span></span>
+<span id="cb79-4"><a href="#cb79-4" aria-hidden="true" tabindex="-1"></a>    o<span class="op">.</span><span class="fu">AddPolicy</span><span class="op">(</span><span class="st">&quot;FlowEngine.HumanTask&quot;</span><span class="op">,</span> p <span class="op">=&gt;</span> p<span class="op">.</span><span class="fu">RequireClaim</span><span class="op">(</span><span class="st">&quot;role&quot;</span><span class="op">,</span> <span class="st">&quot;task-worker&quot;</span><span class="op">));</span></span>
+<span id="cb79-5"><a href="#cb79-5" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
 <h4 id="dashboard-efflowenginedashboard">Dashboard
 (<code>EF.FlowEngine.Dashboard</code>)</h4>
-<div class="sourceCode" id="cb79"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register the Blazor dashboard consuming the admin API</span></span>
-<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">:</span> <span class="st">&quot;https://your-api-host/api/flowengine&quot;</span><span class="op">);</span></span>
-<span id="cb79-3"><a href="#cb79-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb79-4"><a href="#cb79-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Map Blazor components (requires UseBlazorComponents or equivalent)</span></span>
-<span id="cb79-5"><a href="#cb79-5" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapBlazorHub</span><span class="op">();</span></span>
-<span id="cb79-6"><a href="#cb79-6" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFallbackToPage</span><span class="op">(</span><span class="st">&quot;/_Host&quot;</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb80"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Register the Blazor dashboard consuming the admin API</span></span>
+<span id="cb80-2"><a href="#cb80-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">:</span> <span class="st">&quot;https://your-api-host/api/flowengine&quot;</span><span class="op">);</span></span>
+<span id="cb80-3"><a href="#cb80-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb80-4"><a href="#cb80-4" aria-hidden="true" tabindex="-1"></a><span class="co">// Map Blazor components (requires UseBlazorComponents or equivalent)</span></span>
+<span id="cb80-5"><a href="#cb80-5" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapBlazorHub</span><span class="op">();</span></span>
+<span id="cb80-6"><a href="#cb80-6" aria-hidden="true" tabindex="-1"></a>app<span class="op">.</span><span class="fu">MapFallbackToPage</span><span class="op">(</span><span class="st">&quot;/_Host&quot;</span><span class="op">);</span></span></code></pre></div>
 <p>Dashboard pages: <strong>Instance List</strong> (filter/search/sort),
 <strong>Instance Detail</strong> (history timeline, context snapshot),
 <strong>Human Task Inbox</strong> (assign/complete tasks),
