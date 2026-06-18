@@ -2417,14 +2417,31 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb72-1"><a href=
 JSON runs against any OpenAI-compatible endpoint (Foundry Local, Azure
 AI Foundry, OpenAI, Ollama, …) - only the host registration differs. No
 Azure SDK dependency. When a node declares an <code>outputSchema</code>,
-it is sent to the model as a JSON-schema response format.</p>
+it is sent to the model as a JSON-schema response format. A node may
+also declare an optional <code>instructions</code> (system prompt) sent
+as a distinct system message ahead of the user
+<code>promptTemplate</code>.</p>
 <div class="sourceCode" id="cb73"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Host registers an IChatClient (e.g. Aspire&#39;s Aspire.Azure.AI.Inference):</span></span>
-<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddAzureAIInferenceChatClient</span><span class="op">(</span><span class="st">&quot;chat&quot;</span><span class="op">).</span><span class="fu">AsIChatClient</span><span class="op">();</span></span>
-<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddChatClientAgentClient</span><span class="op">(</span><span class="st">&quot;ai-agent&quot;</span><span class="op">,</span> sp <span class="op">=&gt;</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IChatClient<span class="op">&gt;());</span></span>
-<span id="cb73-6"><a href="#cb73-6" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyed hosts: .AddChatClientAgentClient(&quot;ai-agent&quot;, serviceKey: &quot;chat&quot;);</span></span></code></pre></div>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Host registers an IChatClient (e.g. Aspire&#39;s Aspire.Azure.AI.Inference).</span></span>
+<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a><span class="co">// .UseFunctionInvocation() is required only if agent nodes are registered with tools.</span></span>
+<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddAzureAIInferenceChatClient</span><span class="op">(</span><span class="st">&quot;chat&quot;</span><span class="op">).</span><span class="fu">UseFunctionInvocation</span><span class="op">().</span><span class="fu">AsIChatClient</span><span class="op">();</span></span>
+<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb73-6"><a href="#cb73-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddChatClientAgentClient</span><span class="op">(</span><span class="st">&quot;ai-agent&quot;</span><span class="op">,</span> sp <span class="op">=&gt;</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IChatClient<span class="op">&gt;());</span></span>
+<span id="cb73-7"><a href="#cb73-7" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyed hosts: .AddChatClientAgentClient(&quot;ai-agent&quot;, serviceKey: &quot;chat&quot;);</span></span>
+<span id="cb73-8"><a href="#cb73-8" aria-hidden="true" tabindex="-1"></a><span class="co">// With tools:  .AddChatClientAgentClient(&quot;ai-agent&quot;, sp =&gt; sp.GetRequiredService&lt;IChatClient&gt;(),</span></span>
+<span id="cb73-9"><a href="#cb73-9" aria-hidden="true" tabindex="-1"></a><span class="co">//                  tools: [ AIFunctionFactory.Create(GetWeather) ]);</span></span></code></pre></div>
+<blockquote>
+<p>Foundry <strong>lifecycle</strong> (local model via
+<code>RunAsFoundryLocal()</code> vs. an Azure deployment) is a host
+concern: FlowEngine consumes whichever <code>IChatClient</code> the host
+registers and stays model/transport agnostic. Foundry
+<strong>server-hosted / project agents</strong>
+(<code>AIProjectClient.AsAIAgent(...)</code>) are an Azure-only path; if
+you need them, register such an agent's <code>IChatClient</code> at the
+host and bind it the same way - no separate FlowEngine connector is
+required.</p>
+</blockquote>
 <h4 id="openai--azure-openai-efflowengineclientsopenai">OpenAI / Azure
 OpenAI (<code>EF.FlowEngine.Clients.OpenAI</code>)</h4>
 <p>Compatibility connector for Azure-OpenAI-specific setups;
