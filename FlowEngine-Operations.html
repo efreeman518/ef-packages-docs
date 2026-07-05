@@ -31,6 +31,7 @@
   <li><a href="#outbox">Transactional Outbox (<code>EF.FlowEngine.Outbox.Sql</code>)</a></li>
   <li><a href="#circuit-breaker">Distributed Circuit Breaker</a></li>
   <li><a href="#migration">Migration Tooling</a></li>
+  <li><a href="#scheduler">Scheduled Workflows &amp; Start Idempotency</a></li>
   <li><a href="#copy-workflow">Copying a Workflow Definition</a></li>
   <li><a href="#testing">Testing Failure Modes</a></li>
   <li><a href="#retention">Instance Retention &amp; Dead-Letter</a></li>
@@ -249,6 +250,10 @@ builder.Services.AddFlowEngine()
 builder.Services.AddFlowEngine()
     .UseStateStoreSql&lt;AppDbContext&gt;()
     .UseCircuitBreakerSql&lt;AppDbContext&gt;();
+
+// Cosmos — requires CosmosClient in DI
+builder.Services.AddFlowEngine()
+    .UseCircuitBreakerCosmos(databaseId: "flowengine");
 </code></pre>
 
 <h3>ICircuitBreakerStore interface</h3>
@@ -341,30 +346,58 @@ await engine.MigrateInstanceAsync(
     ct: ct);
 </code></pre>
 
-<h3>Bulk migration pattern</h3>
+<h3>Bulk migration (<code>MigrateInstancesAsync</code>)</h3>
+<p>Move every non-terminal instance off a version in one call. Failures are collected per-instance in the returned <code>BulkMigrationResult</code> rather than aborting the batch; pass <code>dryRun: true</code> to preview feasibility first. Migration does not resume execution.</p>
 <pre><span class="lang-tag">csharp</span><code>// 1. Analyze compatibility
 var report = CompatibilityAnalyzer.Analyze(v1, v2);
 if (report.Findings.Any(f => f.Severity == FindingSeverity.Breaking)) return;
 
-// 2. Fetch all suspended instances on the old version
-var queryResult = await adminApi.QueryInstancesAsync(new ExecutionQuery
+// 2. Dry-run the whole batch
+var preview = await engine.MigrateInstancesAsync(
+    workflowId:    "expense-approval",
+    fromVersion:   "1.0.0",
+    targetVersion: "2.0.0",
+    nodeIdMap:     new Dictionary&lt;string, string&gt; { ["n-old-approval"] = "n-manager-approval" },
+    dryRun:        true,
+    ct:            ct);
+
+// 3. Apply if the preview had no failures
+if (preview.Failed.Count == 0)
 {
-    WorkflowId = "expense-approval",
-    Version    = "1.0.0",
-    Status     = ExecStatus.Suspended
+    var result = await engine.MigrateInstancesAsync(
+        "expense-approval", "1.0.0", "2.0.0",
+        nodeIdMap: new Dictionary&lt;string, string&gt; { ["n-old-approval"] = "n-manager-approval" },
+        ct: ct);
+
+    // result.Migrated: instance ids moved to 2.0.0; result.Failed: id -&gt; reason
+}
+</code></pre>
+
+<hr>
+
+<h2 id="scheduler">Scheduled Workflows &amp; Start Idempotency</h2>
+
+<h3>Cron triggers (<code>UseScheduler</code>)</h3>
+<p><code>UseScheduler()</code> registers a background service that fires <code>WorkflowSchedule</code> cron triggers. On each tick it evaluates enabled schedules and starts the workflow for any whose next occurrence is due. Standard 5-field cron expressions are evaluated in UTC.</p>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
+    .UseScheduler(tickInterval: TimeSpan.FromSeconds(30))
+    .AddSchedule(new WorkflowSchedule
+    {
+        ScheduleId     = "nightly-report",
+        WorkflowId     = "generate-report",
+        CronExpression = "0 2 * * *",       // 02:00 UTC daily
+        Params         = new() { ["scope"] = ContextValue.FromString("all") }
+    });
+</code></pre>
+<p>Each firing starts the workflow with an idempotency key of <code>{scheduleId}:{occurrence}</code>. If the scheduler runs on multiple replicas, engine start idempotency (below) ensures each occurrence launches exactly one instance — so no shared schedule store or leader election is required. <code>UseScheduler()</code> registers an in-memory <code>IWorkflowScheduleStore</code> unless a durable one is registered first; schedules can also be managed at runtime by resolving <code>IWorkflowScheduleStore</code>.</p>
+
+<h3>Start idempotency</h3>
+<p>Set <code>IdempotencyKey</code> on a <code>StartRequest</code> to make starts safe to retry. When the key matches an instance that already exists, the engine returns that existing instance instead of creating a duplicate; the key is stored as the well-known <code>__idempotency</code> tag and looked up via a tag query. This gives exactly-once starts under client retries, at-least-once queue redelivery, and multi-replica schedulers.</p>
+<pre><span class="lang-tag">csharp</span><code>var instance = await engine.StartAsync(new StartRequest
+{
+    WorkflowId     = "process-order",
+    IdempotencyKey = $"order:{orderId}"
 });
-
-// 3. Dry-run each instance
-foreach (var inst in queryResult.Items)
-{
-    await engine.MigrateInstanceAsync(inst.InstanceId, "2.0.0", dryRun: true, ct: ct);
-}
-
-// 4. Apply migration to all (dry-runs all passed)
-foreach (var inst in queryResult.Items)
-{
-    await engine.MigrateInstanceAsync(inst.InstanceId, "2.0.0", ct: ct);
-}
 </code></pre>
 
 <hr>
@@ -492,8 +525,12 @@ await engine.ReplayFromDeadLetterAsync(instanceId, ct);
   <tr><td><code>flowengine.instances.completed_total</code></td><td>Counter (<code>long</code>)</td><td>Cumulative count of instances that reached Completed</td></tr>
   <tr><td><code>flowengine.instances.failed_total</code></td><td>Counter (<code>long</code>)</td><td>Cumulative count of instances that reached Faulted, TimedOut, or CycleDetected</td></tr>
   <tr><td><code>flowengine.instance.duration_ms</code></td><td>Histogram (<code>double</code>)</td><td>End-to-end instance duration in milliseconds (recorded at terminal state)</td></tr>
-  <tr><td><code>flowengine.node.duration_ms</code></td><td>Histogram (<code>double</code>)</td><td>Per-node execution duration in milliseconds (tagged with <code>node.type</code>)</td></tr>
+  <tr><td><code>flowengine.node.duration_ms</code></td><td>Histogram (<code>double</code>)</td><td>Per-node execution duration in milliseconds (tagged with <code>nodeType</code>)</td></tr>
 </table></div>
+
+<p>The counters and histograms carry low-cardinality dimensional tags — <code>workflowId</code>, <code>tenantId</code> (when set), and <code>nodeType</code> (node histogram only) — so dashboards can slice completions/failures/durations by workflow or tenant. Instance ids are deliberately not emitted as tags to keep series count bounded.</p>
+
+<p>To emit metrics <em>and</em> distributed-trace spans from the same engine, call <code>UseMetricsAndTracing()</code> instead of <code>UseMetrics()</code>. It registers a composite telemetry sink over both <code>MeterFlowEngineTelemetry</code> and <code>ActivitySourceFlowEngineTelemetry</code> (the individual <code>UseMetrics()</code>/<code>UseActivitySourceTelemetry()</code> calls are otherwise mutually exclusive). Configure exporters for both the meter and the activity source named <code>"EF.FlowEngine"</code>.</p>
 
 <h3>Registration</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">// Enable FlowEngine metrics

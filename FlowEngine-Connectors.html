@@ -131,6 +131,11 @@ builder.UseThrottleProviderSql&lt;AppDbContext&gt;();
 
 <p>Uses the same <code>clientRef</code> naming convention as all other FlowEngine clients — reference it in workflow nodes as <code>"clientRef": "payment-api"</code>.</p>
 
+<p>For a plain client without the resilience pipeline (e.g. the caller owns retries), register <code>DirectHttpFlowClient</code> instead:</p>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
+    .AddDirectHttpClient(clientRef: "payment-api");   // optional namedClient parameter
+</code></pre>
+
 <h3>Default resilience pipeline</h3>
 <p>When no <code>configure</code> delegate is provided, the standard <code>Microsoft.Extensions.Http.Resilience</code> pipeline applies:</p>
 <ul>
@@ -226,6 +231,12 @@ builder.Services.AddFlowEngine()
         modelName:  "llama3");
 </code></pre>
 
+<p>A no-Azure-SDK variant ships as <code>EF.FlowEngine.Clients.AI</code> (<code>ChatClientAgentClient</code>). Register any DI-resolved <code>IChatClient</code> and bind it to an agent-node <code>clientRef</code>:</p>
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddChatClient(/* your IChatClient */);
+builder.Services.AddFlowEngine()
+    .AddChatClientAgentClient(clientRef: "assistant");
+</code></pre>
+
 <h3>How prompts are built</h3>
 <p>The executor renders <code>AgentNodeConfig.promptTemplate</code> by resolving <code>{{key}}</code> tokens against the node's <code>input</code> mapping (JSONPath → value), then constructs a <code>UserChatMessage</code>. The <code>IChatClient</code> receives:</p>
 <ul>
@@ -271,6 +282,13 @@ public static IReadOnlyDictionary&lt;string, Type&gt; EntityTypeMap =
 </code></pre>
 <p>The client applies <code>FilterBuilder&lt;T&gt;.ProcessFilterSet(query.FilterSet)</code> via reflection using the resolved CLR type, then handles all result modes (Count, Any, First, All, Page).</p>
 
+<p>A dedicated DI extension is also available so you don't have to hand-wire the constructor:</p>
+<pre><span class="lang-tag">csharp</span><code>flowEngineBuilder.AddEfQueryClient&lt;CrmDbContext&gt;(
+    clientRef:   "crm-query",
+    typeMap:     CrmDbContext.EntityTypeMap,
+    setResolver: (db, entity) =&gt; entity.ToLowerInvariant() switch { "customer" =&gt; db.Customers, _ =&gt; null });
+</code></pre>
+
 <div class="callout callout-teal">
   <strong>Parallel branches — why <code>IDbContextFactory&lt;T&gt;</code> is required.</strong>
   <code>DbContext</code> is not thread-safe. When <code>EfQueryClient&lt;TContext&gt;</code> is invoked from parallel workflow branches
@@ -298,6 +316,12 @@ flowEngineBuilder.AddClient(
             ["Invoice"]  = "dbo.Invoices",
             ["LineItem"] = "dbo.InvoiceLines",
         }));
+
+// Or use the dedicated DI extension:
+flowEngineBuilder.AddAdHocSqlQueryClient(
+    clientRef:        "legacy-query",
+    connectionString: config["LegacyDb:ConnectionString"],
+    entityTableMap:   new Dictionary&lt;string, string&gt; { ["Invoice"] = "dbo.Invoices" });
 
 // Or added at runtime via the Dashboard Client Registry page (/clients).
 // Persisted to clientconfigs.json and reloaded on restart.

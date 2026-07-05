@@ -537,6 +537,12 @@ processor.ProcessMessageAsync += async args =>
   <tr><td><code>EF.FlowEngine.WorkflowRegistry.Sql</code></td><td>SQL Server, Postgres, SQLite — production registry</td></tr>
   <tr><td><code>EF.FlowEngine.WorkflowRegistry.Redis</code></td><td>Redis — production registry with fast access</td></tr>
   <tr><td><code>EF.FlowEngine.WorkflowRegistry.Cosmos</code></td><td>Azure Cosmos DB — production registry</td></tr>
+  <tr><td><code>EF.FlowEngine.WorkflowRegistry.AzureTable</code></td><td>Azure Table Storage — registry partitioned by workflow id</td></tr>
+  <tr><td><code>EF.FlowEngine.WorkflowRegistry.File</code></td><td>JSON file registry — dev/test</td></tr>
+  <tr><td><code>EF.FlowEngine.HumanTaskStore.{Sql,Redis,Cosmos,AzureTable,File}</code></td><td>Human task stores (File/AzureTable variants are dev/test)</td></tr>
+  <tr><td><code>EF.FlowEngine.CircuitBreaker.{Sql,Redis,Cosmos}</code></td><td>Distributed circuit-breaker state stores</td></tr>
+  <tr><td><code>EF.FlowEngine.IntakeQueue.{Sql,Redis,ServiceBus,Cosmos}</code></td><td>Durable intake queues (Cosmos = moderate volume)</td></tr>
+  <tr><td><code>EF.FlowEngine.Throttles.{Redis,Sql}</code></td><td>Cluster-wide rate/concurrency limiters (no Cosmos — wrong tool)</td></tr>
 </table>
 </div>
 
@@ -1944,6 +1950,8 @@ bool safe = report.Findings.All(f => f.Severity != CompatibilityFindingSeverity.
   <tr><td><code>SqlWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.Sql</td><td>Production — SQL Server, Postgres, SQLite</td></tr>
   <tr><td><code>RedisWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.Redis</td><td>Production — fast access, low latency</td></tr>
   <tr><td><code>CosmosWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.Cosmos</td><td>Production — Azure Cosmos DB</td></tr>
+  <tr><td><code>AzureTableWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.AzureTable</td><td>Azure Table Storage — partitioned by workflow id</td></tr>
+  <tr><td><code>FileWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.File</td><td>Dev / test — JSON files on disk</td></tr>
 </table></div>
 <p><strong>Status lifecycle:</strong> All registries enforce the same transitions: <code>Draft ↔ Active</code>, <code>Active → Archived</code>, <code>Archived → Active</code>. <code>GetAsync(id, null)</code> always returns the latest <code>Active</code> version — <code>Draft</code> and <code>Archived</code> are excluded from null-version resolution.</p>
 <div class="table-wrap"><table>
