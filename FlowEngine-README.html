@@ -1359,14 +1359,16 @@ layer.</p>
 <hr />
 <h3 id="health-checks">Health Checks</h3>
 <p><code>FlowEngineHealthCheck</code> implements
-<code>IHealthCheck</code> and probes the three core infrastructure
-components:</p>
+<code>IHealthCheck</code>. It probes two core infrastructure components
+(hard <code>Unhealthy</code> on failure) plus optional operational
+signals reported only when their stores are registered. Optional signals
+compose to the worst reported status:</p>
 <table>
 <thead>
 <tr class="header">
 <th>Component</th>
 <th>Probe</th>
-<th>Failure result</th>
+<th>Result</th>
 </tr>
 </thead>
 <tbody>
@@ -1386,16 +1388,40 @@ components:</p>
 <code>OutboxStalenessThreshold</code></td>
 <td><code>Degraded</code></td>
 </tr>
+<tr class="even">
+<td>Intake queue depth (optional)</td>
+<td><code>GetDepthAsync()</code> vs.
+<code>IntakeDepthDegradedThreshold</code></td>
+<td><code>Degraded</code></td>
+</tr>
+<tr class="odd">
+<td>Dead-letter backlog (optional)</td>
+<td><code>ListAsync().Count</code> vs.
+<code>DeadLetterDegradedThreshold</code> /
+<code>DeadLetterUnhealthyThreshold</code></td>
+<td><code>Degraded</code> / <code>Unhealthy</code></td>
+</tr>
+<tr class="even">
+<td>Open circuits (optional)</td>
+<td><code>GetOpenCircuitsAsync()</code> — any open</td>
+<td><code>Degraded</code></td>
+</tr>
 </tbody>
 </table>
-<p>Register via the standard <code>IHealthChecksBuilder</code>:</p>
+<p>Register via the <code>FlowEngineBuilder</code>, which wires the
+optional stores from DI:</p>
 <div class="sourceCode" id="cb23"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHealthChecks</span><span class="op">()</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddCheck</span><span class="op">&lt;</span>FlowEngineHealthCheck<span class="op">&gt;(</span><span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
-<p>The outbox check is skipped when no <code>IOutboxStore</code> is
-registered. Configure the staleness threshold (default: 5 minutes):</p>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddHealthChecks</span><span class="op">(</span>healthChecksBuilder<span class="op">,</span> name<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
+<p>Thresholds live in <code>FlowEngineHealthCheckOptions</code> (sane
+defaults; tunable per deployment):</p>
 <div class="sourceCode" id="cb24"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>FlowEngineHealthCheck<span class="op">.</span><span class="fu">OutboxStalenessThreshold</span> <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromMinutes</span><span class="op">(</span><span class="dv">10</span><span class="op">);</span></span></code></pre></div>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddHealthChecks</span><span class="op">(</span>healthChecksBuilder<span class="op">,</span> options<span class="op">:</span> <span class="kw">new</span> FlowEngineHealthCheckOptions</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    OutboxStalenessThreshold     <span class="op">=</span> TimeSpan<span class="op">.</span><span class="fu">FromMinutes</span><span class="op">(</span><span class="dv">10</span><span class="op">),</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    IntakeDepthDegradedThreshold <span class="op">=</span> <span class="dv">5000</span><span class="op">,</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    DeadLetterDegradedThreshold  <span class="op">=</span> <span class="dv">1</span><span class="op">,</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    DeadLetterUnhealthyThreshold <span class="op">=</span> <span class="dv">100</span><span class="op">,</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
 <p><code>OutboxMetrics</code> (returned by
 <code>IOutboxStore.GetMetricsAsync</code>) is also available for custom
 health dashboards:</p>

@@ -1568,7 +1568,7 @@ await taskStore.SubmitResponseBackgroundAsync(taskId, responseToken, formValues,
 <p>Outbox entries that accumulate without being published indicate a stalled drain service. Implement <code>IOutboxStore.GetMetricsAsync()</code> to return <code>PendingCount</code>, <code>FailedCount</code>, and <code>OldestPendingAge</code>, then expose them via the built-in health check:</p>
 <pre><span class="lang-tag">csharp</span><code>services.AddHealthChecks()
     .AddFlowEngineHealthChecks(builder);</code></pre>
-<p>The health check returns <strong>Degraded</strong> when the oldest pending outbox entry exceeds <code>FlowEngineHealthCheck.OutboxStalenessThreshold</code> (default: 5 minutes), and <strong>Unhealthy</strong> when the state store or lock provider is unreachable.</p>
+<p>The health check returns <strong>Degraded</strong> when the oldest pending outbox entry exceeds <code>FlowEngineHealthCheckOptions.OutboxStalenessThreshold</code> (default: 5 minutes), and <strong>Unhealthy</strong> when the state store or lock provider is unreachable. When their stores are registered it also reports intake-queue depth, dead-letter backlog, and open circuits (thresholds on <code>FlowEngineHealthCheckOptions</code>).</p>
 
 <h2 id="harness">Harness Patterns</h2>
 <p>Use <code>ResumeBackgroundAsync</code> in harness handlers to return quickly and avoid holding the connection open while the workflow runs. Use <code>ResumeAsync</code> when the handler must confirm the final workflow state before acknowledging.</p>
