@@ -255,7 +255,7 @@ else if (!string.IsNullOrEmpty(redisCs))
 <h3>Step 2 — Register typed clients in code</h3>
 <p>Replace the TaskFlow demo client with your application's real clients. In <strong>both</strong> the Dashboard.UI <em>and</em> the production worker service:</p>
 
-<pre><span class="lang-tag">csharp</span><code>// Your AppDbContext must inherit FlowEngineDbContext (for SQL state store)
+<pre><span class="lang-tag">csharp</span><code>// Your AppDbContext implements IFlowEngineStateDbContext and maps ApplyFlowEngineState()
 // or be a separate DbContext (for data queries)
 
 flowEngineBuilder

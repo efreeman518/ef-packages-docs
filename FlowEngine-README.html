@@ -1473,11 +1473,12 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href=
 <span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">SweepPartitionCount</span> <span class="op">=</span> count<span class="op">;</span></span>
 <span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    options<span class="op">.</span><span class="fu">SweepPartitionIndex</span> <span class="op">=</span> index<span class="op">;</span></span>
 <span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
-<p>The engine filters by
-<code>Math.Abs(instanceId.GetHashCode()) % partitionCount == partitionIndex</code>.
+<p>The engine uses fixed UTF-8 FNV-1a hashing:
+<code>fnv1a(instanceId) % partitionCount == partitionIndex</code>.
 Partition 0 and partition 1 together cover every instance with no
-overlap. Use <code>SweepPartitionCount = 1</code> (default) for
-single-replica deployments — no filtering applied.</p>
+overlap across processes and deployments. Use
+<code>SweepPartitionCount = 1</code> (default) for single-replica
+deployments.</p>
 <hr />
 <h3 id="intake-queue">Intake Queue</h3>
 <p>The intake queue decouples workflow submission from execution.
@@ -2673,7 +2674,7 @@ href="FlowEngine-Operations.html">FlowEngine-Operations.html</a> for the
 complete ops reference.</p>
 <hr />
 <h3 id="license">License</h3>
-<p>MIT License. See <a href="LICENSE">LICENSE</a> for details.</p>
+<p>MIT License. See <a href="../LICENSE">LICENSE</a> for details.</p>
 </div>
 
 <script>
