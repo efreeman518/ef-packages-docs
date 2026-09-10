@@ -417,9 +417,10 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="
 <span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="co">// Any Microsoft.Extensions.AI IChatClient (Foundry Local, Ollama, OpenAI, …) — EF.FlowEngine.Clients.AI</span></span>
 <span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddChatClientAgentClient</span><span class="op">(</span>clientRef<span class="op">:</span> <span class="st">&quot;assistant&quot;</span><span class="op">);</span></span>
 <span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="co">// SQL data-source query clients — EF.FlowEngine.Clients.Sql</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="co">// Provider-neutral EF Core query client — EF.FlowEngine.Clients.Sql</span></span>
 <span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddEfQueryClient</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span><span class="st">&quot;orders-query&quot;</span><span class="op">,</span> typeMap<span class="op">,</span> setResolver<span class="op">);</span></span>
-<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a><span class="co">// flowEngineBuilder.AddAdHocSqlQueryClient(&quot;adhoc&quot;, connectionString, entityTableMap);</span></span></code></pre></div>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a><span class="co">// Dynamic SQL Server queries by connection string — EF.FlowEngine.Clients.SqlServer</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a><span class="co">// flowEngineBuilder.AddAdHocSqlQueryClient(&quot;adhoc&quot;, connectionString, entityTableMap);</span></span></code></pre></div>
 <p>If your app already has an <code>IIntegrationEventPublisher</code>
 (or MassTransit, or a custom bus) and you want FlowEngine
 <code>message</code> nodes to delegate to it (preserving tenant headers,
@@ -700,7 +701,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href=
 <h4 id="dashboard-package-dependencies">Dashboard package
 dependencies</h4>
 <p><code>EF.FlowEngine.Dashboard</code> transitively pulls
-<code>EF.FlowEngine.Clients.Sql</code> — the in-Dashboard "Add SQL Query
+<code>EF.FlowEngine.Clients.SqlServer</code> (and through it
+<code>Microsoft.Data.SqlClient</code>) — the in-Dashboard "Add SQL Query
 Client" feature constructs <code>AdHocSqlQueryClient</code>. If you do
 not use that feature, the package payload still includes it; treat it as
 part of the Dashboard's surface area.</p>
