@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="452" viewBox="0 0 760 452" role="img" aria-label="Parity everywhere, so the cheapest wins">
+<rect width="760" height="452" fill="#0f1419"/>
+<rect x="66" y="54" width="544" height="318" fill="#161b22"/>
+<text x="66" y="26" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="15" font-weight="600">Parity everywhere, so the cheapest wins</text>
+<text x="66" y="44" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="11.5">Nothing clears the upgrade threshold; the decision collapses to price at equal measured quality</text>
+<line x1="66" y1="372.00" x2="610" y2="372.00" stroke="#243040" stroke-width="1"/>
+<text x="57" y="375.50" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="end">0.00</text>
+<line x1="66" y1="340.20" x2="610" y2="340.20" stroke="#243040" stroke-width="1"/>
+<line x1="66" y1="308.40" x2="610" y2="308.40" stroke="#243040" stroke-width="1"/>
+<text x="57" y="311.90" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="end">0.20</text>
+<line x1="66" y1="276.60" x2="610" y2="276.60" stroke="#243040" stroke-width="1"/>
+<line x1="66" y1="244.80" x2="610" y2="244.80" stroke="#243040" stroke-width="1"/>
+<text x="57" y="248.30" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="end">0.40</text>
+<line x1="66" y1="213.00" x2="610" y2="213.00" stroke="#243040" stroke-width="1"/>
+<line x1="66" y1="181.20" x2="610" y2="181.20" stroke="#243040" stroke-width="1"/>
+<text x="57" y="184.70" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="end">0.60</text>
+<line x1="66" y1="149.40" x2="610" y2="149.40" stroke="#243040" stroke-width="1"/>
+<line x1="66" y1="117.60" x2="610" y2="117.60" stroke="#243040" stroke-width="1"/>
+<text x="57" y="121.10" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="end">0.80</text>
+<line x1="66" y1="85.80" x2="610" y2="85.80" stroke="#243040" stroke-width="1"/>
+<line x1="66" y1="54.00" x2="610" y2="54.00" stroke="#243040" stroke-width="1"/>
+<text x="57" y="57.50" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="end">1.00</text>
+<line x1="66.00" y1="54" x2="66.00" y2="372" stroke="#243040" stroke-width="1"/>
+<text x="66.00" y="388" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="middle">$0.0000</text>
+<line x1="247.33" y1="54" x2="247.33" y2="372" stroke="#243040" stroke-width="1"/>
+<text x="247.33" y="388" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="middle">$0.0020</text>
+<line x1="428.67" y1="54" x2="428.67" y2="372" stroke="#243040" stroke-width="1"/>
+<text x="428.67" y="388" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="middle">$0.0040</text>
+<line x1="610.00" y1="54" x2="610.00" y2="372" stroke="#243040" stroke-width="1"/>
+<text x="610.00" y="388" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5" text-anchor="middle">$0.0060</text>
+<line x1="66" y1="228.90" x2="610" y2="228.90" stroke="#3fae82" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="618" y="232.40" fill="#3fae82" font-family="system-ui,sans-serif" font-size="10.5">parity 0.45</text>
+<line x1="66" y1="165.30" x2="610" y2="165.30" stroke="#c79a3f" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="618" y="168.80" fill="#c79a3f" font-family="system-ui,sans-serif" font-size="10.5">upgrade 0.65</text>
+<line x1="419.60" y1="54" x2="419.60" y2="372" stroke="#d9736a" stroke-width="1.5" stroke-dasharray="3 3"/>
+<text x="424.60" y="68" fill="#d9736a" font-family="system-ui,sans-serif" font-size="10.5">incumbent agg/alpha $0.0039</text>
+<line x1="66" y1="372" x2="610" y2="372" stroke="#7d8994" stroke-width="1.5"/>
+<line x1="66" y1="54" x2="66" y2="372" stroke="#7d8994" stroke-width="1.5"/>
+<text x="338" y="416" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="11.5" text-anchor="middle">Cost per passing generation</text>
+<text x="16" y="213" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="11.5" text-anchor="middle" transform="rotate(-90 16 213)">Win rate against the incumbent</text>
+<circle cx="129.47" cy="219.36" r="10" fill="none" stroke="#f0f6fc" stroke-width="1.5"/>
+<circle cx="129.47" cy="219.36" r="5" fill="#f0f6fc"/>
+<text x="143.47" y="196.36" fill="#f0f6fc" font-family="system-ui,sans-serif" font-size="11" text-anchor="start" font-weight="600">agg/delta (parity pick)</text>
+<circle cx="238.27" cy="213.00" r="5" fill="#58a6ff"/>
+<text x="252.27" y="178.00" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="11" text-anchor="start" font-weight="400">agg/beta</text>
+<circle cx="301.73" cy="216.18" r="5" fill="#58a6ff"/>
+<text x="315.73" y="220.18" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="11" text-anchor="start" font-weight="400">agg/gamma</text>
+<circle cx="492.13" cy="206.64" r="5" fill="#58a6ff"/>
+<text x="478.13" y="210.64" fill="#e6edf3" font-family="system-ui,sans-serif" font-size="11" text-anchor="end" font-weight="400">fp/alpha</text>
+<text x="66" y="440" fill="#9aa5b1" font-family="system-ui,sans-serif" font-size="10.5">Synthetic sample. No upgrade pick is reported. A field this flat is the usual outcome for a well-specified prompt.</text>
+</svg>

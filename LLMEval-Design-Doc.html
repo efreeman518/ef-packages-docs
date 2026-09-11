@@ -36,6 +36,16 @@ For budgets, secrets and day-to-day running, see <a
 href="LLMEval-Operations.html">LLMEval-Operations.md</a>.</p>
 <hr />
 <h3 id="table-of-contents">Table of Contents</h3>
+<p><strong>At a glance</strong></p>
+<ul>
+<li><a href="#what-llmeval-does-for-each-workload">What LLMEval does for
+each workload</a></li>
+<li><a href="#how-an-eval-run-is-judged-and-what-it-costs">How an eval
+run is judged, and what it costs</a></li>
+<li><a href="#appendix-sample-outputs">Appendix: sample outputs</a> -
+what an engineer actually reads after a run</li>
+</ul>
+<p><strong>The document</strong></p>
 <ol type="1">
 <li><a href="#1-why-the-package-exists">Why the package exists</a></li>
 <li><a href="#2-architecture-overview">Architecture overview</a></li>
@@ -52,6 +62,250 @@ caches</a></li>
 loop</a></li>
 <li><a href="#12-design-boundaries">Design boundaries</a></li>
 </ol>
+<hr />
+<h3 id="what-llmeval-does-for-each-workload">What LLMEval does for each
+workload</h3>
+<p>The sections numbered below explain the machinery. This table is the
+short answer: find the shape of your workload on the left, and read
+across to what a sweep produces and what it is worth.</p>
+<p>"Optimal" here never means "cheapest that passes". The selection rule
+reports two answers, and which one to take is a judgement the report
+supports rather than makes: the <strong>parity pick</strong> is the
+cheapest candidate judged as good as the incumbent, and the
+<strong>upgrade pick</strong> is a clearly better candidate whose cost
+per pass is within a bounded multiple of it. See <a
+href="#6-the-selection-rule">section 6</a>.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Workload shape</th>
+<th>What LLMEval runs</th>
+<th>Output</th>
+<th>Benefit</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>A single prompt or synthesis call.</strong> One request, one
+answer. An interpretation prompt that turns a structured record into
+prose.</td>
+<td>A scenario sweep over the roster: the application's own code per
+candidate, hard gates for correctness, judged quality pairwise against
+the incumbent.</td>
+<td>The optimal model for that prompt: a parity pick and an upgrade
+pick, each with cost per pass, win rate and its interval.</td>
+<td>Lower runtime model cost at the same measured quality, or better
+output at a cost delta you can see before committing to it.</td>
+</tr>
+<tr class="even">
+<td><strong>A multi-agent loop with no human.</strong> Two or more
+models handing work to each other until a condition is met.</td>
+<td>An episode sweep with a role assignment per agent, varying one role
+at a time rather than taking a cross product.</td>
+<td>The optimal model <strong>per role</strong>, with per-role cost
+broken out alongside the total.</td>
+<td>Lower runtime cost per session. The split is the point: an
+acceptable total is often mostly one role that a cheaper model would run
+just as well.</td>
+</tr>
+<tr class="odd">
+<td><strong>A multi-agent loop with a human in the loop.</strong> The
+same, with a person replying in the middle.</td>
+<td>The same episode sweep, with a scripted human (the default, free and
+identical every run) or a model-played persona priced under its own
+role.</td>
+<td>Per-role picks plus turn and completion metrics: turns to
+completion, and whether the episode completed, hit its turn cap or was
+stopped.</td>
+<td>The same cost benefit, plus reliability: a model that answers well
+but takes two extra turns, or fails to converge at all, is visible as
+such rather than as a good answer.</td>
+</tr>
+<tr class="even">
+<td><strong>An EF.FlowEngine workflow.</strong> Agent nodes, human
+tasks, branches.</td>
+<td>The FlowEngine adapter runs the <strong>real</strong> workflow with
+each agent node's client swapped for the cell's recording client,
+answering human tasks from the simulated human.</td>
+<td>Per-node model picks, with the node history as the transcript and
+the workflow output as the scored artifact.</td>
+<td>Lower runtime cost per execution, measured on the workflow that
+actually ships rather than on a re-implementation of it.</td>
+</tr>
+<tr class="odd">
+<td><strong>Prompt variant development.</strong> The model is settled;
+the wording is not.</td>
+<td>The same sweep across prompt variants, with the shipped prompts as
+the control, plus deterministic adjustment hints and opt-in
+proposals.</td>
+<td>The variant that passes more often, or costs less at parity quality,
+with its own selection group per variant.</td>
+<td>Better prompts before they ship, decided on measurement rather than
+on a reading of two outputs.</td>
+</tr>
+<tr class="even">
+<td><strong>A routing or provider decision.</strong> Same model,
+different route.</td>
+<td>The same models run across connections: direct, gateway or
+aggregator, and region.</td>
+<td>Cost and latency per route, with the upstream that actually answered
+recorded per cell.</td>
+<td>The cheapest route at parity, and early warning when a route quietly
+serves something other than what it advertises.</td>
+</tr>
+</tbody>
+</table>
+<p>Every row is the same sweep with a different shape of workload, which
+is why the rest of this document describes one pipeline rather than
+six.</p>
+<hr />
+<h3 id="how-an-eval-run-is-judged-and-what-it-costs">How an eval run is
+judged, and what it costs</h3>
+<p>An eval run has two cost centres, and they are not the same size. The
+candidate calls are the thing being measured; <strong>the judge is the
+thing being paid for.</strong> Deciding where the final judging and
+ranking happens is therefore the single biggest lever on what a sweep
+costs.</p>
+<!-- Mermaid source: diagrams/09-run-modes.mmd -->
+
+<p><img src="diagrams/09-run-modes.svg"
+alt="The two run modes: full-provider judging on an API connection, and in-harness judging through the file exchange" /></p>
+<h4 id="the-two-modes">The two modes</h4>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>Full-provider mode</th>
+<th>In-harness mode</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Candidate roles</strong></td>
+<td>API connections</td>
+<td>API connections, exactly the same</td>
+</tr>
+<tr class="even">
+<td><strong>Judge</strong></td>
+<td>An API connection, selected with
+<code>LLMEVAL_JUDGE_CONNECTION</code></td>
+<td>The Claude Code subagent, answering through the file exchange</td>
+</tr>
+<tr class="odd">
+<td><strong>What is billed</strong></td>
+<td>Candidate calls <strong>and</strong> judge calls</td>
+<td>Candidate calls only</td>
+</tr>
+<tr class="even">
+<td><strong>Judge cost reported as</strong></td>
+<td>A figure, included in the actual spend</td>
+<td><strong>Not available</strong>, never zero. Subscription quota, not
+dollars</td>
+</tr>
+<tr class="odd">
+<td><strong>Runs unattended</strong></td>
+<td>Yes: dashboard, CI-triggered, scheduled, a plain test run</td>
+<td>No: needs the harness session and a live drainer heartbeat</td>
+</tr>
+<tr class="even">
+<td><strong>Reproducible judge</strong></td>
+<td>Yes, a pinned model id</td>
+<td>Only in the sense that the reply files are kept</td>
+</tr>
+</tbody>
+</table>
+<p>The candidate half of the run is identical between the two. Nothing
+about the models under test, the gates, the pricing or the ranking
+changes; only who answers the judge, and who pays for it.</p>
+<h4 id="why-the-judge-dominates">Why the judge dominates</h4>
+<p>The judge answers for <strong>every cell of the matrix</strong>, and
+each of its calls is expensive in input tokens because of what it has to
+carry:</p>
+<ul>
+<li><strong>Two pairwise calls per non-incumbent cell.</strong> Each
+carries the original request, <strong>both</strong> responses and the
+rubric, and the pair is the same comparison run in both orders so
+position bias cancels. See <a href="#5-evaluators-and-judges">section
+5.3</a>.</li>
+<li><strong>Plus one rubric-score call per cell</strong> when an
+absolute rubric score is attached, carrying one response and the rubric.
+In the usual configuration that is <strong>three judge calls per
+candidate cell</strong>.</li>
+<li><strong>A reasoning judge multiplies the output side.</strong> On
+the OpenAI wire the output cap covers hidden reasoning tokens, so a
+judge that reasons is given a much larger cap than one that does not,
+and bills accordingly.</li>
+</ul>
+<p>A candidate cell, by contrast, is one request and one answer at that
+model's own price.</p>
+<h4 id="a-worked-cost-shape">A worked cost shape</h4>
+<p>Neutral numbers, for a sweep of <strong>120 candidate cells</strong>
+(say four candidates over five fixtures, three variants, two repeats)
+with an incumbent and a rubric score attached:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Line</th>
+<th>Full-provider mode</th>
+<th>In-harness mode</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Candidate calls, 120 cells on mid-priced models</td>
+<td>A few tens of cents</td>
+<td>The same few tens of cents</td>
+</tr>
+<tr class="even">
+<td>Judge calls, roughly 270 of them (two pairwise on each of the 90
+non-incumbent cells, plus one rubric score on all 120)</td>
+<td>Several dollars with a mid-priced judge; tens of dollars with a
+frontier reasoning judge</td>
+<td>Not billed</td>
+</tr>
+<tr class="odd">
+<td><strong>What the report says</strong></td>
+<td><code>Judge cost 6.431200, included in the actual spend above.</code></td>
+<td><code>Judge cost: not available (judged by the Claude Code harness subagent).</code></td>
+</tr>
+</tbody>
+</table>
+<p>The ratio, not the absolute figures, is the point: on a matrix of any
+size the judge is an order of magnitude more than the field it is
+judging. Two consequences follow. First, sizing a spend ceiling by
+counting candidate calls will refuse the run for the wrong reason or,
+worse, let it through and overspend on judging; declare the judge's
+pricing so its calls are inside the estimate. Second, before widening a
+matrix, widen it in the dimension that adds judged evidence (fixtures)
+rather than the one that multiplies judging without pooling it
+(variants).</p>
+<h4 id="which-judge-is-available">Which judge is available</h4>
+<p>The availability rule is stated in the package README and is
+reproduced here verbatim, because both modes depend on it:</p>
+<blockquote>
+<p><strong>If the eval is being run from the Claude Code harness (this
+session, with a judge-queue subagent draining the exchange), the harness
+subagent is the judge and no API spend is incurred for judging. If the
+eval is run any other way (dashboard, CI, a plain
+<code>dotnet test</code> with no draining agent), the harness judge is
+not available; the only available judge is an API connection such as
+OpenRouter, selected with <code>LLMEVAL_JUDGE_CONNECTION</code>, and
+judge calls are billed.</strong></p>
+</blockquote>
+<p>There is deliberately <strong>no automatic fallback</strong> between
+the modes. Re-pointing a file-exchange judge at a paid endpoint would
+put a bill on somebody who chose the subscription path, silently. A run
+started in in-harness mode with no drainer online, or with a heartbeat
+past the staleness bound, <strong>fails fast</strong> with
+<code>No judge agent is draining {root}</code> and names both ways out,
+rather than hanging on its first cell. <a
+href="#8-the-two-judge-paths">Section 8</a> covers the exchange protocol
+itself.</p>
+<p>To see what a finished run actually looks like, skip to <a
+href="#appendix-sample-outputs">Appendix: sample outputs</a>. It is
+placed at the end rather than here so this orientation stays short, and
+it is worth reading before the numbered sections if you have never seen
+a leaderboard from this harness.</p>
 <hr />
 <h3 id="1-why-the-package-exists">1. Why the package exists</h3>
 <p>A team shipping a feature that calls a language model has to answer
@@ -1027,6 +1281,177 @@ href="#7-throttle-and-continue">section 7</a>, so a sweep needing more
 wraps the client or the HTTP client itself; and no live tests ship in
 the package, because proving the wire mapping against a real provider is
 a consuming project's own opt-in lane.</p>
+<hr />
+<h3 id="appendix-sample-outputs">Appendix: sample outputs</h3>
+<p><strong>Every figure, model id and transcript in this appendix is a
+synthetic sample.</strong> The names are invented, the numbers are
+illustrative, and nothing here came from a real provider or a real
+application. The <strong>shapes</strong> are faithful: the column sets
+and the wording of the selection blocks match what
+<code>LeaderboardWriter</code> emits today.</p>
+<p>This appendix sits at the end rather than before section 1 so the
+orientation above stays short; it is linked from the top of the document
+because it is the fastest way to understand what a run is for.</p>
+<p>Two conventions worth knowing before reading any of it:</p>
+<ul>
+<li><strong>Every numeric metric the sweep produced gets its own mean
+column</strong>, with no list deciding which ones are interesting. A
+real summary is therefore wider than these samples, which show only the
+judged columns; a run with cost, token and latency evaluators attached
+also carries <code>mean Cost</code>, <code>mean Input tokens</code>,
+<code>mean Output tokens</code> and <code>mean Latency (ms)</code>.</li>
+<li><strong><code>n/a</code> is a real value and never a zero.</strong>
+It means the harness had nothing to measure, and the reason is recorded
+next to it.</li>
+</ul>
+<h4 id="a1-single-shot-leaderboard-synthetic-sample">A.1 Single-shot
+leaderboard (synthetic sample)</h4>
+<p>One table per (scenario, variant), ranked by cost per passing
+generation, ties broken by model id. The model column carries the
+upstream that actually answered where the endpoint reported one.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 2026-09-11T0930</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>120 cells: 118 succeeded, 1 failed, 1 unsupported.</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 0.812400, actual 0.374512.</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>Judge cost: not available (judged by the Claude Code harness subagent).</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>Pacing: 42 calls waited a total of 61.5 s on rate limits; 3 calls retried after a transient failure (429 x2, 503 x1).</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | mean pairwise.win | mean rubric.score | Notes |</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>| agg/delta (vendor-d) | 15 | 11/15 | 0.000682 | 0.000500 | 1840 ms | 0.28 | 3.1 | cheap-field |</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>| agg/beta (vendor-b) | 15 | 15/15 | 0.001140 | 0.001140 | 2310 ms | 0.47 | 3.9 | challenger |</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>| agg/gamma (vendor-c) | 15 | 15/15 | 0.002310 | 0.002310 | 3620 ms | 0.72 | 4.4 | challenger |</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>| agg/alpha (vendor-a) | 15 | 15/15 | 0.004180 | 0.004180 | 2980 ms | n/a | 4.1 | baseline |</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 14/15 | 0.005121 | 0.004780 | 2450 ms | 0.53 | 4.2 | |</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>| agg/epsilon | 15 | 0/15 | n/a | n/a | n/a | n/a | n/a | unsupported: no strict structured output |</span></code></pre></div>
+<p>Reading it: <code>agg/delta</code> is the cheapest per pass and loses
+most of its comparisons, which is exactly what cost per pass alone
+cannot tell you. <code>agg/alpha</code> is the incumbent, so it has no
+win rate against itself and reports <code>n/a</code> rather than 0.5.
+<code>agg/epsilon</code> was never called at all.</p>
+<p>The selection block that follows the tables:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Selection</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>Judged by vendor-c/judge-1 (family vendor-c). Comparisons are pooled across scenarios. Parity at a</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>win rate of 0.45, upgrade at 0.65, at least 6 judged comparisons, and an upgrade may cost at most 3x</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>the parity pick.</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>Rubric: Answers the question asked, stays inside the supplied facts, names its uncertainty, and never pads.</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">### baseline (5 scenario(s): Interpretation.Explain, Interpretation.Summarise, ...)</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>Selected: a parity pick and an upgrade pick both cleared their thresholds.</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Parity pick: **agg/beta**, win rate 0.47 (n=15 over 5 scenario(s), 95% 0.25 to 0.7), cost per pass 0.001140</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Upgrade pick: **agg/gamma** (same vendor family, vendor-c, as the judge vendor-c/judge-1), win rate 0.72 (n=15 over 5 scenario(s), 95% 0.47 to 0.88), cost per pass 0.002310</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>| Candidate | n | Scenarios | Win rate | 95% interval | Cost per pass |</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>| agg/gamma (same vendor family, vendor-c, as the judge vendor-c/judge-1) | 15 | 5 | 0.72 | 0.47 to 0.88 | 0.002310 |</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 5 | 0.53 | 0.3 to 0.75 | 0.005121 |</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>| agg/beta | 15 | 5 | 0.47 | 0.25 to 0.7 | 0.001140 |</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>| agg/delta | 15 | 5 | 0.28 | 0.12 to 0.52 | 0.000682 |</span></code></pre></div>
+<p>The same-family flag on the upgrade pick is the thing to act on here:
+the candidate about to be chosen shares a vendor family with the judge
+that chose it. Running both orderings cancels position bias but cannot
+cancel that, so the answer is a second judge from another vendor, not a
+footnote. Note also how wide the intervals are at n=15. A win rate of
+0.72 with a lower bound of 0.47 is a lead, not a proof.</p>
+<h4 id="a2-multi-agent-episode-leaderboard-synthetic-sample">A.2
+Multi-agent episode leaderboard (synthetic sample)</h4>
+<p>One table per (episode, variant), with a model and a cost column
+<strong>per role</strong>. The per-role split is the point: an
+acceptable total is often mostly one role that a cheaper model would run
+just as well.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Tutoring.Session / baseline</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>| Assignment | Runs | Passed | Cost per pass | Mean cost | teacher model | teacher cost | checker model | checker cost | student model | student cost | mean Turns to completion | mean pairwise.win | Notes |</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|---|---|---|---|---|</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>| cheap-checker | 9 | 9/9 | 0.014200 | 0.014200 | agg/alpha | 0.009100 | agg/delta | 0.001600 | scripted | n/a | 4.2 | 0.51 | |</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>| baseline-cast | 9 | 9/9 | 0.019800 | 0.019800 | agg/alpha | 0.009300 | agg/gamma | 0.007200 | scripted | n/a | 4.1 | n/a | baseline |</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>| strong-teacher | 9 | 8/9 | 0.031400 | 0.027900 | agg/gamma | 0.021000 | agg/gamma | 0.006900 | scripted | n/a | 3.4 | 0.69 | 1 failed, first: turn cap reached before a summary |</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>| cheap-teacher | 9 | 5/9 | 0.009800 | 0.005400 | agg/delta | 0.003100 | agg/gamma | 0.002300 | scripted | n/a | 5.8 | 0.22 | cheap-field |</span></code></pre></div>
+<p>Reading it: <code>cheap-checker</code> keeps the teacher and swaps
+only the checker, and lands at parity for three-quarters of the
+incumbent's cost. <code>cheap-teacher</code> is the cautionary row: it
+looks cheapest per call, but it passes five times in nine and takes
+nearly six turns to get there, so its cost per <strong>pass</strong> is
+higher than the row above it and its win rate is poor. The
+<code>student</code> role is a scripted human, so it has no cost at
+all.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">### baseline (1 scenario(s): Tutoring.Session)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Selected: a parity pick cleared its threshold; an upgrade pick also qualified.</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Parity pick: **cheap-checker**, win rate 0.51 (n=9 over 1 scenario(s), 95% 0.24 to 0.77), cost per pass 0.014200</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Upgrade pick: **strong-teacher**, win rate 0.69 (n=9 over 1 scenario(s), 95% 0.39 to 0.89), cost per pass 0.031400</span></code></pre></div>
+<p>An upgrade at 2.2x the parity pick is inside the default bound, but
+n=9 over a single fixture is thin evidence. This is the case for adding
+fixtures rather than repeats: comparisons pool across scenarios, so a
+second and third fixture would take the same decision to n=27.</p>
+<h4 id="a3-workflow-leaderboard-by-node-synthetic-sample">A.3 Workflow
+leaderboard, by node (synthetic sample)</h4>
+<p>A workflow measured through the FlowEngine adapter is an episode
+whose <strong>roles are its agent nodes</strong>: a role binding's
+service key doubles as the node's client reference, so a role column in
+this table is a node in the workflow definition.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Loans.Review / baseline</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>| Assignment | Runs | Passed | Cost per pass | Mean cost | extract model | extract cost | assess model | assess cost | explain model | explain cost | mean Episode completed | mean pairwise.win | Notes |</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|---|---|---|---|---|</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>| cheap-extract | 6 | 6/6 | 0.021700 | 0.021700 | agg/delta | 0.001200 | agg/alpha | 0.014300 | agg/beta | 0.006200 | 1 | 0.58 | |</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>| baseline-cast | 6 | 6/6 | 0.027900 | 0.027900 | agg/beta | 0.007400 | agg/alpha | 0.014300 | agg/beta | 0.006200 | 1 | n/a | baseline |</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>| cheap-assess | 6 | 4/6 | 0.024600 | 0.016400 | agg/beta | 0.007300 | agg/delta | 0.002900 | agg/beta | 0.006200 | 0.67 | 0.25 | 2 failed, first: workflow faulted at node assess |</span></code></pre></div>
+<p>Reading it: the extraction node is a mechanical transformation and
+runs perfectly well on the cheapest model in the field, which is most of
+the saving. The assessment node is the one carrying the judgement, and
+moving it down costs two failed runs out of six. That is the split a
+single total would have hidden, and it is the reason the adapter reports
+per-node cost at all.</p>
+<p><code>mean Episode completed</code> is the built-in episode outcome
+metric: 1 where every run completed, 0.67 where two of six did not.</p>
+<h4 id="a4-value-charts-synthetic-samples">A.4 Value charts (synthetic
+samples)</h4>
+<p>The leaderboard answers "what did each candidate cost and how often
+did it win". These charts are the same data read as a decision:
+<strong>cost per passing generation on the x axis, win rate against the
+incumbent on the y axis</strong>, with the parity and upgrade thresholds
+drawn as lines and the picks ringed.</p>
+<p>The incumbent is drawn as a <strong>vertical cost reference
+line</strong>, not as a point, because it has no win rate against
+itself. The harness reports that as not applicable and never as 0.5, and
+a point at 0.5 would invite exactly the misreading the harness refuses
+to make.</p>
+<p><strong>A clear upgrade exists.</strong> One candidate is judged
+clearly better and costs about twice the parity pick, inside the default
+bound. Both picks are reported and the choice is a real one.</p>
+<p><img src="diagrams/10-value-upgrade-exists.svg"
+alt="Value chart: a clear upgrade exists at a modest cost multiple" /></p>
+<p><strong>Parity everywhere.</strong> Nothing clears the upgrade
+threshold, so the decision collapses to price at equal measured quality.
+No upgrade pick is reported at all, which is a result and not a gap.
+This is the usual outcome for a well-specified prompt, and the finding
+is "take the cheapest".</p>
+<p><img src="diagrams/11-value-parity-everywhere.svg"
+alt="Value chart: parity everywhere, so the cheapest wins" /></p>
+<p><strong>The incumbent is dominated.</strong> Two candidates are both
+better than even and cheaper. Dominators are reported separately from
+the picks, because better <strong>and</strong> cheaper needs no
+trade-off argument.</p>
+<p><img src="diagrams/12-value-incumbent-dominated.svg"
+alt="Value chart: the incumbent is dominated by a better and cheaper candidate" /></p>
+<p>The three charts are generated from committed JSON samples by <a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval/docs/diagrams/tools/render-value-charts.mjs"><code>diagrams/tools/render-value-charts.mjs</code></a>,
+a dependency-free node script. Re-render them with:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">node</span> EF.LLMEval/docs/diagrams/tools/render-value-charts.mjs</span></code></pre></div>
+<p>Output is deterministic, so re-rendering an unchanged sample produces
+a byte-identical file and never shows up as noise in a review.</p>
 <hr />
 <h3 id="further-reading">Further reading</h3>
 <table>
