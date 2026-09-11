@@ -42,6 +42,14 @@ href="LLMEval-Operations.html">LLMEval-Operations.md</a>.</p>
 each workload</a></li>
 <li><a href="#how-an-eval-run-is-judged-and-what-it-costs">How an eval
 run is judged, and what it costs</a></li>
+<li><a href="#how-an-evaluation-proceeds-step-by-step">How an evaluation
+proceeds, step by step</a> - the walk from an empty solution to a
+report</li>
+<li><a href="#capabilities-and-candidate-filtering">Capabilities and
+candidate filtering</a> - what decides which candidates are in the
+field</li>
+<li><a href="#hints-proposals-and-the-rerun-loop">Hints, proposals and
+the rerun loop</a> - what to do with a report full of failures</li>
 <li><a href="#appendix-sample-outputs">Appendix: sample outputs</a> -
 what an engineer actually reads after a run</li>
 </ul>
@@ -306,6 +314,366 @@ href="#appendix-sample-outputs">Appendix: sample outputs</a>. It is
 placed at the end rather than here so this orientation stays short, and
 it is worth reading before the numbered sections if you have never seen
 a leaderboard from this harness.</p>
+<hr />
+<h3 id="how-an-evaluation-proceeds-step-by-step">How an evaluation
+proceeds, step by step</h3>
+<p>The two sections above say what a sweep is for and what it costs.
+This one is the walk from an empty solution to a report, in the order
+the work actually happens. Each step links to the numbered section that
+explains the mechanism behind it.</p>
+<!-- Mermaid source: diagrams/13-evaluation-steps.mmd -->
+
+<p><img src="diagrams/13-evaluation-steps.svg"
+alt="The steps of an evaluation: install and wire, inventory the call points, build the matrix, probe, filter on capability, estimate, run every cell, capture, report" /></p>
+<p><strong>1. Install the package and wire an eval host onto the real
+composition root.</strong> A project reference to
+<code>EF.LLMEval</code> installs the two agent skills into
+<code>&lt;repository root&gt;/.claude/skills</code> on build, so the
+harness-building and harness-running instructions are present without a
+separate step. The wiring itself is one type: an eval host that calls
+the application's <strong>own</strong> registration entry point (the
+<code>AddXxxServices(configuration)</code> the production host calls,
+not a hand-built object graph) and then replaces only the chat clients
+with the cell's candidates. Storage, clocks, identity and outbound
+integrations get per-cell doubles in the same place, because a cell
+reaching the real database measures that database's availability
+alongside the model. See <a href="#35-the-composition-seam">section
+3.5</a>.</p>
+<p><strong>2. Inventory every LLM call point in the workflow, with what
+each one requires.</strong> Written down before any harness code exists,
+one row per workload. What a row has to record is what a cell will have
+to satisfy:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Requirement</th>
+<th>Why the harness needs it</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Plain text or structured output</td>
+<td>A schema-bound call is gated against strict structured-output
+support; a plain-text call is not.</td>
+</tr>
+<tr class="even">
+<td>Tool calling</td>
+<td>A call that offers tools is gated against tool support, and the
+tools have to be resolvable inside a cell.</td>
+</tr>
+<tr class="odd">
+<td>Web search or other retrieval</td>
+<td>Not modelled by the capability gate today. See <a
+href="#capabilities-and-candidate-filtering">Capabilities and candidate
+filtering</a>.</td>
+</tr>
+<tr class="even">
+<td>Context size</td>
+<td>A workload whose prompt is long narrows the field by hand rather
+than by the gate: context length is catalog data, not a gated
+capability.</td>
+</tr>
+<tr class="odd">
+<td>Human turns</td>
+<td>Decides whether the workload is a single-shot scenario or an
+episode, and which simulated human answers the middle turns.</td>
+</tr>
+<tr class="even">
+<td>Storage and ambient context it reaches</td>
+<td>Each needs a per-cell double in the host, or the cell measures
+something other than the model.</td>
+</tr>
+</tbody>
+</table>
+<p>Half an inventory measures the workload somebody remembered. The call
+point that costs the most is routinely the one nobody listed.</p>
+<p><strong>3. Build the matrix.</strong> The dimensions are
+<strong>fixture x prompt variant x candidate model</strong>, and for a
+multi-agent loop <strong>x role assignment</strong>. Every combination
+is one <strong>cell</strong>: one run of the real workload, scored on
+its own. A role assignment is a named cast rather than a cross product
+over the roles - varying one role at a time is what makes a per-role
+pick readable, and a full cross product over three roles and four
+candidates is sixty-four casts nobody will read. See <a
+href="#34-scenarios-episodes-and-human-simulators">section 3.4</a>.</p>
+<p><strong>4. Probe.</strong> Each (workload, variant) runs once against
+a client that sends nothing and records what the application's code
+actually asked for: the messages, the response format, the tools, the
+reasoning effort, the token ceiling, and how many calls each role made.
+Everything downstream is computed from that rather than from an
+assumption. See <a href="#4-the-sweep-lifecycle">section 4</a>.</p>
+<p><strong>5. Filter on capability, per candidate, per cell.</strong>
+The candidate's declared capabilities are checked against the probed
+<code>ChatOptions</code>. A candidate that cannot satisfy the request is
+marked <strong>unsupported</strong> for that cell and never called: it
+costs nothing, carries the reason it was refused, and is excluded from
+the ranking and from the picks. For an episode the gate is applied per
+role, and one role that cannot honour its request invalidates the whole
+cell rather than sending the roles that could have run.</p>
+<p><strong>6. Estimate and check the ceiling.</strong> The whole matrix
+is priced from the probe and the catalog before anything is sent, judge
+calls included, and the run is refused against the ceiling with a
+breakdown naming which dimension to cut. The estimate is an
+<strong>upper bound over every cell</strong>: it is computed before the
+per-cell gate runs, so a cell that turns out to be unsupported is priced
+in the estimate and then never called. Actual spend comes in under it
+for that reason among others.</p>
+<p><strong>7. Run every remaining cell.</strong> The real workflow
+executes, with each role's client swapped for that cell's candidate,
+under a concurrency cap and a per-minute pacer. The delegates call the
+application's own classes, so what is measured is the orchestration that
+ships.</p>
+<p><strong>8. Capture per cell.</strong> Latency, input and output
+tokens, cost priced from the live catalog, the hard-gate outcome from
+the deterministic evaluators, and judged quality - pairwise against the
+incumbent's answer to the same request, in both orders. Everything the
+sweep measured is recorded per cell, including <code>n/a</code> where
+there was nothing to measure. See <a
+href="#5-evaluators-and-judges">section 5</a>.</p>
+<p><strong>9. Read the report.</strong> Three things, in the order they
+are useful: the <strong>leaderboard</strong>, one table per (workload,
+variant) ranked by cost per passing generation; the
+<strong>Selection</strong> block, a parity pick and an upgrade pick per
+group, per role for an episode, with the rule and its thresholds stated
+above the picks; and <strong>suggested adjustments</strong>, the
+prompting notes and deterministic hints for whatever failed. See <a
+href="#6-the-selection-rule">section 6</a> and <a
+href="#hints-proposals-and-the-rerun-loop">Hints, proposals and the
+rerun loop</a>.</p>
+<p>A second run of the same sweep replays every finished cell from the
+response cache at no model cost, which is what makes step 9 the start of
+a loop rather than the end of the work.</p>
+<hr />
+<h3 id="capabilities-and-candidate-filtering">Capabilities and candidate
+filtering</h3>
+<p>Step 5 of the walk above is one method call, and it decides which
+candidates are in the field. It is worth knowing exactly what it reads,
+because a gap in it looks like a model that is fine and is not.</p>
+<h4 id="what-is-modelled-today">What is modelled today</h4>
+<p><code>ModelCapabilities</code> is a small record with five fields,
+and nothing else about a model is gated:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>What it gates</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>SupportsJsonSchema</code></td>
+<td>A request carrying a JSON <strong>schema</strong> (strict structured
+outputs).</td>
+</tr>
+<tr class="even">
+<td><code>SupportsJsonMode</code></td>
+<td>A request asking for a JSON response format with no schema. A model
+with schema support satisfies this too.</td>
+</tr>
+<tr class="odd">
+<td><code>SupportsTools</code></td>
+<td>A request that offers <strong>any</strong> tools. One boolean for
+tool calling as a whole.</td>
+</tr>
+<tr class="even">
+<td><code>ReasoningEfforts</code></td>
+<td>The efforts the model accepts. A requested effort outside the list
+is refused. An empty list means the catalog said nothing, and the check
+is skipped.</td>
+</tr>
+<tr class="odd">
+<td><code>ReasoningMandatory</code></td>
+<td>A model that always reasons, so <code>ReasoningEffort.None</code> is
+refused outright and is reported with its own reason.</td>
+</tr>
+</tbody>
+</table>
+<p><code>ModelCapabilities.Unknown</code>
+(<code>IsKnown == false</code>) is the sixth state and the most
+important one: it is deliberately <strong>permissive</strong>, so a
+candidate no catalog placed still runs and lets the provider be the
+judge. Refusing to call a model over a gap in catalog data would
+silently shrink the field, which is the opposite of what the harness is
+for.</p>
+<h4 id="where-they-come-from">Where they come from</h4>
+<p>Two sources, and a roster override.</p>
+<ul>
+<li><strong>A catalog</strong>, per wire model id. The live aggregator
+catalog maps the provider's own <code>supported_parameters</code> list
+onto the record: <code>structured_outputs</code> to
+<code>SupportsJsonSchema</code>, <code>response_format</code> to
+<code>SupportsJsonMode</code>, <code>tools</code> to
+<code>SupportsTools</code>, and the published reasoning efforts (plus a
+mandatory flag) onto the last two. A retail price catalog that publishes
+prices and no capability data yields <code>Unknown</code> for every
+entry, which is the permissive state above rather than a blocked
+field.</li>
+<li><strong>A static catalog</strong>, for anything the live one does
+not carry: a gateway alias, a deployment name, a model behind a
+first-party endpoint that publishes no machine-readable capability
+list.</li>
+<li><strong>A roster override.</strong>
+<code>ModelUnderTest.Reasoning</code> is declared on the candidate
+rather than derived, and answers "does this model reason on every call"
+for an entry that was never enriched - which is the normal case for a
+judge. A reasoning judge called with a small output cap spends the cap
+on hidden tokens and answers nothing, so the answer has to be available
+before any catalog is consulted. <code>ModelUnderTest.Family</code> is
+the same shape of declaration for the vendor family.</li>
+</ul>
+<p>Pricing travels the same path and has the same unknown state, with
+the same rule: an unknown price is never treated as zero.</p>
+<h4 id="how-the-runner-decides-a-cell-is-unsupported">How the runner
+decides a cell is unsupported</h4>
+<p><code>Supports(ChatOptions, out reason)</code> is called with the
+<strong>probed</strong> options - what the application's own code asked
+for on this workload and this variant, not what a harness author
+assumed. It returns false on the first check that fails and writes a
+reason in plain words:
+<code>model does not support strict JSON schema (structured outputs)</code>,
+<code>model does not support tool calling</code>,
+<code>model does not support reasoning effort 'high' (supports: none, low, medium)</code>,
+or
+<code>model requires reasoning and cannot run at effort 'none'</code>.</p>
+<p>A false result records the cell as <code>Unsupported</code> and
+returns before any client is built, so the cell costs nothing. For an
+episode the same check runs once per role before anything is sent, and
+the first role that fails invalidates the whole cell, with the reason
+prefixed by the role name and the model id.</p>
+<h4 id="how-it-appears-in-the-report">How it appears in the report</h4>
+<ul>
+<li><strong><code>summary.md</code> header</strong>: the cell counts
+carry it -
+<code>120 cells: 118 succeeded, 1 failed, 1 unsupported.</code></li>
+<li><strong>The leaderboard row</strong>: the model still gets a row so
+it is visible as considered rather than forgotten, with <code>n/a</code>
+in every measured column and the reason in the Notes column, as
+<code>unsupported: model does not support strict JSON schema (structured outputs)</code>.</li>
+<li><strong>Ranking and picks</strong>: only cells that actually
+succeeded feed cost per pass, the means and the selection, so an
+unsupported candidate is never ranked and can never be a parity or
+upgrade pick.</li>
+<li><strong><code>results.json</code></strong>: the per-cell record
+carries <code>Outcome</code> and <code>Reason</code> verbatim, so a
+re-read of a finished run can tell a capability refusal from a model
+that answered badly.</li>
+</ul>
+<h4 id="what-is-not-modelled-today">What is not modelled today</h4>
+<p>Stated so it is not discovered mid-run:</p>
+<ul>
+<li><strong>Web search and other retrieval tools.</strong>
+<code>SupportsTools</code> is one boolean for tool calling. A hosted
+web-search tool, a retrieval tool or a code-interpreter tool is not
+distinguished from an ordinary function tool, so a candidate that
+supports function calling and not hosted search passes the gate and
+fails at the provider.</li>
+<li><strong>Context window and maximum output tokens.</strong> A catalog
+entry carries both where the provider publishes them, but neither is
+copied into <code>ModelCapabilities</code> and neither is checked
+against the probed prompt length. A long-context workload narrows its
+own field by hand.</li>
+<li><strong>Modality.</strong> Image, audio or file input is not
+represented at all.</li>
+<li><strong>An explicit per-role requirements declaration.</strong>
+There is no place in the eval host to say "this role needs structured
+output, tools and 200k of context" up front. Requirements are discovered
+from the probe, cell by cell, which means a candidate that cannot serve
+a role is learned one cell at a time rather than excluded before the
+matrix is built, and the requirements themselves never appear in the
+report.</li>
+</ul>
+<h4 id="follow-ups">Follow-ups</h4>
+<ul>
+<li><strong>A per-role requirements declaration in the eval
+host</strong>, used for up-front candidate selection and printed in the
+report. It would turn the last two paragraphs into one pre-flight check:
+a candidate that cannot serve a role is excluded before the matrix is
+priced, and the report states what each role needed alongside which
+candidates could meet it. Planned, with no date attached.</li>
+<li><strong>A distinct capability for hosted tools</strong>, so web
+search and retrieval stop being folded into the single tool-calling
+boolean.</li>
+</ul>
+<hr />
+<h3 id="hints-proposals-and-the-rerun-loop">Hints, proposals and the
+rerun loop</h3>
+<p>Step 9 of the walk ends with a report full of failures and a
+question: which prompt edit is worth trying. The package answers it in
+three layers, cheapest first, and hands the decision to a person at
+every layer. <a href="#11-the-prompt-development-loop">Section 11</a>
+covers the mechanisms; this is the loop as it is actually operated.</p>
+<h4 id="suggested-adjustments-written-by-every-run">Suggested
+adjustments, written by every run</h4>
+<p><code>summary.md</code> closes with a <strong>Suggested
+adjustments</strong> section, one subsection per model that failed
+something. Two sources feed it, both free and both deterministic:</p>
+<ul>
+<li><strong>Hints from the evaluators.</strong> A narrow literal table
+maps a deterministic failure to the edit that usually fixes it: a fenced
+payload in a structured-output failure to "state that the output must be
+the bare object with no code fence"; a truncated or empty response to
+"raise the output allowance or lower the reasoning effort"; an
+unexpected script to "put the language directive last and repeat it in
+the user message". A cell's own metrics and failure reason decide which
+rules fire, and the edits are deduplicated. The table stays narrow on
+purpose: a hint that fires on a vague match sends somebody to rewrite a
+prompt that was not the problem.</li>
+<li><strong>Vendor prompting notes for that model's family</strong>,
+embedded in the package with the source URL and the date each was read,
+so stale advice is visible as stale. Lookup is by substring against the
+model id with the longest family winning, so an aggregator-qualified id
+still finds the specific family entry rather than the vendor-wide
+one.</li>
+</ul>
+<p>Nothing here costs a model call, and nothing here is written unless a
+cell failed.</p>
+<h4 id="proposals-opt-in-and-unmeasured">Proposals, opt-in and
+unmeasured</h4>
+<p>The <strong>prompt advisor</strong> is the layer that costs
+something. Given a failing cell it asks a model the caller supplies -
+explicitly not one of the candidates under test - for a small number of
+prompt variants, with the deterministic hints and the vendor notes
+included in the brief. It refuses any proposal naming a prompt key the
+workload did not declare editable, and refuses an unparseable reply the
+same way, in both cases before anything is written.</p>
+<p>What it writes is
+<strong><code>proposed-variants.json</code></strong> in the report
+directory, and that is where it stops. Nothing in the file has been
+measured. A proposal is a suggestion about a prompt, sitting next to the
+run that motivated it.</p>
+<h4 id="accepting-a-proposal-and-the-rerun">Accepting a proposal, and
+the rerun</h4>
+<p>The dashboard's <strong>Proposals</strong> page is where a person
+reads that file: one card per proposal, the variant's overrides shown,
+and an accept action. Accepting writes the variant into
+<strong><code>accepted-variants.json</code></strong> beside that
+execution's results, deliberately a <strong>separate file</strong> from
+the one the advisor wrote - what a model suggested and what a person
+approved are different claims, and one should not overwrite the other.
+Accepting the same name again replaces the stored text rather than
+appending.</p>
+<p>The accepted set is then offered on the run page for that execution,
+where it <strong>wins over a host variant of the same name</strong>, so
+a rerun can measure the accepted wording against the shipped one without
+editing the application. Starting that rerun is a separate, deliberate
+act: the run page still requires a dry run first, still refuses a
+request that would raise the spend ceiling, and still asks for
+confirmation showing the estimate. Acceptance stages a variant; it does
+not launch anything.</p>
+<p>The whole loop is therefore: run, read the suggested adjustments,
+decide which edits are real, name them as variants (by hand, or by
+accepting a proposal), and run again. The cached candidate responses
+mean every unchanged cell replays at no model cost, so the second run
+pays only for what changed.</p>
+<h4 id="acting-on-proposals-unattended-is-out-of-scope">Acting on
+proposals unattended is out of scope</h4>
+<p>This is a design boundary, not a missing feature. A loop in which a
+model edits the prompt, runs the edit and scores its own output is not
+an experiment, and the package refuses to close it: the advisor never
+runs what it proposed, the dashboard writes an acceptance rather than a
+run, and no scheduled or CI path exists that turns a proposal into a
+measured variant without a person in between. See <a
+href="#12-design-boundaries">section 12</a>.</p>
 <hr />
 <h3 id="1-why-the-package-exists">1. Why the package exists</h3>
 <p>A team shipping a feature that calls a language model has to answer
