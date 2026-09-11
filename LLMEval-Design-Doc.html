@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EF.LLMEval Design Document</title>
+  <link rel="stylesheet" href="docs-common.css">
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Documentation</div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">🌙</button>
+  </div>
+  <h1>EF.LLMEval Design Document</h1>
+</div>
+
+<div class="content">
+<h2 id="efllmeval-design-document">EF.LLMEval Design Document</h2>
+<blockquote>
+<p><strong>Audience</strong>: Engineers adding, extending or operating a
+model-and-prompt evaluation harness <strong>Scope</strong>:
+<code>EF.LLMEval</code>, <code>EF.LLMEval.FlowEngine</code>,
+<code>EF.LLMEval.Dashboard</code> <strong>Last updated</strong>:
+2026-09</p>
+</blockquote>
+<p>This document explains what the package is, how the pieces fit
+together and why each mechanism is shaped the way it is. It does not
+restate the API surface: every type, option and default is documented in
+<a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval/README.md">EF.LLMEval/README.md</a>,
+and this document links there rather than duplicating it.</p>
+<p>For a step-by-step build, see <a
+href="LLMEval-INTEGRATION-GUIDE.html">LLMEval-INTEGRATION-GUIDE.md</a>.
+For budgets, secrets and day-to-day running, see <a
+href="LLMEval-Operations.html">LLMEval-Operations.md</a>.</p>
+<hr />
+<h3 id="table-of-contents">Table of Contents</h3>
+<ol type="1">
+<li><a href="#1-why-the-package-exists">Why the package exists</a></li>
+<li><a href="#2-architecture-overview">Architecture overview</a></li>
+<li><a href="#3-core-concepts">Core concepts</a></li>
+<li><a href="#4-the-sweep-lifecycle">The sweep lifecycle</a></li>
+<li><a href="#5-evaluators-and-judges">Evaluators and judges</a></li>
+<li><a href="#6-the-selection-rule">The selection rule</a></li>
+<li><a href="#7-throttle-and-continue">Throttle and continue</a></li>
+<li><a href="#8-the-two-judge-paths">The two judge paths</a></li>
+<li><a href="#9-storage-layout-and-caches">Storage layout and
+caches</a></li>
+<li><a href="#10-the-dashboard">The dashboard</a></li>
+<li><a href="#11-the-prompt-development-loop">The prompt-development
+loop</a></li>
+<li><a href="#12-design-boundaries">Design boundaries</a></li>
+</ol>
+<hr />
+<h3 id="1-why-the-package-exists">1. Why the package exists</h3>
+<p>A team shipping a feature that calls a language model has to answer
+two questions repeatedly, and neither has a durable answer:</p>
+<ul>
+<li><strong>Which model should this workload run on?</strong> Vendors
+publish benchmark tables. Those tables measure someone else's prompts
+against someone else's fixtures, and they are stale within weeks.</li>
+<li><strong>Is this prompt edit an improvement?</strong> A deterministic
+test can prove the output parses and carries the required fields. It
+cannot say whether the new wording produces a better answer.</li>
+</ul>
+<p>The default practice is to read a table, pick a model, and revisit
+the decision when a bill or a complaint forces it. EF.LLMEval replaces
+that with a measurement: run the application's <strong>own</strong>
+orchestration against a field of candidate models and prompt variants,
+refuse to call a model whose catalog entry says it cannot honour the
+request, price every call from a live catalog, score every result, and
+rank the field by <strong>cost per passing generation</strong> rather
+than cost per call. A model that is cheap per call and fails a third of
+the time is not cheap.</p>
+<p>Three design commitments follow from that goal, and most of the rest
+of the package is a consequence of one of them.</p>
+<p><strong>The measurement runs the real code, not a copy of
+it.</strong> A harness that re-implements the prompt assembly measures
+the harness. The scenario and episode delegates are handed an
+<code>IChatClient</code> and call the application's own classes; the
+hosting layer goes further and builds the application's own service
+collection, swapping only the chat clients. A prompt edit that ships is
+measured; a prompt copied into a fixture drifts the first time somebody
+edits the original.</p>
+<p><strong>Money is a first-class output, not a footnote.</strong> The
+whole matrix is priced before anything is sent. A price that cannot be
+resolved stays unknown and the model is excluded from the cost ranking,
+never treated as free. The spend ceiling is checked against the estimate
+before the first call.</p>
+<p><strong>Nothing is silently downgraded, guessed or hidden.</strong> A
+model that cannot honour the probed request is recorded as unsupported
+and never called, because downgrading the request to fit it would make
+the ranking meaningless. A judge that fails stops the sweep instead of
+recording unmeasured cells as passes. A file-exchange judge is never
+re-pointed at a paid endpoint on its own.</p>
+<p>The package is a thin layer over <a
+href="https://learn.microsoft.com/dotnet/ai/evaluation/libraries">Microsoft.Extensions.AI.Evaluation</a>,
+which supplies metrics, AI judges, response caching and HTML reporting.
+What this package adds is the part that library does not cover: a matrix
+of candidates, a price for each cell, a capability gate, and a selection
+rule over the results.</p>
+<h4 id="11-when-to-reach-for-it">1.1 When to reach for it</h4>
+<table>
+<thead>
+<tr class="header">
+<th>Situation</th>
+<th>Fit</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Choosing between candidate models for a production workload</td>
+<td>Yes. This is the primary case.</td>
+</tr>
+<tr class="even">
+<td>Deciding whether a prompt variant is an improvement</td>
+<td>Yes, with a judge and an incumbent baseline.</td>
+</tr>
+<tr class="odd">
+<td>Re-checking a model choice after a vendor price or version
+change</td>
+<td>Yes. Re-run the same sweep.</td>
+</tr>
+<tr class="even">
+<td>Regression-testing that a response parses and carries required
+fields</td>
+<td>Use an ordinary unit test. A sweep costs money.</td>
+</tr>
+<tr class="odd">
+<td>Load or latency testing an endpoint</td>
+<td>No. Response caching and pacing both falsify latency.</td>
+</tr>
+<tr class="even">
+<td>Measuring a model in isolation, outside the application</td>
+<td>Possible, but it gives up the main advantage.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="2-architecture-overview">2. Architecture overview</h3>
+<p>Five things participate in a sweep, and the boundaries between them
+are the reason the design holds together.</p>
+<ul>
+<li><strong>The application under test</strong> supplies the code being
+measured: its prompt assembly, its orchestration, its parsing, and
+(through the hosting layer) its own dependency-injection container.</li>
+<li><strong>The eval host</strong> is the composition seam. It builds
+the application's service collection per cell and replaces the chat
+clients with recording clients bound to this cell's candidate
+models.</li>
+<li><strong>The sweep runner</strong> owns the matrix: it probes, gates
+on capability, estimates, paces, runs, evaluates and reports.</li>
+<li><strong>Providers and catalogs</strong> reach the outside world:
+endpoints for the candidates and the judge, price and capability data
+for the estimate and the ranking.</li>
+<li><strong>Storage</strong> holds the reporting store, the response
+caches, the judge exchange and the written reports. <strong>The
+dashboard</strong> reads that storage, and with a host source registered
+can also launch a run against it.</li>
+</ul>
+<!-- Mermaid source: diagrams/01-architecture-context.mmd -->
+
+<p><img src="diagrams/01-architecture-context.svg"
+alt="Architecture context: application, eval host, sweep runner, providers, storage, dashboard" /></p>
+<p>The hard boundary worth naming is between the <strong>roster</strong>
+(connections, credentials, candidate models) and the
+<strong>report</strong> (records, metrics, costs, selection).
+Credentials live only on the roster side: a connection's string
+representation reports whether a key is present and never its value, a
+model under test carries no credential at all, and the eval host is
+never serialised. That is what makes a results file safe to commit,
+publish or paste into a finding.</p>
+<hr />
+<h3 id="3-core-concepts">3. Core concepts</h3>
+<h4 id="31-the-roster-connections-and-models-under-test">3.1 The roster:
+connections and models under test</h4>
+<p>A <strong>connection</strong> (<code>ProviderConnection</code>) is
+one endpoint plus how to authenticate to it: provider, API surface, auth
+scheme, fixed headers, and which catalog prices it. A <strong>model
+under test</strong> (<code>ModelUnderTest</code>) is one candidate: the
+harness's own id for it, the wire model id, and the connection it runs
+on. Together they are the roster.</p>
+<p>The split matters because a candidate is not a model, it is a model
+<strong>on a route</strong>. The same wire model reached through a
+first-party endpoint and through an aggregator has different prices,
+different rate limits and sometimes different quantisation, and a sweep
+that treats them as one candidate is comparing two things it labelled
+the same.</p>
+<p>Two fields exist entirely to keep that comparison honest on an
+aggregator:</p>
+<ul>
+<li><strong>An upstream pin</strong> fixes a candidate to one upstream
+and refuses fallback. Without it, an aggregator routes the same model id
+across upstreams whose prices differ, so the run measures a blend rather
+than a model.</li>
+<li><strong>The served-by field</strong>, read off the response where
+the endpoint reports one, records which upstream actually answered, so
+the leaderboard shows the route rather than a bare id.</li>
+</ul>
+<p>A declared vendor <strong>family</strong> replaces inference from the
+id. It is worth setting on the judge and on any deployment-name or
+gateway-alias id, because an unplaced family silently disables the
+same-family warning described in <a href="#6-the-selection-rule">section
+6</a>.</p>
+<h4 id="32-connections-and-authentication">3.2 Connections and
+authentication</h4>
+<p>Three schemes, and one non-endpoint.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Scheme</th>
+<th>What it sends</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>API key</td>
+<td>The provider's own key header</td>
+<td>The default.</td>
+</tr>
+<tr class="even">
+<td>Bearer token</td>
+<td>A pre-issued token, through an explicit auth policy</td>
+<td>Refused outright on Azure connections, because the Azure client can
+present only a key or a credential, and sending a token as a key fails
+with an error that says nothing about the real cause.</td>
+</tr>
+<tr class="odd">
+<td>Token credential</td>
+<td>Any <code>Azure.Core</code> credential the caller builds</td>
+<td>The package references <code>Azure.Core</code> but deliberately
+never <code>Azure.Identity</code>: which credential chain to build is
+the caller's decision, not the harness's.</td>
+</tr>
+<tr class="even">
+<td>File exchange</td>
+<td>Nothing. It is a folder pair.</td>
+<td>Carries no credential, is never paced and never retried. It exists
+for the judge; see <a href="#8-the-two-judge-paths">section 8</a>.</td>
+</tr>
+</tbody>
+</table>
+<p>The API surface is selectable. Chat completions is the default
+because every OpenAI-compatible endpoint speaks it; the newer responses
+surface is first-party only, and asking for it on an Azure connection
+throws with the fix named rather than failing obscurely at the
+endpoint.</p>
+<p>The point of the refusals is that an auth or surface mismatch is a
+configuration error a person can fix in seconds if told, and an
+afternoon of debugging if it surfaces as a 401 from the far end.</p>
+<h4 id="33-catalogs-and-pricing">3.3 Catalogs and pricing</h4>
+<p>A catalog resolves a wire model id to price, capabilities, context
+length and output cap. Nothing about a sweep requires one; without a
+catalog there is simply no capability gate and every model is priced as
+unknown.</p>
+<p>Three implementations ship: an aggregator catalog that reads a public
+models endpoint (plus a per-upstream breakdown), a cloud retail-price
+catalog that matches meter names against a caller-supplied substring,
+and a static catalog wrapping a hand-built dictionary for deployments
+nothing publishes a price for.</p>
+<p>The retail-price case is the awkward one and explains the shape of
+the API. Meter names are not one grammar, so the parser scans for
+keywords and classifies each meter's direction (input, output, cached
+input, cache write), zone, context band and unit, rather than matching a
+fixed pattern. When it cannot classify, the rule is the same as
+everywhere else in the package: <strong>the price stays unknown, the raw
+meter names that were on offer are recorded as diagnostics, the model
+still runs, and it is left out of the cost ranking rather than treated
+as free.</strong></p>
+<h4 id="34-scenarios-episodes-and-human-simulators">3.4 Scenarios,
+episodes and human simulators</h4>
+<p>A <strong>scenario</strong> (<code>EvalScenario</code>) is a
+single-shot unit of work: a delegate handed a client and a prompt
+variant, called once per cell. An interpretation prompt that turns a
+structured input into a paragraph of prose is a scenario.</p>
+<p>An <strong>episode</strong> (<code>EvalEpisode</code>) is the
+multi-turn, possibly multi-role form. A three-agent tutoring session
+where one model teaches, one checks the explanation and a simulated
+student replies is not one request, and scoring only the final message
+misses where the cost and most of the failure modes live. An episode
+declares its roles, its turn budget and a probe reply per role; the
+delegate owns the conversation loop and the harness owns the cap, the
+recording and the per-role accounting.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Concern</th>
+<th>Scenario</th>
+<th>Episode</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Unit of work</td>
+<td>One model call, or a short deterministic chain</td>
+<td>A conversation with a turn budget</td>
+</tr>
+<tr class="even">
+<td>Candidate identity</td>
+<td>One model under test per cell</td>
+<td>A role assignment naming a model per role</td>
+</tr>
+<tr class="odd">
+<td>Cost reported</td>
+<td>One figure</td>
+<td>A total plus one figure per role</td>
+</tr>
+<tr class="even">
+<td>Outcome</td>
+<td>Passed or failed on its evaluators</td>
+<td>Completed, turn cap reached, human stopped, or failed</td>
+</tr>
+<tr class="odd">
+<td>Built-in extras</td>
+<td>Cost, latency, completeness</td>
+<td>Plus turns-to-completion, outcome and per-role cost</td>
+</tr>
+</tbody>
+</table>
+<p>Role assignments are <strong>explicit named sets, not a cross
+product</strong>. The cross product of three roles over ten candidates
+is a bill rather than an experiment, so the helper that exists builds
+the "hold everything else fixed, vary one role" set.</p>
+<p>The <strong>human simulator</strong> plays the other side of a
+conversation. A scripted human is the right default: it sends nothing,
+costs nothing and says exactly the same thing every run, which is what
+makes two candidate models comparable. A model-backed persona is
+available where a script cannot carry the variation, and it is priced
+under its own role name so a chatty persona never inflates what the
+workload appears to cost.</p>
+<p>One refusal is worth knowing about before it bites: a workload that
+declares a human turn, or more than one role, with <strong>no</strong>
+human simulator configured anywhere is refused rather than run. With a
+human that says nothing, a conversational episode stops after its
+opening turn and comes back looking like a successful one-turn
+measurement, which is the worst possible failure mode for a measurement
+tool. A workload that genuinely never converses says so explicitly with
+an empty script.</p>
+<h4 id="35-the-composition-seam">3.5 The composition seam</h4>
+<p>An episode delegate that constructs the classes it needs is measuring
+a copy of the application. The hosting layer measures the application
+itself.</p>
+<!-- Mermaid source: diagrams/03-composition-seam.mmd -->
+
+<p><img src="diagrams/03-composition-seam.svg"
+alt="Composition seam: keyed chat-client replacement in one per-cell container" /></p>
+<p>Four types carry it:</p>
+<ul>
+<li><strong>A role binding</strong> translates between the two
+vocabularies. The harness thinks in roles (<code>main</code>,
+<code>checker</code>, <code>judge</code>); the container thinks in
+service keys.</li>
+<li><strong>Cell services</strong> are what the harness contributes to
+one cell: the recording, turn-capped clients, the variant, the human,
+the turn cap, and the method that registers the clients.</li>
+<li><strong>A workload</strong> is one named piece of work, handed a
+scoped service provider. The first role is primary: the one the turn cap
+counts and the leaderboard ranks on.</li>
+<li><strong>The eval host</strong> ties them together and is the object
+a tool discovers through the one-member host-source seam. That seam is
+what lets the dashboard launch a run against an application it never
+compiled against.</li>
+</ul>
+<p>Three rules govern the replacement, and each is a consequence of a
+real failure mode.</p>
+<p><strong>Removal, not shadowing.</strong> Registering the cell's
+clients removes every unkeyed chat-client registration and every keyed
+one for a declared service key, then registers one keyed singleton per
+binding plus the primary role's client unkeyed. Shadowing would leave
+the application's live client findable by any component that enumerates
+every registered chat client, which is exactly the component that would
+then talk to a production endpoint during a measurement.</p>
+<p><strong>Ordering.</strong> The host builds the application's services
+first and applies the per-cell configuration afterwards, so the cell's
+clients always land after everything the application registered.
+Registration that merely <em>adds</em> a chat client is fine on either
+side. Registration that <em>inspects</em> the collection for one while
+registering has to move into the per-cell configuration, after the
+cell's clients: left earlier it sees an empty collection and wires up
+the live path. The one thing that must never follow the cell
+registration is a plain keyed registration, which would win and send the
+cell to the live endpoint.</p>
+<p><strong>One container per cell.</strong> The service collection comes
+from a factory, not a shared instance. Each cell gets a fresh provider
+with scope validation and its own async scope, both disposed afterwards.
+That is what keeps parallel cells from sharing a singleton, an in-memory
+database or a cache, and it is why a repeat is a genuine repeat rather
+than a second pass over warm state. The probe pass builds a container
+too, so a container that cannot be built fails offline before anything
+is spent.</p>
+<p>The harness replaces <strong>chat clients and nothing else</strong>.
+Storage, request or tenant context, configuration, clocks and outbound
+integrations are the application's concern and are replaced in the
+per-cell configuration. A workload that reaches a real dependency is
+measuring that dependency's availability alongside the model.</p>
+<h4 id="36-the-flowengine-adapter">3.6 The FlowEngine adapter</h4>
+<p>When the work being measured is an <code>EF.FlowEngine</code>
+workflow rather than a service call, <code>EF.LLMEval.FlowEngine</code>
+is the bridge and nothing more. It binds each agent node's client
+reference to this cell's recording client, starts the workflow, answers
+its human tasks from the harness's simulated human, and reports the run
+as an episode result: node history becomes the transcript, workflow
+output becomes the final artifact.</p>
+<p>The binding works because a role binding's service key doubles as the
+workflow's agent-node client reference, and the adapter registers the
+cell's client under that name through the engine's own client registry,
+which replaces by reference. The workflow definition is untouched.</p>
+<p>The human loop polls rather than decorating the task store: while the
+instance is suspended on an open human task and human turns remain, it
+asks the simulator for the next message and submits it through the
+store, which resumes the workflow synchronously. A run suspended on a
+wait, a timer or a message reply stops there, because those are answered
+by the world rather than by the person on the other end of the
+conversation.</p>
+<p>The final response is deliberately left null so the sweep falls back
+to the primary role's last recorded call, which is the workflow's own
+last model call and the thing worth judging. See the <a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval.FlowEngine/README.md">package
+README</a> for the outcome mapping table.</p>
+<hr />
+<h3 id="4-the-sweep-lifecycle">4. The sweep lifecycle</h3>
+<p>One run walks the same pipeline whether it is a single-shot scenario
+or a multi-turn episode.</p>
+<!-- Mermaid source: diagrams/02-sweep-lifecycle.mmd -->
+
+<p><img src="diagrams/02-sweep-lifecycle.svg"
+alt="Sweep lifecycle: probe, capability gate, estimate and ceiling, baseline cells, cells, evaluators, report" /></p>
+<p><strong>1. Probe.</strong> The scenario or episode runs once per
+(workload, variant) against a probe client that sends nothing over the
+network and records the chat options and messages the application's code
+actually produced. The delegate is free to throw after the call: the
+request options were captured before that. The probe reply only has to
+be shaped well enough for the application's own parsing to reach the
+model call.</p>
+<p>The probe is the hinge of the whole design. Everything downstream
+(the capability gate, the spend estimate, the per-role call counts) is
+computed from what the real code asked for, not from what a harness
+author assumed it would ask for.</p>
+<p><strong>2. Capability gate.</strong> Each candidate's declared
+capabilities are checked against the probed options: structured-output
+support against the requested response format, tool support against
+requested tools, and the requested reasoning effort against the efforts
+the model accepts. A model that cannot honour the request is recorded as
+unsupported and never called. Unknown capabilities are deliberately
+permissive, so a gap in catalog data shrinks nobody's field; the
+provider becomes the judge instead.</p>
+<p><strong>3. Estimate and ceiling.</strong> The whole matrix is priced
+from the probe and the catalog data before anything is sent. The
+estimate is an <strong>upper bound, not a forecast</strong>: input from
+prompt length, output from a declared expectation where there is one and
+from the request's own token ceiling otherwise, each episode role at the
+call count its probe showed rather than at the whole turn budget. If the
+estimate exceeds the ceiling the run throws before spending anything,
+and the exception carries the full breakdown (cells, workloads,
+variants, repeats, per-role contribution) so it is clear which dimension
+to cut.</p>
+<p>Declaring expected output tokens matters more than it looks. Left
+undeclared, a scenario that rarely reaches its ceiling is priced at that
+ceiling, which can overstate a whole sweep several-fold and refuse a run
+that would have been affordable.</p>
+<p><strong>4. Baseline cells first.</strong> When the sweep has an
+incumbent and a pairwise judge, the incumbent's cells run as one batch
+before anything else. Every other cell then reads the incumbent's answer
+to the same workload, variant and iteration back out of the reporting
+store and is judged against it. Ordering is not an optimisation here:
+without the incumbent's answer on disk there is nothing to compare
+against.</p>
+<p><strong>5. Cells.</strong> Each cell runs the workload once, through
+a recording client that captures every request and response, under the
+concurrency cap and the per-minute pacer. With response caching on, a
+cell whose request matches a cached response replays it at no model
+cost.</p>
+<p><strong>6. Recorders and evaluators.</strong> Every result is scored
+by the workload's own evaluators plus the package's built-ins.
+Deterministic evaluators run first and cost nothing; judged evaluators
+call the judge.</p>
+<p><strong>7. Report.</strong> The leaderboard writer emits a summary
+and a results file, ranked by cost per passing generation, with a
+suggested-adjustments section, a selection section where the sweep
+judged pairwise, and banners for anything that should qualify how the
+numbers are read (stopped on the ceiling, caching on, judging outside
+the estimate).</p>
+<p>Two properties of the lifecycle are worth stating plainly, because
+they change how a run is operated:</p>
+<ul>
+<li><strong>A stopped run needs no resume flag.</strong> Run the same
+command again. Candidate responses and judge calls are both cached on
+disk, so every finished cell replays at no model cost and the run picks
+up where it left off.</li>
+<li><strong>A dry run walks steps 1 to 3 and stops</strong>, recording
+every cell as skipped. It is the cheap way to see a matrix's cost before
+committing to it, and the dashboard makes it mandatory before a live
+run.</li>
+</ul>
+<hr />
+<h3 id="5-evaluators-and-judges">5. Evaluators and judges</h3>
+<p>Scoring is layered, cheapest first, and the layers answer different
+questions.</p>
+<h4 id="51-hard-gates">5.1 Hard gates</h4>
+<p>Deterministic evaluators cost nothing and decide whether a generation
+<strong>passed</strong>. They check that the response ran to completion,
+that structured output parses and carries the required fields, that the
+output is in the expected language, and whatever domain rule the
+application itself enforces. A custom evaluator reads the call or
+episode context off the evaluation context and inspects the response or
+the episode's final artifact.</p>
+<p>The completeness check earns its place by catching a specific
+expensive failure: a reasoning model that spends its whole output
+allowance thinking and returns a paid-for response with no visible
+content. Without it, that cell looks like a cheap empty answer rather
+than a full-price nothing.</p>
+<h4 id="52-single-response-judges">5.2 Single-response judges</h4>
+<p>The evaluation library ships absolute 1-to-5 judges (coherence,
+fluency, relevance, groundedness, completeness). They are useful and
+they are weak for this purpose, because absolute scores cluster: a
+clearly better answer and a merely adequate one routinely both land on
+4.</p>
+<p>The rubric-score evaluator in this package is the same shape, scoring
+one response 1 to 5 against a caller-supplied rubric. It exists for the
+sweep that has <strong>no incumbent</strong> to compare against, and it
+stays optional because it is the weaker instrument.</p>
+<h4 id="53-pairwise-judging-in-both-orders">5.3 Pairwise judging, in
+both orders</h4>
+<p>The leaderboard answers "cheapest candidate that passes the hard
+gates". It cannot see a candidate that costs a little more and produces
+a clearly better answer, because both passed. Pairwise judging adds the
+missing signal: shown two answers to the same request, the same judge
+that could not separate them on an absolute scale separates them
+reliably.</p>
+<!-- Mermaid source: diagrams/04-pairwise-judging.mmd -->
+
+<p><img src="diagrams/04-pairwise-judging.svg"
+alt="Pairwise judging: the same comparison run in both orders and averaged" /></p>
+<p>Every comparison runs <strong>twice, with the two answers swapped,
+and the scores are averaged.</strong> Judges prefer whatever they were
+shown first, and a single ordering measures that preference as much as
+it measures the models. Under both orderings, a judge that always picks
+the first answer scores every candidate at exactly 0.5, which makes
+position bias visible instead of letting it masquerade as a result. The
+win metric is therefore one of 0, 0.25, 0.5, 0.75 or 1.</p>
+<p>The reporting rules around it are all instances of the same
+principle, that an unmeasured thing must never read as a measured
+one:</p>
+<ul>
+<li>The incumbent's own cells get no comparison and report
+not-applicable with a reason, never 0.5.</li>
+<li>A missing incumbent result (that cell failed, was unsupported, was
+skipped on the ceiling, or would not read back) is not-applicable with a
+reason naming which. It is never a failed candidate.</li>
+<li>A judge reply that is not exactly one of the three expected verdicts
+is reported with an unknown rating and an error diagnostic, never read
+as a tie.</li>
+<li>A reply the provider's output cap cut off partway through its
+explanation is <strong>not</strong> that case: the verdict it did finish
+is read and kept.</li>
+<li>A judge call that throws, after the bounded retry described in <a
+href="#7-throttle-and-continue">section 7</a> is exhausted,
+<strong>stops the sweep</strong>. See below for why.</li>
+</ul>
+<h4 id="54-judge-accounting-and-output-caps">5.4 Judge accounting and
+output caps</h4>
+<p>The cost is two judge calls per non-incumbent cell, plus one per cell
+carrying a rubric score (the incumbent's cells included, since they are
+scored even though they are never compared against themselves).
+Declaring the judge's pricing puts those calls inside the estimate;
+without it the sweep logs that the judging is outside the estimate
+rather than leaving it unsaid.</p>
+<p>A judge that reasons needs a different output cap from one that does
+not. On the OpenAI wire the cap covers hidden reasoning tokens, so a cap
+sized for a short verdict object returns an <strong>empty completion on
+every cell</strong> for a reasoning judge. The package therefore carries
+two caps, a plain one and a larger reasoning one, and applies the
+reasoning cap when the roster entry or the enriched capabilities say the
+judge reasons. The cap is still a cap: an uncapped call to a reasoning
+model is an open invitation to spend.</p>
+<p>The cap is handed to each judged evaluator as part of the request,
+which means it is part of what the evaluation library caches judge
+replies on. Changing it re-judges the affected cells rather than
+replaying stale verdicts. That is the correct behaviour and it has a
+cost: see <a href="#9-storage-layout-and-caches">section 9</a>.</p>
+<p><strong>Why a judge failure stops the sweep.</strong> A provider
+still refusing the judge after the bounded waits will refuse the next
+thirty cells too. Carrying on would record each of them as an unmeasured
+metric, paying in full for candidate calls and producing a report that
+then says there were not enough samples to select anything. Stopping
+keeps the finished cells, sets a stop reason, and lets a re-run replay
+everything from cache. Keeping a sweep off that path is a job for pacing
+and judge concurrency caps, not for more retries.</p>
+<hr />
+<h3 id="6-the-selection-rule">6. The selection rule</h3>
+<p>Win rates and a cost-per-pass column are inputs, not an answer. The
+selection report turns them into two named picks <strong>per prompt
+variant, pooling every workload that ran under that
+variant</strong>.</p>
+<!-- Mermaid source: diagrams/05-selection-decision.mmd -->
+
+<p><img src="diagrams/05-selection-decision.svg"
+alt="Selection decision flow: pooled comparisons, minimum samples, parity pick, upgrade pick, dominators" /></p>
+<ul>
+<li><strong>Parity pick</strong>: the cheapest candidate whose win rate
+is at or above the parity threshold over at least the minimum number of
+pooled comparisons. The default threshold sits a little below even on
+purpose, because at a handful of comparisons a genuinely equal model
+routinely measures slightly under half.</li>
+<li><strong>Upgrade pick</strong>: the cheapest candidate at or above
+the upgrade threshold whose cost per pass is within a bounded multiple
+of the parity pick's, or of the incumbent's when there is no parity
+pick. This is the answer to "what would we buy if quality mattered more
+than price here".</li>
+<li><strong>Dominators</strong>: candidates both better than even and
+cheaper than the incumbent. There is rarely one, and when there is, it
+is the whole finding.</li>
+</ul>
+<p><strong>Why comparisons pool across workloads.</strong> The incumbent
+is the same model for every workload in a sweep, so a candidate's
+comparisons against it are the same measurement whichever fixture
+produced them. Grouping by workload as well capped every candidate at
+the repeat count, so a sweep of three fixtures at three repeats reported
+three separate threes, each under the minimum, and selected nothing.
+Adding a fixture buys evidence. Adding a <strong>variant</strong> does
+not: a variant is a different question and gets its own group.</p>
+<p>Every pick carries its pooled sample count, the number of distinct
+workloads behind it, its win rate and a Wilson 95 percent interval over
+the pooled n. The interval is there because the win rate alone invites a
+decision the sample cannot support.</p>
+<p>Two refusals guard the output:</p>
+<ul>
+<li>Below the minimum sample count the group reports
+<strong>insufficient samples and names nobody</strong>. A perfect
+three-for-three is exactly the result that must not become a purchasing
+decision.</li>
+<li>With enough samples and nothing over the line it reports that
+<strong>none qualifies</strong> and says so, rather than promoting the
+least-bad candidate.</li>
+</ul>
+<p><strong>The same-family flag.</strong> The judge and its vendor
+family are named in every report it produced, and a candidate resolving
+to that same family is flagged wherever it appears. The family is
+derived from the wire model id rather than the sweep's
+connection-qualified label, because a label and a judge id could never
+match and the flag would never fire. An id the family resolver cannot
+place is unknown, which matches nothing. Running both orderings cancels
+position bias; it cannot cancel a judge scoring its own family, so that
+is made visible instead, and a second judge from another vendor is the
+answer when the flag matters.</p>
+<p>Thresholds are data on the sweep options and the rubric is stored
+alongside the numbers it produced, so a decision made last quarter can
+be read back against the rubric that was actually in force.</p>
+<hr />
+<h3 id="7-throttle-and-continue">7. Throttle and continue</h3>
+<p>A sweep is a burst of traffic from one account against endpoints that
+cap it. The package treats that as an expected condition with a bounded
+response, not as an error to retry until it works.</p>
+<!-- Mermaid source: diagrams/06-rate-limit-pipeline.mmd -->
+
+<p><img src="diagrams/06-rate-limit-pipeline.svg"
+alt="Rate-limit pipeline: pace first, bounded re-sends, then the failure stands" /></p>
+<p><strong>Pacing comes first, and it is pacing rather than
+retrying.</strong> Two caps apply: one for a whole connection and one
+for a single model. A model that declares its own rate draws on its own
+bucket and does not consume the connection's, which is the shape most
+provider caps actually have. An aggregator that caps a new account
+<strong>per model</strong> means the judge, answering for every cell of
+the matrix, meets its cap while the rest of the field on the same route
+is nowhere near one.</p>
+<p>The bucket is keyed on the connection and the <strong>wire</strong>
+model id, never the harness's roster id, so a judge entry and a
+candidate entry pointing at the same upstream model share one bucket
+exactly as they do at the provider. Where several entries declare a rate
+for the same bucket, the strictest applies to all of them.</p>
+<p><strong>Judge concurrency is the other half and is not a
+substitute.</strong> A concurrency cap bounds how many judge calls are
+<em>in flight</em>; the bucket bounds how many are <em>sent per
+minute</em>. A slow provider sits comfortably under a concurrency cap
+while exceeding a per-minute one.</p>
+<p><strong>If a 429 arrives anyway</strong> (the pacer knows only this
+process's own calls), the client re-sends, at most three times per call.
+What is worth re-sending is the SDK's own classification of transient
+faults: rate limits, timeouts, server faults and transport failures, and
+not a 400, which is an answer about the request rather than a failure to
+deliver it. The schedule is flat: the provider's retry-after header
+where it sends a usable one, a minute for a rate limit that does not,
+ten seconds for anything else. A retry-after of zero, or a date already
+in the past, counts as no header at all.</p>
+<p><strong>Every wait is bounded and attributed.</strong> A single wait
+is capped; a provider asking for longer is surfaced immediately as
+exhaustion of the bound with the requested duration named, because a
+sweep that stops with a reason restarts from cache while one asleep for
+an hour cannot be told from one that has hung. Waits are excluded from
+the latency metric, so pacing does not contaminate the number it would
+otherwise dominate. Re-sends are logged as warnings with cause, duration
+and attempt; pacing waits are logged at debug, because a paced call is
+the sweep doing what it was told and at warning level it would bury the
+re-sends.</p>
+<p>Beyond the bound, the provider's failure stands, and the consequence
+depends on who was calling:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Caller</th>
+<th>Beyond the bound</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A candidate cell</td>
+<td>Recorded as failed with the reason. The sweep continues; that is a
+result about that model.</td>
+</tr>
+<tr class="even">
+<td>The judge</td>
+<td>Raises a judge-unavailable failure, records the cell with the
+reason, sets the sweep's stop reason, and starts nothing further.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Judge outage versus judge refusal.</strong> These are
+different events and the reports keep them apart. An outage is the judge
+provider failing to answer, and it stops the sweep. A refusal is the
+judge answering with something unusable (an error payload, an empty
+reply, a verdict that is not one of the expected values); that fails the
+one cell that asked, and in the file-exchange path the offending reply
+is moved aside as evidence so it never becomes a cached verdict.</p>
+<p>One operational cost of the policy deserves naming: a model id that
+is dead at the provider and answers an error to everything takes four
+sends and roughly half a minute per call before its cell is recorded as
+failed. That is the price of finishing a sweep through a transient fault
+rather than losing it, and it is bounded, but on a large matrix of a
+broken model it is the difference between a slow run and a fast
+failure.</p>
+<p>Pacing is summarised in the report rather than buried in logs: how
+many calls waited and for how long in total, and how many were retried
+after a transient failure, with the status codes. One subtlety for
+anyone wrapping a provider: the counters hang off the provider interface
+as a default implementation, so <strong>a decorating provider that does
+not forward them makes the pacing line silently disappear</strong>. The
+sweep logs a warning when models declare a rate and the provider reports
+no counters.</p>
+<hr />
+<h3 id="8-the-two-judge-paths">8. The two judge paths</h3>
+<p>The judge is the one model that answers for every cell of a matrix,
+so it is the one that dominates the bill. The package supports two ways
+to answer it, and refuses to switch between them on its own.</p>
+<!-- Mermaid source: diagrams/07-judge-paths.mmd -->
+
+<p><img src="diagrams/07-judge-paths.svg"
+alt="The two judge paths: a billed API connection, and a file exchange drained by a subagent" /></p>
+<p><strong>Path A: an API connection.</strong> An ordinary endpoint,
+selected by configuration, billed per call. This is the only path
+available to a dashboard run, a CI run, or a plain test run with nobody
+draining an exchange.</p>
+<p><strong>Path B: a file exchange drained by a Claude Code
+subagent.</strong> Not an endpoint at all. The sweep writes each judge
+request to a folder, an agent writes the reply to another, and the sweep
+reads it back. The judging is done by whoever drains the queue, on their
+subscription, and the account paying for the candidates pays nothing for
+the verdicts.</p>
+<p>The availability rule is stated in the package README and is
+reproduced here verbatim, because operating either path depends on
+it:</p>
+<blockquote>
+<p><strong>If the eval is being run from the Claude Code harness (this
+session, with a judge-queue subagent draining the exchange), the harness
+subagent is the judge and no API spend is incurred for judging. If the
+eval is run any other way (dashboard, CI, a plain
+<code>dotnet test</code> with no draining agent), the harness judge is
+not available; the only available judge is an API connection such as
+OpenRouter, selected with <code>LLMEVAL_JUDGE_CONNECTION</code>, and
+judge calls are billed.</strong></p>
+</blockquote>
+<p><strong>There is deliberately no automatic fallback from B to
+A.</strong> Re-pointing a file-exchange judge at a paid endpoint would
+put a bill on somebody who explicitly chose the subscription path,
+silently. When no drainer is online the sweep stops with a reason naming
+both ways out.</p>
+<h4 id="81-the-exchange-and-why-the-request-id-is-a-hash">8.1 The
+exchange, and why the request id is a hash</h4>
+<p>Four folders carry the protocol: a pending folder the sweep writes
+to, a done folder the agent writes to, a heartbeat file, and a failed
+folder the sweep moves unusable replies into.</p>
+<p>The request id is a hash over the model, the messages and the options
+that change what a good answer looks like, and explicitly
+<strong>not</strong> over the timestamp. The same question therefore
+always lands under the same name, which makes the done folder a cache: a
+second sweep over the same matrix finds every reply already on disk,
+queues nothing, and needs no agent running at all. Request files are
+never deleted, so the pending folder is the audit trail of what was
+actually asked.</p>
+<p>That design makes disagreeing with a verdict a file operation: delete
+the one reply and re-run, and the question is asked again. Delete the
+folder and everything is re-asked.</p>
+<h4 id="82-heartbeat-and-fail-fast">8.2 Heartbeat and fail-fast</h4>
+<p>The agent writes a heartbeat before its first pass and refreshes it
+on <strong>every</strong> pass, empty ones included. Without a heartbeat
+newer than the staleness bound the exchange refuses to queue anything
+and the sweep stops with a reason, rather than sitting out a two-hour
+timeout on the first cell. Liveness is the newest of the heartbeat's
+several timestamps, so a drainer keeping up with an empty queue is not
+mistaken for one that has died. Starting a run without starting the
+drainer therefore fails fast, naming both ways out, rather than
+hanging.</p>
+<p>The ordering constraint is the one thing that catches people: the
+exchange client blocks on its replies, so <strong>the sweep has to run
+in the background</strong> while the drainer works. A foreground sweep
+and a drainer in the same session deadlock, each waiting for the other.
+Start the drainer first so a heartbeat exists before the first request
+is queued, launch the sweep in the background, and keep draining in a
+bounded loop until the run's summary file exists.</p>
+<h4 id="83-what-the-reports-say-about-a-subscription-judge">8.3 What the
+reports say about a subscription judge</h4>
+<p>The cost is reported as <strong>not available, never as
+zero</strong>: the spend field is null, the runner is named, and the
+judge calls are left out of the estimate with a logged note instead of
+being priced at nothing. The judge itself is named from the exchange's
+own documents (the model from the replies, the runner from the
+heartbeat), and a heartbeat that names nobody is reported as a plain
+file exchange rather than as a subagent that may not have been one.</p>
+<p>The honest caveat: there is no model pin behind a subscription agent,
+so a run is reproducible only in the sense that its reply files were
+kept, which is exactly why they are kept. Record the judge and the date
+in any finding, and do not compare win rates across runs whose judge was
+a different thing.</p>
+<hr />
+<h3 id="9-storage-layout-and-caches">9. Storage layout and caches</h3>
+<p>One storage root holds everything a sweep produces, in two halves
+that are independent of each other.</p>
+<!-- Mermaid source: diagrams/08-storage-layout.mmd -->
+
+<p><img src="diagrams/08-storage-layout.svg"
+alt="Storage layout: the reporting store, the caches, the report half and the judge exchange" /></p>
+<p>The <strong>store half</strong> is the evaluation library's own
+reporting store, one file per (execution, workload, iteration). Its
+layout is that library's business. The <strong>report half</strong> is
+what the leaderboard writer was pointed at: a summary, a results file,
+and the prompt proposal files. The dashboard reads both and treats a
+directory directly under the root as a report directory when it holds a
+results file, which is what keeps the store and cache folders from being
+mistaken for executions.</p>
+<p>Three caches sit under the root, and they invalidate on different
+things:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Cache</th>
+<th>Keyed on</th>
+<th>Invalidated by</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Candidate responses</td>
+<td>The request, partitioned per model, and for an episode per
+assignment <strong>and the cast it names</strong></td>
+<td>Changing a prompt, a model, or an assignment's cast. A renamed
+assignment with a swapped model is a miss, not a replay of the old
+model's answers.</td>
+</tr>
+<tr class="even">
+<td>Judge replies (API path)</td>
+<td>The judge request, including the output cap</td>
+<td>Changing the rubric, the answers compared, or either output
+cap.</td>
+</tr>
+<tr class="odd">
+<td>Judge replies (file exchange)</td>
+<td>The request hash</td>
+<td>Deleting the reply file.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What a rerun re-pays.</strong> Re-running after a scorer
+change, a report change or an interruption costs nothing for any cell
+that finished. Re-running after a prompt edit re-pays the affected
+candidate cells. Re-running after an output-cap change re-pays the
+affected judge calls, which on a large matrix is most of the judging:
+the cap is part of the cached request precisely so that a changed cap
+re-judges rather than replaying verdicts produced under a different
+one.</p>
+<p>Caching is on by default because it makes iteration free. Turn it off
+to measure latency or run-to-run variance, both of which a cache
+falsifies, and remember that a cache-served cell reports no upstream
+route, because a cached response carries no fresh routing field.</p>
+<hr />
+<h3 id="10-the-dashboard">10. The dashboard</h3>
+<p><code>EF.LLMEval.Dashboard</code> is a Blazor Server dashboard over a
+storage root. It has three jobs.</p>
+<p><strong>Viewer.</strong> Every execution under the root, a
+leaderboard ranked by cost per passing generation and filtered by
+workload and variant, one cell's transcript with every metric and its
+reason, a variant diff, and the proposals the advisor wrote. No
+credential is ever bound to a component: the pages show provider and
+connection names, model ids and upstream routes, while the keys live
+inside the host's own client provider.</p>
+<p><strong>Run and steer.</strong> With a host source registered, the
+run page lists every host and launches one of its workloads against the
+application's own container. One sweep at a time for the whole site, on
+a background task rather than on the circuit, so a browser refresh
+rejoins a run rather than killing it. The guardrails are all decided in
+one place, so the page disables a button with the same sentence a start
+would have been refused with:</p>
+<ul>
+<li>Live runs are off by default. A dashboard meant only to be read
+cannot spend anything, whatever is posted to it.</li>
+<li>The spend ceiling is a maximum the request cannot raise. A request
+asking for more is refused rather than quietly lowered.</li>
+<li>A cell cap refuses an oversized matrix before it is planned.</li>
+<li>Every assignment and variant must be named. An empty selection is
+refused rather than read as "the host's defaults", and an unknown name
+is refused naming it, because either would let a run plan a matrix
+larger than the one the cell cap was checked against.</li>
+<li>A dry run is mandatory, and changing any field retires the estimate
+it produced. Live then asks for confirmation showing the estimate and
+the ceiling.</li>
+<li>A failure is a status, never a silence. The spend refusal is shown
+verbatim, because its message carries the whole breakdown.</li>
+</ul>
+<p>Because the dashboard is one of the "any other way" cases from <a
+href="#8-the-two-judge-paths">section 8</a>, a judged run launched from
+it uses an API judge and is billed.</p>
+<p><strong>Proposals.</strong> Accepting a proposal writes it into an
+accepted set, kept separately from the file the advisor wrote: what was
+suggested and what a person approved are different claims, and one
+should not overwrite the other. The accepted set is offered on the run
+page and wins over a host variant of the same name.</p>
+<p>One limitation worth knowing before reading a variant diff: a sweep
+records variant <strong>names</strong>, not variant text. Neither the
+results file nor the store carries a workload's editable prompts or a
+variant's overrides, so the diff renders override-only and says so on
+the page.</p>
+<hr />
+<h3 id="11-the-prompt-development-loop">11. The prompt-development
+loop</h3>
+<p>Three layers, cheapest first, and only the last one costs
+anything.</p>
+<p><strong>Adjustment hints, free and always on.</strong> A small
+literal table maps a deterministic evaluator failure to the edit that
+usually fixes it: a fenced payload in a structured-output failure into
+"state that the output must be the bare object with no code fence"; a
+truncated or empty response into "raise the output allowance or lower
+the reasoning effort"; an unexpected script into "put the language
+directive last and repeat it in the user message". The table is
+deliberately narrow. A hint that fires on a vague match sends somebody
+to rewrite a prompt that was not the problem.</p>
+<p><strong>Vendor prompting notes, embedded.</strong> What each vendor
+documents about prompting its own family, with the source URL and the
+date it was read, so stale advice is visible as stale. Lookup is by
+substring against the model id with the longest family winning, so an
+aggregator-qualified id still finds the specific family entry rather
+than the vendor-wide one. The leaderboard shows the notes for any model
+that failed.</p>
+<p><strong>The prompt advisor, opt-in.</strong> Given a failing cell it
+asks a model the caller supplies (not one of the candidates under test)
+for a small number of prompt variants, including the deterministic hints
+and the vendor notes in the brief. Two refusals define it: it rejects
+any proposal naming a key the workload did not declare editable, before
+anything is written, and it rejects an unparseable reply the same
+way.</p>
+<p><strong>It never runs what it proposed.</strong> Proposals are
+written to a file for a person to read, and the next sweep loads the
+ones that were accepted. That boundary is the point of the layer: a loop
+where a model edits the prompt and then measures its own edit is not an
+experiment.</p>
+<p>The loop in practice: run a sweep with the baseline variant as
+control, read the suggested adjustments for whatever failed, turn the
+ones that make sense into named variants, and re-run. The cached
+candidate responses mean the unchanged cells cost nothing the second
+time.</p>
+<hr />
+<h3 id="12-design-boundaries">12. Design boundaries</h3>
+<p>What the package refuses to do is as load-bearing as what it does.
+Each refusal exists because the alternative produces a number somebody
+would act on.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Refusal</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Call a model that cannot honour the probed request</td>
+<td>Downgrading the request to fit it makes the ranking
+meaningless.</td>
+</tr>
+<tr class="even">
+<td>Guess a price</td>
+<td>An unresolved meter stays unknown, with diagnostics. The model still
+runs and is left out of the cost ranking rather than treated as
+free.</td>
+</tr>
+<tr class="odd">
+<td>Overspend silently</td>
+<td>The matrix is priced up front and refused against the ceiling, with
+a breakdown naming which dimension to cut.</td>
+</tr>
+<tr class="even">
+<td>Hide a failure</td>
+<td>A model that errors, or returns output the application's own code
+rejects, is recorded with its reason and the sweep continues. Both are
+results about that model.</td>
+</tr>
+<tr class="odd">
+<td>Fall back from a subscription judge to a paid one</td>
+<td>That would bill somebody who chose otherwise, silently.</td>
+</tr>
+<tr class="even">
+<td>Adopt its own prompt suggestions</td>
+<td>Proposals go to a file for a person to read.</td>
+</tr>
+<tr class="odd">
+<td>Mutate the caller's state</td>
+<td>Options handed to a client are cloned before being read, so an
+application that reuses and re-tunes one options object never rewrites
+what an earlier call is remembered as having asked for.</td>
+</tr>
+</tbody>
+</table>
+<p>Known limitations, stated so they are not discovered during a run: a
+cache-served cell reports no upstream route; there is no
+zero-configuration managed-identity path, only a caller-supplied
+credential; there is no built-in retry, circuit-breaker or rate-limit
+layer around a provider call beyond the pacing described in <a
+href="#7-throttle-and-continue">section 7</a>, so a sweep needing more
+wraps the client or the HTTP client itself; and no live tests ship in
+the package, because proving the wire mapping against a real provider is
+a consuming project's own opt-in lane.</p>
+<hr />
+<h3 id="further-reading">Further reading</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Document</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval/README.md">EF.LLMEval
+README</a></td>
+<td>Every type, option and default. The API source of truth.</td>
+</tr>
+<tr class="even">
+<td><a
+href="LLMEval-INTEGRATION-GUIDE.html">LLMEval-INTEGRATION-GUIDE.md</a></td>
+<td>Adding an eval to a .NET solution, step by step.</td>
+</tr>
+<tr class="odd">
+<td><a href="LLMEval-Operations.html">LLMEval-Operations.md</a></td>
+<td>Budgets, pacing, caches, secrets, CI, reading the dashboard.</td>
+</tr>
+<tr class="even">
+<td><a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval.FlowEngine/README.md">EF.LLMEval.FlowEngine
+README</a></td>
+<td>Running a workflow as an episode.</td>
+</tr>
+<tr class="odd">
+<td><a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval.Dashboard/README.md">EF.LLMEval.Dashboard
+README</a></td>
+<td>Registering and hosting the dashboard.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(stored);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
+</script>
+</body>
+</html>

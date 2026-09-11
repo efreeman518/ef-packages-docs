@@ -12,4 +12,7 @@
   <url><loc>https://efreeman518.github.io/ef-packages-docs/FlowEngine-Local-Aspire-Test-Harness.html</loc><priority>0.7</priority></url>
   <url><loc>https://efreeman518.github.io/ef-packages-docs/EF-FilterBuilder-Design-Doc.html</loc><priority>0.9</priority></url>
   <url><loc>https://efreeman518.github.io/ef-packages-docs/EF-FilterBuilder-UnitTestSamples.html</loc><priority>0.7</priority></url>
+  <url><loc>https://efreeman518.github.io/ef-packages-docs/LLMEval-Design-Doc.html</loc><priority>0.9</priority></url>
+  <url><loc>https://efreeman518.github.io/ef-packages-docs/LLMEval-INTEGRATION-GUIDE.html</loc><priority>0.8</priority></url>
+  <url><loc>https://efreeman518.github.io/ef-packages-docs/LLMEval-Operations.html</loc><priority>0.8</priority></url>
 </urlset>

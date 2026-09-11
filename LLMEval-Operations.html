@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EF.LLMEval Operations</title>
+  <link rel="stylesheet" href="docs-common.css">
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Documentation</div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">🌙</button>
+  </div>
+  <h1>EF.LLMEval Operations</h1>
+</div>
+
+<div class="content">
+<h2 id="efllmeval-operations">EF.LLMEval Operations</h2>
+<p>Running an evaluation harness day to day: what it costs, how to keep
+it from costing more than intended, what a rerun re-pays, where secrets
+are allowed to live, what belongs in CI, and how to read the
+dashboard.</p>
+<p>This document assumes the harness already exists. To build one, see
+<a
+href="LLMEval-INTEGRATION-GUIDE.html">LLMEval-INTEGRATION-GUIDE.md</a>;
+for why each mechanism behaves the way it does, see <a
+href="LLMEval-Design-Doc.html">LLMEval-Design-Doc.md</a>; for every
+option and default, see <a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval/README.md">EF.LLMEval/README.md</a>.</p>
+<h3 id="table-of-contents">Table of Contents</h3>
+<ol type="1">
+<li><a href="#1-budgets-and-ceilings">Budgets and ceilings</a></li>
+<li><a href="#2-judge-cost-and-the-not-available-case">Judge cost, and
+the not-available case</a></li>
+<li><a href="#3-pacing-and-429s">Pacing and 429s</a></li>
+<li><a href="#4-resuming-and-what-invalidates-a-cache">Resuming, and
+what invalidates a cache</a></li>
+<li><a href="#5-secrets">Secrets</a></li>
+<li><a href="#6-ci">CI</a></li>
+<li><a href="#7-reading-the-dashboard">Reading the dashboard</a></li>
+<li><a href="#8-an-operating-checklist">An operating checklist</a></li>
+</ol>
+<hr />
+<h3 id="1-budgets-and-ceilings">1. Budgets and ceilings</h3>
+<p><strong>The ceiling is a hard limit, not a starting bid.</strong> The
+whole matrix is priced before a single call is sent, and a plan whose
+estimate exceeds the ceiling is refused with a full breakdown. The
+correct response to a refusal is almost always to cut a dimension, not
+to raise the number.</p>
+<p>A matrix is cells times repeats, and cells are (workloads or
+episodes) times (candidates or assignments) times variants. Each factor
+multiplies:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Dimension</th>
+<th>What raising it buys</th>
+<th>What it costs</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Candidates</td>
+<td>A wider field</td>
+<td>Linear in cells, and every non-incumbent cell is also two judge
+calls</td>
+</tr>
+<tr class="even">
+<td>Workloads or fixtures</td>
+<td>Evidence. Pooled comparisons grow, so the selection reaches its
+minimum sample count</td>
+<td>Linear</td>
+</tr>
+<tr class="odd">
+<td>Variants</td>
+<td>A different question, with its own selection group</td>
+<td>Linear, and it does <strong>not</strong> help a group reach its
+sample minimum</td>
+</tr>
+<tr class="even">
+<td>Repeats</td>
+<td>Confidence against run-to-run variance, which matters because
+reasoning models generally reject temperature controls</td>
+<td>Linear</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Dry-run first, always.</strong> A dry run walks the probe,
+the capability gate and the estimate, records every cell as skipped, and
+sends nothing. It is free and it is the only honest preview of a
+matrix's cost. The dashboard makes it mandatory before a live run for
+exactly this reason.</p>
+<p><strong>Declare expected output tokens.</strong> Without them, a
+workload is priced at its requested token ceiling, which it may never
+approach. That can overstate a sweep several-fold and refuse a run that
+would have been affordable. For an episode, declare them per role: a
+checker role that emits a short verdict priced at a full turn's ceiling
+distorts the whole plan.</p>
+<p><strong>The estimate is an upper bound, not a forecast.</strong>
+Actual spend is normally lower. Do not read the gap as the harness being
+wrong; read it as the ceiling having done its job.</p>
+<p><strong>Watch concurrency against the ceiling.</strong> Parallel
+cells can each clear the ceiling check before any of them has spent
+anything. Where cells share one ceiling, run them one at a time. That is
+why the dashboard's queue runs a single cell at a time and why a test
+project sharing a ceiling should turn off test parallelisation.</p>
+<hr />
+<h3 id="2-judge-cost-and-the-not-available-case">2. Judge cost, and the
+not-available case</h3>
+<p>The judge answers for <strong>every</strong> cell of the matrix, so
+on any sweep of size it is the bill:</p>
+<ul>
+<li>Two judge calls per non-incumbent cell (the comparison is run in
+both orders).</li>
+<li>Plus one per cell carrying a rubric score, including the incumbent's
+own cells.</li>
+</ul>
+<p>Declare the judge's pricing so those calls are inside the estimate.
+Without it the sweep logs that the judging is outside the estimate,
+which is honest but leaves the ceiling protecting only half the
+spend.</p>
+<h4 id="the-two-paths">The two paths</h4>
+<table>
+<thead>
+<tr class="header">
+<th>Path</th>
+<th>Billed</th>
+<th>Available</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>An API connection, selected with
+<code>LLMEVAL_JUDGE_CONNECTION</code></td>
+<td>Yes, per call, to whoever owns the key</td>
+<td>Always</td>
+</tr>
+<tr class="even">
+<td>A file exchange drained by a Claude Code subagent</td>
+<td>No dollars. Subscription quota</td>
+<td>Only from the Claude Code harness, with a drainer online</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Cost on the subscription path is reported as not available,
+never as zero.</strong> The spend field is null, the runner is named,
+and the judge calls are left out of the estimate with a logged note. Do
+not paper over that in a finding by writing zero: the judging was paid
+for, in quota, by whoever drained the queue.</p>
+<p><strong>There is no automatic fallback.</strong> With no drainer
+online (none started, or a heartbeat past the staleness bound) the sweep
+stops with <code>No judge agent is draining {root}</code> and names both
+ways out. A run that needs to proceed without a drainer selects an API
+judge explicitly and pays for it.</p>
+<h4 id="operating-the-file-exchange-path">Operating the file-exchange
+path</h4>
+<ol type="1">
+<li>Start the drainer <strong>first</strong>, so a heartbeat exists
+before the first request is queued.</li>
+<li>Launch the sweep <strong>in the background</strong>. The exchange
+client blocks on its replies, so a foreground sweep and a drainer in the
+same session deadlock, each waiting for the other.</li>
+<li>Keep draining in a bounded loop until the run's summary file exists.
+Refresh the heartbeat on every pass, including empty ones, or the
+exchange will refuse to queue.</li>
+</ol>
+<p>Draining is quota, not free. A long sweep is a long agent
+session.</p>
+<h4 id="disagreeing-with-a-verdict">Disagreeing with a verdict</h4>
+<p>Delete the one reply file and re-run: that question is asked again.
+Delete the whole done folder and everything is re-asked. Request files
+are never deleted, so the pending folder remains the record of what was
+actually asked.</p>
+<h4 id="reproducibility">Reproducibility</h4>
+<p>There is no model pin behind a subscription agent. A run is
+reproducible only in the sense that its reply files were kept, which is
+why they are kept. Record the judge and the date in every finding, and
+never compare win rates across runs whose judge was a different
+thing.</p>
+<hr />
+<h3 id="3-pacing-and-429s">3. Pacing and 429s</h3>
+<p>Pacing comes first and is not retrying. Two caps apply: one per
+connection and one per model. A model that declares its own rate draws
+on its own bucket rather than the connection's, which matches the shape
+of most provider caps.</p>
+<p><strong>Cap the judge explicitly.</strong> It is one model on one
+account answering for the whole matrix, so it meets a per-model cap long
+before the rest of the field does. Set both a per-minute rate on the
+judge roster entry and a judge concurrency cap: the first bounds how
+many calls are <strong>sent per minute</strong>, the second how many are
+<strong>in flight</strong>. They are not substitutes, and a slow
+provider sits under a concurrency cap while exceeding a per-minute
+one.</p>
+<p>The bucket is keyed on the connection and the <strong>wire</strong>
+model id, not the harness's roster id, so a judge entry and a candidate
+entry pointing at the same upstream model share one bucket exactly as
+they do at the provider. Where several entries declare a rate for one
+bucket, the strictest wins.</p>
+<p><strong>When a 429 arrives anyway</strong>, the client re-sends at
+most three times per call, on the SDK's own classification of transient
+faults. The schedule is flat: the provider's retry-after header where it
+is usable, a minute for a rate limit without one, ten seconds otherwise.
+A single wait is capped, and a provider asking for longer surfaces
+immediately as exhaustion of the bound with the duration named.</p>
+<p>Beyond the bound:</p>
+<ul>
+<li>A <strong>candidate</strong> cell is recorded as failed with its
+reason, and the sweep continues. That is a result about that model.</li>
+<li>The <strong>judge</strong> stops the sweep, with a stop reason.
+Finished cells keep their results and a re-run replays them from
+cache.</li>
+</ul>
+<p>Symptoms and what to do:</p>
+<table>
+<thead>
+<tr class="header">
+<th>What you see</th>
+<th>What it means</th>
+<th>Do</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A long pacing figure in the summary, low spend</td>
+<td>The run was slow, not expensive. Pacing waits are excluded from
+latency, so the latency column is still usable</td>
+<td>Nothing, or raise the declared rate if the provider actually allows
+more</td>
+</tr>
+<tr class="even">
+<td>Many retried calls with 429s</td>
+<td>The declared rate is above the real cap, or another process shares
+the account</td>
+<td>Lower the declared rate. More retries is the wrong lever</td>
+</tr>
+<tr class="odd">
+<td>The sweep stopped with a judge stop reason</td>
+<td>The judge provider kept refusing</td>
+<td>Lower the judge rate and concurrency, then re-run. Finished cells
+replay free</td>
+</tr>
+<tr class="even">
+<td>One model takes minutes per cell and then fails</td>
+<td>A dead model id answering an error to everything: four sends and
+roughly half a minute per call</td>
+<td>Remove it from the roster</td>
+</tr>
+<tr class="odd">
+<td>No pacing line in the report at all</td>
+<td>A decorating client provider is not forwarding the rate-limit
+counters</td>
+<td>Forward them. The member is a default interface implementation, so a
+decorator that ignores it returns nothing silently</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="4-resuming-and-what-invalidates-a-cache">4. Resuming, and what
+invalidates a cache</h3>
+<p><strong>A stopped run needs no resume flag. Run the same command
+again.</strong> Candidate responses and judge replies are both cached on
+disk, so every cell that finished replays at no model cost and the run
+picks up where it left off. This is the intended response to an
+interruption, a judge outage, or a machine going to sleep.</p>
+<p>What each cache is keyed on, and what therefore re-pays:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Cache</th>
+<th>Keyed on</th>
+<th>Invalidated by</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Candidate responses</td>
+<td>The request, partitioned per model, and for an episode per
+assignment <strong>and the cast it names</strong></td>
+<td>Editing a prompt, changing a model, or swapping a role's model
+inside an assignment that kept its name</td>
+</tr>
+<tr class="even">
+<td>Judge replies, API path</td>
+<td>The judge request, including the output cap</td>
+<td>Changing the rubric, the answers compared, or either output cap</td>
+</tr>
+<tr class="odd">
+<td>Judge replies, file exchange</td>
+<td>A hash over the model, the messages and the options that change what
+a good answer looks like</td>
+<td>Deleting the reply file</td>
+</tr>
+</tbody>
+</table>
+<p>Rules of thumb:</p>
+<ul>
+<li>A <strong>scorer or report change</strong> re-pays nothing.</li>
+<li>A <strong>prompt edit</strong> re-pays the affected candidate cells,
+and re-judges them.</li>
+<li>A <strong>judge output-cap change</strong> re-pays most of the
+judging on a large matrix. That is deliberate: the cap is part of the
+cached request so a changed cap re-judges rather than replaying verdicts
+produced under a different one. Size the ceiling for the first run after
+such a change.</li>
+<li>A <strong>timestamp or other varying value in a prompt</strong>
+makes every response a cache miss. If reruns are never free, look here
+first.</li>
+</ul>
+<p><strong>Turn caching off</strong> only to measure latency or
+run-to-run variance, both of which a cache falsifies. Remember that a
+cache-served cell reports no upstream route, because a cached response
+carries no fresh routing field, and that the summary carries a banner
+saying caching was on.</p>
+<p><strong>Retention.</strong> The storage root grows with every
+execution: the reporting store, the response cache, one report directory
+per execution name, and the judge exchange folders. Use a timestamped or
+build-numbered execution name for runs you want to compare over time,
+because runs sharing a name overwrite each other. Prune old executions
+deliberately; nothing prunes them for you. Keep the report half of
+anything a decision rested on, and keep the exchange reply files for any
+finding judged on the subscription path.</p>
+<hr />
+<h3 id="5-secrets">5. Secrets</h3>
+<p><strong>Never in a repository, never in a report.</strong></p>
+<ul>
+<li>The roster file holds <strong>configuration key names</strong>,
+never key values. Keys come from user secrets and environment variables
+at load time.</li>
+<li>A connection's string representation reports only whether a key or a
+credential is present, never either value, so a connection is safe to
+log.</li>
+<li>A model under test carries no credential at all, and the eval host
+is never serialised. That is what makes a results file safe to
+commit.</li>
+<li>The dashboard binds no credential to a component. Its pages show
+provider and connection names, model ids and upstream routes; the keys
+live inside the host's own client provider.</li>
+<li>A connection with no resolvable key or credential is
+<strong>dropped</strong> at load time, along with every model and
+assignment naming it. A developer without one provider's key still gets
+a usable run.</li>
+</ul>
+<p>Before publishing a report, a finding or a screenshot, the only check
+needed is that it came out of the package's own writers. If somebody has
+added their own logging around the provider, check that too.</p>
+<p>For keyless auth, the credential chain is the caller's own dependency
+and its own decision. The package references only the core credential
+abstraction, never a credential-chain library, so there is no
+zero-configuration managed-identity path to be surprised by.</p>
+<hr />
+<h3 id="6-ci">6. CI</h3>
+<p><strong>Offline lane only. No live models in CI.</strong></p>
+<ul>
+<li>No provider secret should be available on a runner.</li>
+<li>The opt-in environment variable should never be set on a runner, so
+the live lane stays inert by construction rather than by a filter
+somebody can delete.</li>
+<li>If the offline lane should gate merges, add the project to an
+existing fast-test job with a filter that <strong>excludes</strong> the
+live test category. Otherwise leave the project out of CI entirely.</li>
+</ul>
+<p>The offline lane is worth gating on. It proves the probe captures
+what the workload really sends, that a variant changes the request, that
+the ceiling parser is locale-safe, and that the deterministic evaluators
+accept clean input and reject bad input. All of that is exactly what
+breaks silently when the application's prompt assembly is refactored,
+and finding it during an expensive run is the expensive way to find
+it.</p>
+<p>Two further rules:</p>
+<ul>
+<li><strong>Never take fixtures from real user data.</strong> Write
+synthetic fixtures, committed to the repository, shaped like production
+content but never lifted from it. That is what makes a fixture safe to
+run every day and to compare across models and months.</li>
+<li><strong>A sweep is not a merge gate.</strong> There is no pass
+condition for "which model is best", and a workflow that blocks on a
+measurement will either be disabled or will start spending on every pull
+request.</li>
+</ul>
+<h4 id="the-skills-install-on-build">The skills install on build</h4>
+<p>Building a project that references <code>EF.LLMEval</code> copies the
+two packaged agent skills into the consuming repository, at
+<code>&lt;repository root&gt;/.claude/skills/llmeval-harness</code> and
+<code>llmeval-run</code>. That happens on a CI runner too, which is
+worth knowing for two reasons: a job that asserts a clean working tree
+after a build will see those folders unless they are committed or
+ignored, and a checkout with no <code>.git</code> entry installs nothing
+at all.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Lever</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&lt;LLMEvalInstallSkills&gt;false&lt;/LLMEvalInstallSkills&gt;</code></td>
+<td>Opt out. Reasonable for a CI-only build that will never run an
+agent.</td>
+</tr>
+<tr class="even">
+<td><code>&lt;LLMEvalSkillsRoot&gt;path&lt;/LLMEvalSkillsRoot&gt;</code></td>
+<td>Install into <code>path/.claude/skills</code> instead of the
+detected repository root.</td>
+</tr>
+<tr class="odd">
+<td><code>tools/install-skills.ps1</code> /
+<code>tools/install-skills.sh</code> in the package</td>
+<td>Manual fallback for an opted-out build, a non-git checkout, or a
+machine that should not build first.</td>
+</tr>
+</tbody>
+</table>
+<p>The copy only adds and overwrites its own two folders, never deletes
+anything else under <code>.claude/skills</code>, and warns rather than
+failing the build when the destination cannot be written. Commit the
+installed folders or add <code>.claude/skills/llmeval-*/</code> to
+<code>.gitignore</code>; either is fine, and committing them is what
+makes the skills travel to everyone who clones.</p>
+<hr />
+<h3 id="7-reading-the-dashboard">7. Reading the dashboard</h3>
+<p>Point the dashboard at a storage root and it lists every execution
+under it. A directory directly under the root counts as an execution
+only when it holds a results file, which is what keeps the store and
+cache folders from being listed as runs.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Page</th>
+<th>Read it for</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Executions</td>
+<td>When each run happened, its cells, its spend, its workloads. The
+first check after a run</td>
+</tr>
+<tr class="even">
+<td>Leaderboard</td>
+<td>Cost per passing generation, filtered by workload and variant.
+Per-role model and cost columns for an episode, the model and its
+upstream route for a scenario. The suggested adjustments from the
+results file follow</td>
+</tr>
+<tr class="odd">
+<td>Cell</td>
+<td>One cell's transcript and response, every metric with its verdict
+and reason, the adjustment hints for that model and its vendor prompting
+note. Where to go when a model failed and it is not obvious why</td>
+</tr>
+<tr class="even">
+<td>Variants</td>
+<td>Two variants side by side, key by key</td>
+</tr>
+<tr class="odd">
+<td>Proposals</td>
+<td>What the advisor proposed, with an accept action that records one
+into the execution's accepted set</td>
+</tr>
+<tr class="even">
+<td>Run</td>
+<td>Launch a sweep against a discovered host</td>
+</tr>
+</tbody>
+</table>
+<p>Three things to know before trusting what you read:</p>
+<ul>
+<li><strong>The variant diff is override-only.</strong> A sweep records
+variant names, not variant text, so the diff cannot reconstruct a
+baseline column from a finished run. The page says so.</li>
+<li><strong>A judged run launched here is billed.</strong> The dashboard
+is not the Claude Code harness, so its judge is an API judge.</li>
+<li><strong>Accepted is not proposed.</strong> What the advisor
+suggested and what a person approved are kept in separate files
+deliberately, and an accepted variant wins over a host variant of the
+same name.</li>
+</ul>
+<p>The run page's guardrails are all refusals with the same sentence the
+button's tooltip carries: live runs off by default, a ceiling the
+request cannot raise, a cell cap checked before planning, every
+assignment and variant named explicitly, and a mandatory dry run that is
+retired the moment any field changes. A plan refusal is shown verbatim,
+because its message carries the whole breakdown.</p>
+<hr />
+<h3 id="8-an-operating-checklist">8. An operating checklist</h3>
+<p>Before a run:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />The roster names the candidates you
+meant, with upstream pins and catalog matches where they apply, and a
+declared family on the judge.</label></li>
+<li><label><input type="checkbox" />The incumbent is the model
+production actually runs.</label></li>
+<li><label><input type="checkbox" />The rubric still says what "better"
+means for this decision.</label></li>
+<li><label><input type="checkbox" />Expected output tokens are declared
+for every workload and role.</label></li>
+<li><label><input type="checkbox" />The judge has a per-minute rate and
+a concurrency cap.</label></li>
+<li><label><input type="checkbox" />A dry run succeeded, and its
+estimate is one you are willing to spend.</label></li>
+<li><label><input type="checkbox" />If the judge is a file exchange: the
+drainer is running, and the sweep will run in the
+background.</label></li>
+</ul>
+<p>After a run:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />The summary has no unexpected banner
+(stopped on ceiling, caching on, judging outside the
+estimate).</label></li>
+<li><label><input type="checkbox" />The pacing line looks like a paced
+run, not a retried one.</label></li>
+<li><label><input type="checkbox" />The selection section has enough
+pooled samples to mean anything, and you have read its Wilson interval,
+not only its win rate.</label></li>
+<li><label><input type="checkbox" />The same-family flag did not fire on
+the candidate you are about to pick. If it did, re-judge with a judge
+from another vendor.</label></li>
+<li><label><input type="checkbox" />The finding records the judge and
+the date, and the results file is kept with it.</label></li>
+</ul>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(stored);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
+</script>
+</body>
+</html>

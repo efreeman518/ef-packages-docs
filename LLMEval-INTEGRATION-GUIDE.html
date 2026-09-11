@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EF.LLMEval Integration Guide</title>
+  <link rel="stylesheet" href="docs-common.css">
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Documentation</div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">🌙</button>
+  </div>
+  <h1>EF.LLMEval Integration Guide</h1>
+</div>
+
+<div class="content">
+<h2 id="efllmeval-integration-guide">EF.LLMEval Integration Guide</h2>
+<p>Use this guide when you want to add a model-and-prompt evaluation
+harness to an existing .NET solution: a test project that runs the
+application's <strong>own</strong> code against a field of candidate
+models, prices every call, scores every result and ranks the field by
+cost per passing generation.</p>
+<p>This guide is the procedure. It points at <a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval/README.md">EF.LLMEval/README.md</a>
+for every API detail rather than duplicating it, and at <a
+href="LLMEval-Design-Doc.html">LLMEval-Design-Doc.md</a> for why each
+mechanism is shaped the way it is. Day-to-day running is in <a
+href="LLMEval-Operations.html">LLMEval-Operations.md</a>.</p>
+<h3 id="what-to-install">What to install</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Need</th>
+<th>Package</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>The harness itself</td>
+<td><code>EF.LLMEval</code></td>
+</tr>
+<tr class="even">
+<td>A workflow measured as an episode</td>
+<td><code>EF.LLMEval.FlowEngine</code></td>
+</tr>
+<tr class="odd">
+<td>A local dashboard over the sweep results</td>
+<td><code>EF.LLMEval.Dashboard</code></td>
+</tr>
+</tbody>
+</table>
+<p>Only the test project references them. Nothing in the application
+under test takes a dependency on this package: the harness reaches into
+the application, not the other way round.</p>
+<h4 id="central-package-management">Central Package Management</h4>
+<p>Teams using <code>Directory.Packages.props</code> with
+<code>ManagePackageVersionsCentrally=true</code> pin all three at the
+same version. Check the <a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/packages">GitHub
+Package Registry</a> for the current version.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">ItemGroup</span><span class="ot"> Label=</span><span class="st">&quot;EF.LLMEval&quot;</span>&gt;</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- Replace [latest] with the current package version from the registry --&gt;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval&quot;</span><span class="ot">            Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval.FlowEngine&quot;</span><span class="ot"> Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval.Dashboard&quot;</span><span class="ot">  Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
+<p>Then reference them versionless from the test project.</p>
+<hr />
+<h3 id="step-1-inventory-the-model-call-sites">Step 1. Inventory the
+model call sites</h3>
+<p>Do this before writing any code. A harness built without the
+inventory measures whatever was easiest to reach, which is rarely the
+call that costs the money.</p>
+<p>Search the solution for every place a model is actually called, and
+for every place a prompt is built. The useful signals are chat-client
+injections and resolutions, keyed service lookups, prompt or
+system-message constants and templates, structured-output schemas, tool
+definitions and reasoning effort settings.</p>
+<p>For each hit, write down five things:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>The entry point a request reaches</td>
+<td>This is the thing a scenario or workload calls.</td>
+</tr>
+<tr class="even">
+<td>Which chat client it resolves, and under what key</td>
+<td>The key becomes a role binding in step 3.</td>
+</tr>
+<tr class="odd">
+<td>Whether it is one call or a conversation</td>
+<td>Decides scenario versus episode, step 2.</td>
+</tr>
+<tr class="even">
+<td>What the request asks for: structured output, tools, reasoning
+effort</td>
+<td>Decides which candidates the capability gate will even allow.</td>
+</tr>
+<tr class="odd">
+<td>Roughly how often it runs in production, and how long its output
+is</td>
+<td>Decides which call site is worth measuring first, and what to
+declare as expected output tokens.</td>
+</tr>
+</tbody>
+</table>
+<p>Group the hits into <strong>workloads</strong>: one workload per
+thing a decision might be made about separately. An interpretation
+prompt that turns a structured input into prose and a classifier that
+tags the same input are two workloads, because they can reasonably run
+on different models.</p>
+<p>Then find the <strong>composition root</strong> the harness will
+reuse: the method or class that registers the application's services,
+including its chat clients. If there is no such method (registration is
+inline in a program file), extracting one is usually the only
+application change this integration needs, and it is worth making.</p>
+<p>Write the inventory down, in the test project's README or a scratch
+file. It is the argument for what the harness covers and what it does
+not.</p>
+<hr />
+<h3 id="step-2-decide-scenario-or-episode">Step 2. Decide scenario or
+episode</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Choose</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Scenario</strong></td>
+<td>The workload is one model call, or a short deterministic chain
+around one call. Example: an interpretation prompt that turns a
+structured record into a paragraph of prose.</td>
+</tr>
+<tr class="even">
+<td><strong>Episode</strong></td>
+<td>The workload converses, or more than one model participates.
+Example: a three-agent tutoring session where one model explains, a
+second checks the explanation, and a simulated student replies.</td>
+</tr>
+</tbody>
+</table>
+<p>Signals that an apparent scenario is really an episode: the code
+loops until a condition, one call's output is another model's input, or
+a person is expected to reply in the middle.</p>
+<p>If it is an episode, decide three more things now:</p>
+<ul>
+<li><strong>The roles.</strong> Name them for what they do
+(<code>main</code>, <code>checker</code>, <code>student</code>). The
+first declared role is primary: the turn cap counts its calls and the
+leaderboard ranks on it.</li>
+<li><strong>The turn budget.</strong> A cap, not a target. An episode
+that hits it is recorded as having hit it, not as a failure.</li>
+<li><strong>The human.</strong> A scripted human is the default and the
+right one: it sends nothing, costs nothing and says the same thing every
+run, which is what makes two candidates comparable. Reach for a
+model-backed persona only when a script genuinely cannot carry the
+variation, and know that it is priced under its own role.</li>
+</ul>
+<p>A workload that declares a human turn, or more than one role, with no
+human configured anywhere is <strong>refused</strong> rather than run.
+See <a href="LLMEval-Design-Doc.html#3-core-concepts">design doc section
+3.4</a>.</p>
+<hr />
+<h3 id="step-3-add-the-test-project-and-the-eval-host">Step 3. Add the
+test project and the eval host</h3>
+<p>Create a test project (<code>tests/Test.Eval</code> or the
+repository's own convention) that references <code>EF.LLMEval</code> and
+<strong>project-references the production code the workload
+calls</strong>. Never copy a prompt or an agent class into the test
+project: the value of the sweep is that it measures what production
+runs, and a copy drifts the first time somebody edits the original.</p>
+<p>If live cells share one spend ceiling, turn assembly and class
+parallelisation <strong>off</strong> in the test project. Parallel test
+classes each reserve against the same ceiling and can overshoot it
+together.</p>
+<h4 id="the-host-over-the-real-composition-root">The host over the real
+composition root</h4>
+<p>The host builds the application's own service collection per cell and
+swaps in the clients under test. Two callbacks, and the split between
+them is the thing to get right:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> host <span class="op">=</span> <span class="kw">new</span> EvalHost</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;interpretation&quot;</span><span class="op">,</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Everything that does not look at IChatClient while registering.</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    CreateServices <span class="op">=</span> <span class="op">()</span> <span class="op">=&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> services <span class="op">=</span> <span class="kw">new</span> <span class="fu">ServiceCollection</span><span class="op">();</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddApplicationServices</span><span class="op">(</span>configuration<span class="op">);</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> services<span class="op">;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    ConfigureCell <span class="op">=</span> <span class="op">(</span>services<span class="op">,</span> cell<span class="op">)</span> <span class="op">=&gt;</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        cell<span class="op">.</span><span class="fu">AddRoleClients</span><span class="op">(</span>services<span class="op">);</span>                       <span class="co">// first: the clients under test</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddAiServices</span><span class="op">(</span>configuration<span class="op">);</span>               <span class="co">// then anything that inspects them</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddDbContext</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">UseInMemoryDatabase</span><span class="op">(</span>$<span class="st">&quot;cell-{Guid.NewGuid()}&quot;</span><span class="op">));</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IClock<span class="op">&gt;(</span><span class="kw">new</span> <span class="fu">FixedClock</span><span class="op">(</span>FixedInstant<span class="op">));</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>Registration</th>
+<th>Where it goes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Adds an <code>IChatClient</code></td>
+<td>Either side. The cell registration removes it.</td>
+</tr>
+<tr class="even">
+<td><strong>Inspects</strong> the collection for an
+<code>IChatClient</code> while registering (an "add AI services" method
+that picks a live path when one is present)</td>
+<td><code>ConfigureCell</code>, <strong>after</strong>
+<code>AddRoleClients</code>, so it sees the clients under test and takes
+the offline branch.</td>
+</tr>
+<tr class="odd">
+<td><code>TryAddKeyedSingleton</code> for a chat client</td>
+<td>Moves with the code above. Safe on either side.</td>
+</tr>
+<tr class="even">
+<td>A plain <code>AddKeyedSingleton</code> for a chat client</td>
+<td><strong>Never after <code>AddRoleClients</code>.</strong> It wins,
+and the cell talks to the live endpoint.</td>
+</tr>
+<tr class="odd">
+<td>Everything the harness cannot supply: storage, request or tenant
+context, configuration, clocks, outbound integrations</td>
+<td><code>ConfigureCell</code>. A workload that reaches a real
+dependency is measuring that dependency's availability alongside the
+model.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="storage-doubles">Storage doubles</h4>
+<p>The harness replaces chat clients and <strong>nothing else</strong>.
+Give each cell its own storage, because one container is built per cell
+and a shared store would make a repeat a second pass over warm
+state:</p>
+<ul>
+<li>An in-memory provider with a per-cell database name, as above, is
+the usual answer for EF Core.</li>
+<li>An in-memory or fake implementation of the repository interface is
+better where the workload only reads a fixture.</li>
+<li>A fixed identity and a fixed clock keep audit fields and any
+time-dependent prompt stable across cells, which matters more than it
+sounds: a timestamp in a prompt makes every cached response a miss.</li>
+</ul>
+<h4 id="the-workload">The workload</h4>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> workload <span class="op">=</span> <span class="kw">new</span> <span class="fu">EvalWorkload</span><span class="op">(</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;explain&quot;</span><span class="op">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;main&quot;</span><span class="op">,</span> <span class="st">&quot;chat-main&quot;</span><span class="op">),</span> <span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;checker&quot;</span><span class="op">,</span> <span class="st">&quot;chat-checker&quot;</span><span class="op">)],</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span>provider<span class="op">,</span> variant<span class="op">,</span> ct<span class="op">)</span> <span class="op">=&gt;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        provider<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>InterpretationService<span class="op">&gt;().</span><span class="fu">ExplainAsync</span><span class="op">(</span>fixture<span class="op">,</span> variant<span class="op">,</span> ct<span class="op">));</span></span></code></pre></div>
+<p>The service key in each binding is the key the
+<strong>application</strong> resolves its client under. The role name is
+what a role assignment names a model for.</p>
+<h4 id="discovery">Discovery</h4>
+<p>Implement the one-member host source so a tool that never compiled
+against the application can find the host. That is what lets the
+dashboard's run page launch a sweep.</p>
+<hr />
+<h3 id="step-4-roster-and-connections">Step 4. Roster and
+connections</h3>
+<p>Keep the roster in a JSON file copied to the output directory, not in
+code: a roster is data that changes when a vendor ships a model, and a
+code change to add a candidate is friction that stops the field being
+refreshed.</p>
+<p>The file holds connections, the candidate list (or the role
+assignments for an episode), and the judge entry. <strong>It holds no
+secret values, only the configuration keys that hold them.</strong> Keys
+come from user secrets and environment variables at load time.</p>
+<pre class="jsonc"><code>{
+  &quot;connections&quot;: {
+    &quot;aggregator&quot;: {
+      &quot;provider&quot;: &quot;OpenRouter&quot;,
+      &quot;auth&quot;: &quot;ApiKey&quot;,
+      &quot;apiKeySecret&quot;: &quot;Aggregator:ApiKey&quot;,
+      &quot;catalog&quot;: &quot;openrouter&quot;
+    },
+    &quot;first-party&quot;: {
+      &quot;provider&quot;: &quot;AzureOpenAI&quot;,
+      &quot;endpointSecret&quot;: &quot;FirstParty:Endpoint&quot;,
+      &quot;auth&quot;: &quot;TokenCredential&quot;,
+      &quot;catalog&quot;: &quot;azure-retail&quot;
+    }
+  },
+  &quot;models&quot;: [
+    { &quot;id&quot;: &quot;agg/alpha&quot;, &quot;modelId&quot;: &quot;vendor-a/alpha-3&quot;, &quot;connection&quot;: &quot;aggregator&quot;,
+      &quot;upstreamTag&quot;: &quot;vendor-a&quot;, &quot;family&quot;: &quot;vendor-a&quot;, &quot;tags&quot;: [&quot;baseline&quot;] },
+    { &quot;id&quot;: &quot;agg/beta&quot;,  &quot;modelId&quot;: &quot;vendor-b/beta-2&quot;,  &quot;connection&quot;: &quot;aggregator&quot;,
+      &quot;upstreamTag&quot;: &quot;vendor-b&quot;, &quot;family&quot;: &quot;vendor-b&quot;, &quot;tags&quot;: [&quot;challenger&quot;] },
+    { &quot;id&quot;: &quot;fp/alpha&quot;,  &quot;modelId&quot;: &quot;alpha-3-deployment&quot;, &quot;connection&quot;: &quot;first-party&quot;,
+      &quot;catalogMatch&quot;: &quot;alpha 3&quot;, &quot;family&quot;: &quot;vendor-a&quot; }
+  ],
+  &quot;judge&quot;: {
+    &quot;id&quot;: &quot;judge/primary&quot;, &quot;modelId&quot;: &quot;vendor-c/judge-1&quot;, &quot;connection&quot;: &quot;aggregator&quot;,
+    &quot;family&quot;: &quot;vendor-c&quot;, &quot;requestsPerMinute&quot;: 20
+  }
+}</code></pre>
+<p>Four fields earn their place and are easy to leave out by
+accident:</p>
+<ul>
+<li><strong><code>upstreamTag</code></strong> on every aggregator
+candidate meant to measure one specific upstream. Without it, the same
+model id is routed across upstreams whose prices differ and the run
+measures a blend.</li>
+<li><strong><code>catalogMatch</code></strong> on every first-party
+candidate priced from a retail meter list.</li>
+<li><strong><code>family</code></strong> on the judge and on any
+deployment-name or gateway-alias id. An unplaced family silently
+disables the same-family warning in the selection report.</li>
+<li><strong><code>requestsPerMinute</code></strong> on the judge,
+because the judge answers for every cell and meets a per-model cap long
+before the field does.</li>
+</ul>
+<h4 id="keyless-and-keyed-auth">Keyless and keyed auth</h4>
+<p>Two shapes, and the loader should support both because a team usually
+has both:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyed: a secret resolved from user secrets or the environment.</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> keyed <span class="op">=</span> <span class="kw">new</span> ProviderConnection</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;aggregator&quot;</span><span class="op">,</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">OpenRouter</span><span class="op">,</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    ApiKey <span class="op">=</span> configuration<span class="op">[</span><span class="st">&quot;Aggregator:ApiKey&quot;</span><span class="op">],</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    CatalogName <span class="op">=</span> OpenRouterModelCatalog<span class="op">.</span><span class="fu">DefaultName</span><span class="op">,</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyless: whoever is signed in locally. Azure.Identity is the caller&#39;s own dependency.</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> keyless <span class="op">=</span> <span class="kw">new</span> ProviderConnection</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;first-party&quot;</span><span class="op">,</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">AzureOpenAI</span><span class="op">,</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    Endpoint <span class="op">=</span> configuration<span class="op">[</span><span class="st">&quot;FirstParty:Endpoint&quot;</span><span class="op">],</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    Auth <span class="op">=</span> EvalAuth<span class="op">.</span><span class="fu">TokenCredential</span><span class="op">,</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    Credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span><span class="op">(),</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<p><strong>Drop, do not fail.</strong> A connection with no resolvable
+key or credential should be dropped at load time, and with it every
+model and assignment that names it. A developer without one provider's
+key still gets a usable run over the rest of the field, which is what
+keeps the harness something people actually run.</p>
+<hr />
+<h3 id="step-5-catalogs">Step 5. Catalogs</h3>
+<p>Wire a catalog per connection, plus a static fallback for anything
+neither live catalog prices, and enrich the roster before the first
+sweep. Without a catalog there is no capability gate and every model is
+priced as unknown.</p>
+<p>Enrichment is asynchronous and belongs in the host's prepare step
+rather than in a constructor: the host runs it at most once per
+instance, before anything is estimated or sent, dry runs included.
+Without it, a dashboard-launched dry run prices an unenriched roster at
+nothing.</p>
+<p>An unresolvable price stays unknown. The model still runs and is
+simply left out of the cost ranking. If a model you expect to be priced
+is not, read its pricing diagnostics: they carry the meter names or
+upstream tags that were actually on offer.</p>
+<hr />
+<h3 id="step-6-the-spend-gated-live-lane">Step 6. The spend-gated live
+lane</h3>
+<p>Split the test project in two.</p>
+<p><strong>The offline lane</strong> runs in an ordinary local test
+pass, costs nothing, and proves the harness itself is sound:</p>
+<ul>
+<li>The probe captures the request options the workload really
+sends.</li>
+<li>A prompt variant actually changes what is sent.</li>
+<li>The spend-ceiling parser is locale-safe (a comma-decimal culture
+must not turn a 5 into a 5000).</li>
+<li>The deterministic evaluator both accepts clean input and rejects bad
+input.</li>
+<li>The per-cell container builds.</li>
+</ul>
+<p>A harness whose own correctness is only established during an
+expensive run is a harness nobody checks.</p>
+<p><strong>The live lane</strong> is opt-in, gated on an environment
+variable with a project-specific prefix (never a bare <code>EVAL</code>,
+so two harnesses on one machine cannot collide):</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">internal</span> <span class="kw">static</span> <span class="kw">class</span> EvalGate</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> RunVariable      <span class="op">=</span> <span class="st">&quot;MYAPP_RUN_EVAL&quot;</span><span class="op">;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> RequireVariable  <span class="op">=</span> <span class="st">&quot;MYAPP_REQUIRE_EVAL&quot;</span><span class="op">;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> MaxSpendVariable <span class="op">=</span> <span class="st">&quot;MYAPP_EVAL_MAX_SPEND&quot;</span><span class="op">;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="kw">static</span> <span class="dt">void</span> <span class="fu">RequireLiveRun</span><span class="op">()</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span><span class="fu">IsSet</span><span class="op">(</span>RunVariable<span class="op">))</span> <span class="kw">return</span><span class="op">;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span><span class="fu">IsSet</span><span class="op">(</span>RequireVariable<span class="op">))</span> Assert<span class="op">.</span><span class="fu">Fail</span><span class="op">(</span>$<span class="st">&quot;{RequireVariable} is set but {RunVariable} is not.&quot;</span><span class="op">);</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        Assert<span class="op">.</span><span class="fu">Inconclusive</span><span class="op">(</span>$<span class="st">&quot;Live model evaluation is opt-in. Set {RunVariable}=1 to run it.&quot;</span><span class="op">);</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Three rules make the gate trustworthy:</p>
+<ul>
+<li>A live test that finds nothing runnable (no configured key, no model
+matching a filter) is inconclusive by default and <strong>fails</strong>
+when the require variable is set. A missing prerequisite must never read
+as a passing run.</li>
+<li>A sweep test itself ends inconclusive with a one-line summary and a
+pointer to the report. A sweep is a measurement, not an assertion; there
+is no pass condition for "which model is best".</li>
+<li><strong>The ceiling is a hard limit, not a starting bid.</strong>
+Set it from the environment variable, keep the default small, and treat
+a plan refusal as a signal to cut a dimension rather than to raise the
+number. The refusal message carries the whole breakdown.</li>
+</ul>
+<p>Add a cheap single-call smoke test to the live lane as well, ahead of
+the sweep: it proves the wire mapping (reasoning effort, structured
+output, tools) actually reaches the provider the way the harness
+assumes, for a few cents rather than for the cost of a matrix.</p>
+<hr />
+<h3 id="step-7-evaluators-and-a-rubric-as-data">Step 7. Evaluators and a
+rubric as data</h3>
+<p>At minimum, one deterministic evaluator that checks the property the
+workload actually cares about. <strong>Never rely on a judge alone for
+the metric a decision rests on.</strong></p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">internal</span> <span class="kw">sealed</span> <span class="kw">class</span> RequiredSectionsEvaluator <span class="op">:</span> IEvaluator</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> MetricName <span class="op">=</span> <span class="st">&quot;Required sections&quot;</span><span class="op">;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> IReadOnlyCollection<span class="op">&lt;</span><span class="dt">string</span><span class="op">&gt;</span> EvaluationMetricNames <span class="op">=&gt;</span> <span class="op">[</span>MetricName<span class="op">];</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> ValueTask<span class="op">&lt;</span>EvaluationResult<span class="op">&gt;</span> <span class="fu">EvaluateAsync</span><span class="op">(</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        IEnumerable<span class="op">&lt;</span>ChatMessage<span class="op">&gt;</span> messages<span class="op">,</span> ChatResponse modelResponse<span class="op">,</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        ChatConfiguration<span class="op">?</span> chatConfiguration <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        IEnumerable<span class="op">&lt;</span>EvaluationContext<span class="op">&gt;?</span> additionalContext <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken <span class="op">=</span> <span class="kw">default</span><span class="op">)</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> context <span class="op">=</span> EvalCallContext<span class="op">.</span><span class="fu">Find</span><span class="op">(</span>additionalContext<span class="op">);</span>   <span class="co">// model plus the recorded call</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ... inspect modelResponse.Text, return a BooleanMetric with a reason ...</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>For an episode, read the episode context instead: it carries the role
+assignment, every role's calls and the episode result, including the
+final artifact your delegate produced. Where an evaluator needs to know
+what "correct" means for a given input, attach that as evaluation
+context rather than inferring it from the prompt.</p>
+<p>Layer the package's built-ins on top: cost and latency, response
+completeness (which catches a reasoning model spending its whole
+allowance on hidden tokens and returning nothing visible),
+structured-output validity with the required fields named, and output
+language where it matters.</p>
+<p><strong>Keep the rubric as data.</strong> It is the sentence that
+defines "better" for the judge, it is stored with the numbers it
+produced, and it should be editable without a code change:</p>
+<pre class="jsonc"><code>&quot;rubric&quot;: &quot;Answers the question asked, stays inside the supplied facts, names its uncertainty, and never pads.&quot;</code></pre>
+<p>A rubric that lives in a string literal is a rubric nobody revises,
+and a selection report read six months later cannot be checked against
+the rubric that was actually in force.</p>
+<hr />
+<h3 id="step-8-baseline-and-judge">Step 8. Baseline and judge</h3>
+<p><strong>The baseline</strong> is the incumbent: the model production
+runs today, or the one you would keep if nothing wins. Name it in the
+sweep options (for an episode, the incumbent assignment). Its cells run
+first as one batch, and every other cell is judged against its answer to
+the same workload, variant and iteration.</p>
+<p><strong>The judge</strong> is a model from outside the field under
+test. A judge drawn from the candidates is scoring its own family.
+Attach the pairwise evaluator with the rubric, declare the judge's
+pricing so its calls are inside the estimate, and cap its
+concurrency.</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> options <span class="op">=</span> <span class="kw">new</span> SweepOptions</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    StorageRootPath <span class="op">=</span> root<span class="op">,</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    MaxSpend <span class="op">=</span> ceiling<span class="op">,</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    Baseline <span class="op">=</span> incumbent<span class="op">,</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    Rubric <span class="op">=</span> rubric<span class="op">,</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    JudgeConfiguration <span class="op">=</span> <span class="kw">new</span> <span class="fu">ChatConfiguration</span><span class="op">(</span>judgeClient<span class="op">),</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    JudgePricing <span class="op">=</span> judgePricing<span class="op">,</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    MaxJudgeParallel <span class="op">=</span> <span class="dv">2</span><span class="op">,</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    Repeats <span class="op">=</span> <span class="dv">3</span><span class="op">,</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    Selection <span class="op">=</span> <span class="kw">new</span> SelectionOptions <span class="op">{</span> MinSamples <span class="op">=</span> <span class="dv">6</span> <span class="op">},</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<h4 id="which-judge-and-who-pays">Which judge, and who pays</h4>
+<p>This is the decision to make consciously, because the two paths bill
+different people:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Path</th>
+<th>Who judges</th>
+<th>Who pays</th>
+<th>Available when</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>API connection</strong></td>
+<td>A model on an ordinary endpoint, selected with
+<code>LLMEVAL_JUDGE_CONNECTION</code></td>
+<td>The account that owns the key, per call</td>
+<td>Always. The only option for a dashboard run, a CI run, or a test run
+with nobody draining an exchange.</td>
+</tr>
+<tr class="even">
+<td><strong>File exchange</strong></td>
+<td>A Claude Code subagent draining a folder pair</td>
+<td>Subscription quota. Reported as <strong>not available</strong>,
+never as zero</td>
+<td>Only when the eval is run from the Claude Code harness with a
+drainer online.</td>
+</tr>
+</tbody>
+</table>
+<p>There is <strong>no automatic fallback</strong> from the file
+exchange to a paid endpoint: that would put a bill on somebody who chose
+the subscription path. With no drainer online the sweep stops with a
+reason naming both ways out. See <a
+href="LLMEval-Design-Doc.html#8-the-two-judge-paths">design doc section
+8</a>.</p>
+<p>Budget for the judge before running: two judge calls per
+non-incumbent cell, plus one per cell if a rubric score is attached. On
+any matrix of size, the judge is the bill.</p>
+<hr />
+<h3 id="step-9-run-it">Step 9. Run it</h3>
+<h4 id="from-claude-code-with-the-skills">From Claude Code, with the
+skills</h4>
+<p>Two agent skills travel inside the <code>EF.LLMEval</code> package,
+and <strong>building a project that references the package installs
+them</strong> into the consuming repository:</p>
+<pre><code>&lt;repository root&gt;/.claude/skills/llmeval-harness
+&lt;repository root&gt;/.claude/skills/llmeval-run</code></pre>
+<p>Claude Code discovers them there with no further step. Restore alone
+does not install anything, so the first <code>dotnet build</code> after
+adding the reference is what does the copy. The package's targets are
+packed for transitive use as well, so a test project that picks
+<code>EF.LLMEval</code> up through another project reference installs
+them too. The repository root is the nearest ancestor holding a
+<code>.git</code> entry; a checkout that is not a git repository
+installs nothing unless it is told where to put them.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&lt;LLMEvalInstallSkills&gt;false&lt;/LLMEvalInstallSkills&gt;</code></td>
+<td>Opt out. The install step is skipped entirely.</td>
+</tr>
+<tr class="even">
+<td><code>&lt;LLMEvalSkillsRoot&gt;path&lt;/LLMEvalSkillsRoot&gt;</code></td>
+<td>Install into <code>path/.claude/skills</code> instead of the
+detected repository root. Also the way to install from a checkout with
+no <code>.git</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>The copy only adds and overwrites its own two folders and never
+deletes anything else under <code>.claude/skills</code>. A destination
+it cannot write warns and carries on rather than failing the build.</p>
+<p><strong>Manual install, as a fallback</strong> for an opted-out
+build, a non-git checkout, or a machine that should not build first: the
+package ships <code>tools/install-skills.ps1</code> and
+<code>tools/install-skills.sh</code>. Each takes the skills from the
+package it sits in, or the newest <code>ef.llmeval</code> in the NuGet
+cache, installs into the repository root it finds or into an explicit
+destination, prints what it did, and exits non-zero on failure.</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">~/.nuget/packages/ef.llmeval/</span><span class="op">&lt;</span>version<span class="op">&gt;</span>/tools/install-skills.sh <span class="at">--destination</span> /path/to/repo</span></code></pre></div>
+<p>Whether to commit the installed <code>.claude/skills/llmeval-*</code>
+folders or add them to <code>.gitignore</code> is the repository's
+choice: committing makes them travel to everyone who clones, at the cost
+of a diff whenever the package version moves. Nothing in the package
+depends on which you pick.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Skill</th>
+<th>Use it to</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>llmeval-harness</code></td>
+<td>Build the harness this guide describes, with templates for every
+file and a verification checklist. It also ships the file a draining
+subagent is handed.</td>
+</tr>
+<tr class="even">
+<td><code>llmeval-run</code></td>
+<td>Run an existing harness end to end: pick the judge, start the
+drainer, launch the sweep, wait for the summary, read the selection and
+write the findings.</td>
+</tr>
+</tbody>
+</table>
+<p>The ordering constraint when the judge is a file exchange is not
+optional. The exchange client blocks on its replies, so a foreground
+sweep and a drainer in the same session deadlock:</p>
+<ol type="1">
+<li><strong>Start the drainer first</strong>, so a heartbeat exists
+before the first request is queued.</li>
+<li><strong>Launch the sweep in the background</strong>, keeping its
+log.</li>
+<li><strong>Keep draining</strong> in a bounded loop until the run's
+summary file exists.</li>
+</ol>
+<h4 id="from-the-dashboard">From the dashboard</h4>
+<p>Register the dashboard over a storage root, add its assembly to the
+host's router, and make sure MudBlazor's providers are in the root
+component. With a host source registered, the run page can launch a
+sweep: pick a host and workload, name assignments and variants, dry-run
+(mandatory), then confirm the live run against the estimate. Live runs
+are off by default, the ceiling is a maximum the request cannot raise,
+and a cell cap refuses an oversized matrix before it is planned.</p>
+<p>A dashboard run is one of the "any other way" cases above, so its
+judge is an API judge and is billed.</p>
+<h4 id="from-a-plain-test-run">From a plain test run</h4>
+<p>Set the opt-in variable, optionally the ceiling and a model filter,
+and run the live test category. Nothing else is needed: a stopped or
+interrupted run resumes by being run again, because finished cells
+replay from cache.</p>
+<hr />
+<h3 id="step-10-read-the-report">Step 10. Read the report</h3>
+<p><code>LeaderboardWriter</code> writes two files into the output
+directory.</p>
+<p><strong><code>summary.md</code></strong> is the one to read
+first:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Section</th>
+<th>What to take from it</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>The leaderboard, one table per workload and variant</td>
+<td>Ranked by <strong>cost per passing generation</strong>. A model with
+zero passes is listed without a cost figure rather than sorted to the
+bottom by an invented number.</td>
+</tr>
+<tr class="even">
+<td>The pacing line</td>
+<td>How many calls waited on rate limits and for how long, and how many
+were retried. A large number here means the run was slower than it was
+expensive.</td>
+</tr>
+<tr class="odd">
+<td>Banners</td>
+<td>The run stopped on its ceiling, response caching was on (so latency
+and the upstream route are not trustworthy for cached cells), or the
+judging was outside the estimate.</td>
+</tr>
+<tr class="even">
+<td><code>Suggested adjustments</code></td>
+<td>One subsection per model that failed something: the deterministic
+hints and any matching vendor prompting note.</td>
+</tr>
+<tr class="odd">
+<td><code>Selection</code></td>
+<td>The parity pick, the upgrade pick, dominators, each with pooled
+sample count, win rate and a Wilson interval, plus the judge, the rubric
+and the thresholds.</td>
+</tr>
+</tbody>
+</table>
+<p>Read the selection section with its sample count in view. Below the
+minimum it reports insufficient samples and names nobody, which is the
+correct answer and not a bug. With enough samples and nothing over the
+line it says none qualifies rather than promoting the least-bad
+candidate.</p>
+<p><strong><code>results.json</code></strong> carries the full report,
+the same adjustments, and the selection, so a consumer does not have to
+recompute any of it. Commit a results file when a decision rests on it:
+it carries no credential and it is the evidence for the choice.</p>
+<p>For transcripts, render the underlying reporting store as HTML with
+the evaluation library's own report tool. The two are meant to be read
+together: the leaderboard narrows the field, the transcript report
+explains why.</p>
+<hr />
+<h3 id="troubleshooting">Troubleshooting</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A plan exception before anything runs</td>
+<td>The estimated spend exceeds the ceiling</td>
+<td>Read the breakdown in the message. Narrow the matrix, declare
+expected output tokens for a role priced at its full ceiling, or raise
+the ceiling deliberately.</td>
+</tr>
+<tr class="even">
+<td>A model reports unsupported</td>
+<td>The capability gate rejected the probed options</td>
+<td>Read the record's reason for which capability failed. Either the
+catalog is right and the model cannot do this, or the catalog entry is
+wrong.</td>
+</tr>
+<tr class="odd">
+<td>Price is unknown on a model that should be priced</td>
+<td>No catalog match or upstream tag, or the meter could not be
+classified</td>
+<td>Read the pricing diagnostics for the meter names or upstream tags
+that were on offer, then correct the match string or the model id.</td>
+</tr>
+<tr class="even">
+<td>The sweep hangs on its first cell</td>
+<td>A file-exchange judge with no drainer, or a foreground sweep
+deadlocking with a drainer in the same session</td>
+<td>Start the drainer first, then launch the sweep in the background.
+With no drainer the sweep should fail fast instead; if it hangs, check
+that the heartbeat file is being written.</td>
+</tr>
+<tr class="odd">
+<td>"No judge agent is draining"</td>
+<td>Nobody is draining the exchange, or the heartbeat is stale</td>
+<td>Start the drainer, or select an API judge with
+<code>LLMEVAL_JUDGE_CONNECTION</code> and pay for the judging. This is
+the intended outcome for a dashboard or CI run.</td>
+</tr>
+<tr class="even">
+<td>Selection says insufficient samples</td>
+<td>Fewer pooled comparisons than the minimum</td>
+<td>Add repeats or add fixtures. Adding a <strong>variant</strong> does
+not help: it is a different question and gets its own group.</td>
+</tr>
+<tr class="odd">
+<td>Every cell returns an empty judge verdict</td>
+<td>A reasoning judge capped at the plain output cap</td>
+<td>Declare the judge as reasoning in the roster, so the larger
+reasoning cap applies. The cap covers hidden reasoning tokens on the
+OpenAI wire.</td>
+</tr>
+<tr class="even">
+<td>Latency looks impossibly good</td>
+<td>Response caching served the cells</td>
+<td>Caching is on by default. Turn it off for any run that measures
+latency or run-to-run variance.</td>
+</tr>
+<tr class="odd">
+<td>The pacing line is missing from the report</td>
+<td>A decorating client provider did not forward the rate-limit
+counters</td>
+<td>Forward them. The member is a default interface implementation, so a
+decorator that ignores it silently returns nothing.</td>
+</tr>
+<tr class="even">
+<td>A cell talked to the live endpoint</td>
+<td>A plain keyed chat-client registration ran after the cell's clients
+were registered</td>
+<td>Move it before, or make it a try-add. See step 3.</td>
+</tr>
+<tr class="odd">
+<td>An episode completed in one turn and looks suspiciously clean</td>
+<td>No human simulator, so the conversation ended after its opening
+turn</td>
+<td>Configure one. A workload that genuinely never converses says so
+with an empty script.</td>
+</tr>
+<tr class="even">
+<td>Restoring the package fails</td>
+<td>The package feed is not configured</td>
+<td>Add the GitHub Packages feed for the repository, or
+project-reference during development.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="suggested-order">Suggested order</h3>
+<ol type="1">
+<li>Inventory the call sites and write it down.</li>
+<li>Add the test project with the offline lane only, and a scenario or
+episode over one workload.</li>
+<li>Add the host over the real composition root, with storage doubles,
+and prove the probe captures what you expected.</li>
+<li>Add the roster file and the catalogs. Run a dry run: it should price
+the matrix and send nothing.</li>
+<li>Add the spend-gated live lane and a cheap smoke test. Run it.</li>
+<li>Add evaluators and the rubric. Run a small sweep with no judge.</li>
+<li>Add the baseline and the judge. Run the real sweep.</li>
+<li>Add the dashboard once more than one sweep exists.</li>
+</ol>
+<p>Each step leaves something that works, and only steps 5, 7 and beyond
+spend anything.</p>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(stored);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
+</script>
+</body>
+</html>
