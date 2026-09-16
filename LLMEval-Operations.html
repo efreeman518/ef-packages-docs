@@ -87,10 +87,10 @@ reasoning models generally reject temperature controls</td>
 </tbody>
 </table>
 <p><strong>Dry-run first, always.</strong> A dry run walks the probe,
-the capability gate and the estimate, records every cell as skipped, and
-sends nothing. It is free and it is the only honest preview of a
-matrix's cost. The dashboard makes it mandatory before a live run for
-exactly this reason.</p>
+the per-model request trimming and the estimate, records every cell as
+skipped, and sends nothing. It is free and it is the only honest preview
+of a matrix's cost. The dashboard makes it mandatory before a live run
+for exactly this reason.</p>
 <p><strong>Declare expected output tokens.</strong> Without them, a
 workload is priced at its requested token ceiling, which it may never
 approach. That can overstate a sweep several-fold and refuse a run that

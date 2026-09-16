@@ -103,7 +103,8 @@ definitions and reasoning effort settings.</p>
 <tr class="even">
 <td>What the request asks for: structured output, tools, reasoning
 effort</td>
-<td>Decides which candidates the capability gate will even allow.</td>
+<td>Decides what gets removed from the request for a candidate whose
+catalog entry refuses it. No candidate is excluded over one.</td>
 </tr>
 <tr class="odd">
 <td>Roughly how often it runs in production, and how long its output
@@ -363,8 +364,8 @@ keeps the harness something people actually run.</p>
 <h3 id="step-5-catalogs">Step 5. Catalogs</h3>
 <p>Wire a catalog per connection, plus a static fallback for anything
 neither live catalog prices, and enrich the roster before the first
-sweep. Without a catalog there is no capability gate and every model is
-priced as unknown.</p>
+sweep. Without a catalog every request goes out exactly as your code
+built it and every model is priced as unknown.</p>
 <p>Enrichment is asynchronous and belongs in the host's prepare step
 rather than in a constructor: the host runs it at most once per
 instance, before anything is estimated or sent, dry runs included.
@@ -710,11 +711,12 @@ expected output tokens for a role priced at its full ceiling, or raise
 the ceiling deliberately.</td>
 </tr>
 <tr class="even">
-<td>A model reports unsupported</td>
-<td>The capability gate rejected the probed options</td>
-<td>Read the record's reason for which capability failed. Either the
-catalog is right and the model cannot do this, or the catalog entry is
-wrong.</td>
+<td>A row says it ran without part of the request</td>
+<td>The model's catalog entry refuses a member of the probed options, so
+it was removed before the call</td>
+<td>Read the record's dropped options. Either the catalog is right and
+the model cannot take it, or the catalog entry is wrong. The score is
+real; it is a score for the request as sent.</td>
 </tr>
 <tr class="odd">
 <td>Price is unknown on a model that should be priced</td>

@@ -324,7 +324,7 @@ explains the mechanism behind it.</p>
 <!-- Mermaid source: diagrams/13-evaluation-steps.mmd -->
 
 <p><img src="diagrams/13-evaluation-steps.svg"
-alt="The steps of an evaluation: install and wire, inventory the call points, build the matrix, probe, filter on capability, estimate, run every cell, capture, report" /></p>
+alt="The steps of an evaluation: install and wire, inventory the call points, build the matrix, probe, trim each request to the model, estimate, run every cell, capture, report" /></p>
 <p><strong>1. Install the package and wire an eval host onto the real
 composition root.</strong> A project reference to
 <code>EF.LLMEval</code> installs the two agent skills into
@@ -353,25 +353,27 @@ to satisfy:</p>
 <tbody>
 <tr class="odd">
 <td>Plain text or structured output</td>
-<td>A schema-bound call is gated against strict structured-output
-support; a plain-text call is not.</td>
+<td>A schema-bound call is checked against strict structured-output
+support and the schema is dropped for a model without it; a plain-text
+call is untouched.</td>
 </tr>
 <tr class="even">
 <td>Tool calling</td>
-<td>A call that offers tools is gated against tool support, and the
-tools have to be resolvable inside a cell.</td>
+<td>A call that offers tools is checked against tool support and the
+tools are dropped for a model without it, and the tools have to be
+resolvable inside a cell.</td>
 </tr>
 <tr class="odd">
 <td>Web search or other retrieval</td>
-<td>Not modelled by the capability gate today. See <a
+<td>Not inferred from a probed request. A role declares it with
+<code>RoleRequirements.WebSearch</code>. See <a
 href="#capabilities-and-candidate-filtering">Capabilities and candidate
 filtering</a>.</td>
 </tr>
 <tr class="even">
 <td>Context size</td>
-<td>A workload whose prompt is long narrows the field by hand rather
-than by the gate: context length is catalog data, not a gated
-capability.</td>
+<td>Not measured from the probed prompt. A role declares the window it
+needs with <code>RoleRequirements.MinContextTokens</code>.</td>
 </tr>
 <tr class="odd">
 <td>Human turns</td>
@@ -402,22 +404,22 @@ actually asked for: the messages, the response format, the tools, the
 reasoning effort, the token ceiling, and how many calls each role made.
 Everything downstream is computed from that rather than from an
 assumption. See <a href="#4-the-sweep-lifecycle">section 4</a>.</p>
-<p><strong>5. Filter on capability, per candidate, per cell.</strong>
+<p><strong>5. Annotate on capability, per candidate, per cell.</strong>
 The candidate's declared capabilities are checked against the probed
-<code>ChatOptions</code>. A candidate that cannot satisfy the request is
-marked <strong>unsupported</strong> for that cell and never called: it
-costs nothing, carries the reason it was refused, and is excluded from
-the ranking and from the picks. For an episode the gate is applied per
-role, and one role that cannot honour its request invalidates the whole
-cell rather than sending the roles that could have run.</p>
+<code>ChatOptions</code>. A member the candidate cannot satisfy is
+removed from the request before the call and listed on the cell's
+record; the cell runs, is priced and is ranked like any other. For an
+episode this happens per role. Nothing here excludes a candidate:
+capabilities are annotations, not gates, because a catalog entry is a
+claim about a model and the run is the evidence about it.</p>
 <p><strong>6. Estimate and check the ceiling.</strong> The whole matrix
 is priced from the probe and the catalog before anything is sent, judge
 calls included, and the run is refused against the ceiling with a
 breakdown naming which dimension to cut. The estimate is an
-<strong>upper bound over every cell</strong>: it is computed before the
-per-cell gate runs, so a cell that turns out to be unsupported is priced
-in the estimate and then never called. Actual spend comes in under it
-for that reason among others.</p>
+<strong>upper bound over every cell</strong>, and every cell is in it:
+nothing is excluded before the run, so the priced matrix is the matrix
+that actually runs. Actual spend comes in under it because the bound is
+generous, not because cells vanished.</p>
 <p><strong>7. Run every remaining cell.</strong> The real workflow
 executes, with each role's client swapped for that cell's candidate,
 under a concurrency cap and a per-minute pacer. The delegates call the
@@ -451,12 +453,12 @@ candidates are in the field. It is worth knowing exactly what it reads,
 because a gap in it looks like a model that is fine and is not.</p>
 <h4 id="what-is-modelled-today">What is modelled today</h4>
 <p><code>ModelCapabilities</code> is a small record with five fields,
-and nothing else about a model is gated:</p>
+and nothing else about a model is read:</p>
 <table>
 <thead>
 <tr class="header">
 <th>Field</th>
-<th>What it gates</th>
+<th>What it decides is removed from a request</th>
 </tr>
 </thead>
 <tbody>
@@ -478,16 +480,26 @@ tool calling as a whole.</td>
 <tr class="even">
 <td><code>ReasoningEfforts</code></td>
 <td>The efforts the model accepts. A requested effort outside the list
-is refused. An empty list means the catalog said nothing, and the check
-is skipped.</td>
+is removed. An empty published list means no effort is known to be
+accepted, so a requested one is removed too - stricter than
+<code>Supports</code>, which skips an empty list because it used to
+refuse the model rather than edit the request.</td>
 </tr>
 <tr class="odd">
 <td><code>ReasoningMandatory</code></td>
-<td>A model that always reasons, so <code>ReasoningEffort.None</code> is
-refused outright and is reported with its own reason.</td>
+<td>A model that always reasons. The requested effort is removed and the
+note says the model reasons on every call, rather than that it cannot do
+what was asked.</td>
 </tr>
 </tbody>
 </table>
+<p>Two further fields are carried but are not read when trimming a
+request, because nothing in a probed <code>ChatOptions</code> measures
+itself against them: <code>SupportsWebSearch</code> (a hosted web-search
+tool, <code>null</code> when no catalog said) and
+<code>ContextTokens</code> (the published context window,
+<code>null</code> when none is published). Both are read by the per-role
+requirements below.</p>
 <p><code>ModelCapabilities.Unknown</code>
 (<code>IsKnown == false</code>) is the sixth state and the most
 important one: it is deliberately <strong>permissive</strong>, so a
@@ -523,8 +535,8 @@ the same shape of declaration for the vendor family.</li>
 </ul>
 <p>Pricing travels the same path and has the same unknown state, with
 the same rule: an unknown price is never treated as zero.</p>
-<h4 id="how-the-runner-decides-a-cell-is-unsupported">How the runner
-decides a cell is unsupported</h4>
+<h4 id="how-the-runner-decides-to-remove-a-setting">How the runner
+decides to remove a setting</h4>
 <p><code>Supports(ChatOptions, out reason)</code> is called with the
 <strong>probed</strong> options - what the application's own code asked
 for on this workload and this variant, not what a harness author
@@ -535,64 +547,101 @@ reason in plain words:
 <code>model does not support reasoning effort 'high' (supports: none, low, medium)</code>,
 or
 <code>model requires reasoning and cannot run at effort 'none'</code>.</p>
-<p>A false result records the cell as <code>Unsupported</code> and
-returns before any client is built, so the cell costs nothing. For an
-episode the same check runs once per role before anything is sent, and
-the first role that fails invalidates the whole cell, with the reason
-prefixed by the role name and the model id.</p>
+<p>A false result does <strong>not</strong> exclude the model, and there
+is no setting that makes it. Capabilities are annotations, not gates: a
+catalog entry is a claim about a model and the run is the evidence, so
+the runner wraps the cell's client, removes the refused members - the
+reasoning effort, the response format, the tool definitions - before the
+request is sent, runs the cell normally, and lists what went on
+<code>EvalRunRecord.DroppedOptions</code>, which the Notes column prints
+and a <code>N cells ran with a request setting dropped</code> line
+counts. The removal is decided from catalog data before the call; a
+provider that refuses a parameter at call time is a failed cell with no
+re-send and no after-the-fact strip.
+<code>EvalOutcome.Unsupported</code> is no longer produced by anything
+and is kept only so an older results file still reads back. For an
+episode the same check runs once per role, and each role's request is
+trimmed on its own capabilities: one role refusing a member never
+invalidates the cell or stops the other roles being called, and every
+removal is listed on the cell's record.</p>
+<h4 id="per-role-requirements-reported-and-never-enforced">Per-role
+requirements, reported and never enforced</h4>
+<p>A role may state what any model assigned to it must be able to do,
+independently of what one cell's probe happens to ask for.
+<code>RoleRequirements(Tools, StructuredOutput, WebSearch, Reasoning, MinContextTokens)</code>
+is declared on <code>EvalRoleBinding.Requirements</code> (carried onto
+<code>EvalEpisode.RoleRequirements</code> by
+<code>EvalHost.Episode</code>, and settable directly on an episode
+written in code). Every flag defaults to off, so a role that declares
+nothing records nothing.</p>
+<p><code>SweepRunner.RunEpisodesAsync</code> evaluates them once per
+assignment and role and <strong>reports</strong> the result: every cell
+runs, is priced and is scored exactly as it would be with no
+declaration, and what the cast leaves unmet is written to
+<code>EvalRunRecord.UnmetRequirements</code> as
+<code>role: requirement (unknown|absent)</code>, shown per row in the
+Notes column and counted by a
+<code>N cells ran with a declared role requirement unmet</code> line.
+Nothing is excluded and nothing is repriced, because excluding the
+candidate a requirement doubts would destroy the only evidence about
+whether the doubt was right.</p>
+<p>A capability no catalog published reports as <code>(unknown)</code>
+rather than <code>(absent)</code>, because a gap in this library's data
+is not a finding about the model and sends a reader to check the wrong
+thing.</p>
 <h4 id="how-it-appears-in-the-report">How it appears in the report</h4>
 <ul>
-<li><strong><code>summary.md</code> header</strong>: the cell counts
-carry it -
-<code>120 cells: 118 succeeded, 1 failed, 1 unsupported.</code></li>
-<li><strong>The leaderboard row</strong>: the model still gets a row so
-it is visible as considered rather than forgotten, with <code>n/a</code>
-in every measured column and the reason in the Notes column, as
-<code>unsupported: model does not support strict JSON schema (structured outputs)</code>.</li>
-<li><strong>Ranking and picks</strong>: only cells that actually
-succeeded feed cost per pass, the means and the selection, so an
-unsupported candidate is never ranked and can never be a parity or
-upgrade pick.</li>
+<li><strong><code>summary.md</code> header</strong>: two counts,
+<code>N cells ran with a request setting dropped</code> and
+<code>N cells ran with a declared role requirement unmet</code>, above
+the per-scenario tables.</li>
+<li><strong>The leaderboard row</strong>: the model is ranked on its
+real result, with <code>ran without: ...</code> and
+<code>requirement unmet: ...</code> in the Notes column, so a row
+answering a slightly different request is never read as though it
+answered the same one.</li>
+<li><strong>Ranking and picks</strong>: a cell with a dropped setting or
+an unmet requirement is an ordinary succeeded cell and feeds cost per
+pass, the means and the selection like any other. The Notes are what a
+reader weighs; nothing is withheld from the ranking on the strength of
+catalog data.</li>
 <li><strong><code>results.json</code></strong>: the per-cell record
-carries <code>Outcome</code> and <code>Reason</code> verbatim, so a
-re-read of a finished run can tell a capability refusal from a model
-that answered badly.</li>
+carries <code>DroppedOptions</code> and <code>UnmetRequirements</code>
+verbatim, so a re-read of a finished run can tell a trimmed request from
+an untouched one.</li>
 </ul>
 <h4 id="what-is-not-modelled-today">What is not modelled today</h4>
 <p>Stated so it is not discovered mid-run:</p>
 <ul>
-<li><strong>Web search and other retrieval tools.</strong>
-<code>SupportsTools</code> is one boolean for tool calling. A hosted
-web-search tool, a retrieval tool or a code-interpreter tool is not
-distinguished from an ordinary function tool, so a candidate that
-supports function calling and not hosted search passes the gate and
-fails at the provider.</li>
-<li><strong>Context window and maximum output tokens.</strong> A catalog
-entry carries both where the provider publishes them, but neither is
-copied into <code>ModelCapabilities</code> and neither is checked
-against the probed prompt length. A long-context workload narrows its
-own field by hand.</li>
+<li><strong>Web search when trimming a request.</strong>
+<code>SupportsTools</code> is still one boolean there, so a hosted
+web-search, retrieval or code-interpreter tool is not distinguished from
+an ordinary function tool by <code>Supports(ChatOptions)</code>. A role
+that needs hosted search says so with
+<code>RoleRequirements.WebSearch</code>, which reads
+<code>SupportsWebSearch</code>; there is no way to infer it from a
+probed request.</li>
+<li><strong>Prompt length against the context window.</strong>
+<code>MinContextTokens</code> compares a role's declared need with the
+published window; nothing measures a probed prompt's own length and
+compares that.</li>
+<li><strong>Maximum output tokens.</strong> A catalog entry carries it
+where the provider publishes it, but it is not copied into
+<code>ModelCapabilities</code> and nothing is checked against it.</li>
 <li><strong>Modality.</strong> Image, audio or file input is not
 represented at all.</li>
-<li><strong>An explicit per-role requirements declaration.</strong>
-There is no place in the eval host to say "this role needs structured
-output, tools and 200k of context" up front. Requirements are discovered
-from the probe, cell by cell, which means a candidate that cannot serve
-a role is learned one cell at a time rather than excluded before the
-matrix is built, and the requirements themselves never appear in the
-report.</li>
+<li><strong>Requirements in the summary.</strong> A refused cell carries
+its reason, but the summary does not print a standing list of what each
+role required alongside which candidates met it.</li>
 </ul>
 <h4 id="follow-ups">Follow-ups</h4>
 <ul>
-<li><strong>A per-role requirements declaration in the eval
-host</strong>, used for up-front candidate selection and printed in the
-report. It would turn the last two paragraphs into one pre-flight check:
-a candidate that cannot serve a role is excluded before the matrix is
-priced, and the report states what each role needed alongside which
-candidates could meet it. Planned, with no date attached.</li>
-<li><strong>A distinct capability for hosted tools</strong>, so web
-search and retrieval stop being folded into the single tool-calling
-boolean.</li>
+<li><strong>Print the role requirements in the summary</strong>, so a
+report states what each role needed and which candidates met it, rather
+than only naming the ones that did not.</li>
+<li><strong>Hosted-tool capabilities beyond web search</strong>, so
+retrieval and code interpreters stop being folded into the single
+tool-calling boolean read when a request is trimmed.</li>
 </ul>
 <hr />
 <h3 id="hints-proposals-and-the-rerun-loop">Hints, proposals and the
@@ -711,11 +760,14 @@ resolved stays unknown and the model is excluded from the cost ranking,
 never treated as free. The spend ceiling is checked against the estimate
 before the first call.</p>
 <p><strong>Nothing is silently downgraded, guessed or hidden.</strong> A
-model that cannot honour the probed request is recorded as unsupported
-and never called, because downgrading the request to fit it would make
-the ranking meaningless. A judge that fails stops the sweep instead of
-recording unmeasured cells as passes. A file-exchange judge is never
-re-pointed at a paid endpoint on its own.</p>
+model that cannot honour part of the probed request has that part
+removed and is called anyway, with the removal on its record: the member
+is dropped, never substituted for a weaker one, because a quiet
+downgrade would have it answering a different request while the report
+compares it as an equal. No candidate is excluded over a capability. A
+judge that fails stops the sweep instead of recording unmeasured cells
+as passes. A file-exchange judge is never re-pointed at a paid endpoint
+on its own.</p>
 <p>The package is a thin layer over <a
 href="https://learn.microsoft.com/dotnet/ai/evaluation/libraries">Microsoft.Extensions.AI.Evaluation</a>,
 which supplies metrics, AI judges, response caching and HTML reporting.
@@ -771,8 +823,9 @@ measured: its prompt assembly, its orchestration, its parsing, and
 the application's service collection per cell and replaces the chat
 clients with recording clients bound to this cell's candidate
 models.</li>
-<li><strong>The sweep runner</strong> owns the matrix: it probes, gates
-on capability, estimates, paces, runs, evaluates and reports.</li>
+<li><strong>The sweep runner</strong> owns the matrix: it probes, trims
+each request to the model's capabilities, estimates, paces, runs,
+evaluates and reports.</li>
 <li><strong>Providers and catalogs</strong> reach the outside world:
 endpoints for the candidates and the judge, price and capability data
 for the estimate and the ranking.</li>
@@ -875,8 +928,8 @@ afternoon of debugging if it surfaces as a 401 from the far end.</p>
 <h4 id="33-catalogs-and-pricing">3.3 Catalogs and pricing</h4>
 <p>A catalog resolves a wire model id to price, capabilities, context
 length and output cap. Nothing about a sweep requires one; without a
-catalog there is simply no capability gate and every model is priced as
-unknown.</p>
+catalog every request goes out exactly as the application built it and
+every model is priced as unknown.</p>
 <p>Three implementations ship: an aggregator catalog that reads a public
 models endpoint (plus a per-upstream breakdown), a cloud retail-price
 catalog that matches meter names against a caller-supplied substring,
@@ -1048,7 +1101,7 @@ or a multi-turn episode.</p>
 <!-- Mermaid source: diagrams/02-sweep-lifecycle.mmd -->
 
 <p><img src="diagrams/02-sweep-lifecycle.svg"
-alt="Sweep lifecycle: probe, capability gate, estimate and ceiling, baseline cells, cells, evaluators, report" /></p>
+alt="Sweep lifecycle: probe, capability annotation, estimate and ceiling, baseline cells, cells, evaluators, report" /></p>
 <p><strong>1. Probe.</strong> The scenario or episode runs once per
 (workload, variant) against a probe client that sends nothing over the
 network and records the chat options and messages the application's code
@@ -1057,17 +1110,17 @@ request options were captured before that. The probe reply only has to
 be shaped well enough for the application's own parsing to reach the
 model call.</p>
 <p>The probe is the hinge of the whole design. Everything downstream
-(the capability gate, the spend estimate, the per-role call counts) is
-computed from what the real code asked for, not from what a harness
-author assumed it would ask for.</p>
-<p><strong>2. Capability gate.</strong> Each candidate's declared
+(what a request is trimmed to, the spend estimate, the per-role call
+counts) is computed from what the real code asked for, not from what a
+harness author assumed it would ask for.</p>
+<p><strong>2. Capability annotation.</strong> Each candidate's declared
 capabilities are checked against the probed options: structured-output
 support against the requested response format, tool support against
 requested tools, and the requested reasoning effort against the efforts
-the model accepts. A model that cannot honour the request is recorded as
-unsupported and never called. Unknown capabilities are deliberately
-permissive, so a gap in catalog data shrinks nobody's field; the
-provider becomes the judge instead.</p>
+the model accepts. A refused member is removed from the request before
+it is sent and recorded on the cell; the candidate is called either way.
+Unknown capabilities remove nothing at all, so a gap in catalog data
+changes nobody's request; the provider becomes the judge instead.</p>
 <p><strong>3. Estimate and ceiling.</strong> The whole matrix is priced
 from the probe and the catalog data before anything is sent. The
 estimate is an <strong>upper bound, not a forecast</strong>: input from
@@ -1168,9 +1221,9 @@ one:</p>
 <ul>
 <li>The incumbent's own cells get no comparison and report
 not-applicable with a reason, never 0.5.</li>
-<li>A missing incumbent result (that cell failed, was unsupported, was
-skipped on the ceiling, or would not read back) is not-applicable with a
-reason naming which. It is never a failed candidate.</li>
+<li>A missing incumbent result (that cell failed, was skipped on the
+ceiling, or would not read back) is not-applicable with a reason naming
+which. It is never a failed candidate.</li>
 <li>A judge reply that is not exactly one of the three expected verdicts
 is reported with an unknown rating and an error diagnostic, never read
 as a tie.</li>
@@ -1679,27 +1732,32 @@ generation, ties broken by model id. The model column carries the
 upstream that actually answered where the endpoint reported one.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 2026-09-11T0930</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>120 cells: 118 succeeded, 1 failed, 1 unsupported.</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>120 cells: 119 succeeded, 1 failed, 0 unsupported.</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 0.812400, actual 0.374512.</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>Judge cost: not available (judged by the Claude Code harness subagent).</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>Pacing: 42 calls waited a total of 61.5 s on rate limits; 3 calls retried after a transient failure (429 x2, 503 x1).</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | mean pairwise.win | mean rubric.score | Notes |</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>| agg/delta (vendor-d) | 15 | 11/15 | 0.000682 | 0.000500 | 1840 ms | 0.28 | 3.1 | cheap-field |</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>| agg/beta (vendor-b) | 15 | 15/15 | 0.001140 | 0.001140 | 2310 ms | 0.47 | 3.9 | challenger |</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>| agg/gamma (vendor-c) | 15 | 15/15 | 0.002310 | 0.002310 | 3620 ms | 0.72 | 4.4 | challenger |</span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>| agg/alpha (vendor-a) | 15 | 15/15 | 0.004180 | 0.004180 | 2980 ms | n/a | 4.1 | baseline |</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 14/15 | 0.005121 | 0.004780 | 2450 ms | 0.53 | 4.2 | |</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>| agg/epsilon | 15 | 0/15 | n/a | n/a | n/a | n/a | n/a | unsupported: no strict structured output |</span></code></pre></div>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>15 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>Pacing: 42 calls waited a total of 61.5 s on rate limits; 3 calls waited 24 s before a retry; 3 calls retried after a transient failure (429 x2, 503 x1).</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | mean pairwise.win | mean rubric.score | Notes |</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>| agg/delta (vendor-d) | 15 | 11/15 | 0.000682 | 0.000500 | 1840 ms | 0.28 | 3.1 | cheap-field |</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>| agg/beta (vendor-b) | 15 | 15/15 | 0.001140 | 0.001140 | 2310 ms | 0.47 | 3.9 | challenger |</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>| agg/gamma (vendor-c) | 15 | 15/15 | 0.002310 | 0.002310 | 3620 ms | 0.72 | 4.4 | challenger |</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>| agg/alpha (vendor-a) | 15 | 15/15 | 0.004180 | 0.004180 | 2980 ms | n/a | 4.1 | baseline |</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 14/15 | 0.005121 | 0.004780 | 2450 ms | 0.53 | 4.2 | |</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>| agg/epsilon | 15 | 6/15 | 0.001905 | 0.000762 | 1620 ms | 0.19 | 2.4 | ran without: ResponseFormat=JsonSchema dropped: model does not support strict JSON schema (structured outputs) |</span></code></pre></div>
 <p>Reading it: <code>agg/delta</code> is the cheapest per pass and loses
 most of its comparisons, which is exactly what cost per pass alone
 cannot tell you. <code>agg/alpha</code> is the incumbent, so it has no
 win rate against itself and reports <code>n/a</code> rather than 0.5.
-<code>agg/epsilon</code> was never called at all.</p>
+<code>agg/epsilon</code> ran without the JSON schema its catalog entry
+refuses, and the row is the answer to whether that mattered: it passed 6
+of 15 and scored worst on the rubric, which is a measured result rather
+than an assumption. Excluding it would have produced a blank row and the
+same suspicion, with nothing to settle it.</p>
 <p>The selection block that follows the tables:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Selection</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
