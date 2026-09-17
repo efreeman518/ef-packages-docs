@@ -390,7 +390,7 @@ installed folders or add <code>.claude/skills/llmeval-*/</code> to
 makes the skills travel to everyone who clones.</p>
 <hr />
 <h3 id="7-reading-a-finished-run">7. Reading a finished run</h3>
-<p>A run leaves two files in its report directory, and they are what a
+<p>A run leaves three files in its report directory, and they are what a
 finding is written from.</p>
 <table>
 <thead>
@@ -410,8 +410,15 @@ section</td>
 <tr class="even">
 <td><code>results.json</code></td>
 <td>Every cell: its metrics rendered and raw, its cost, its duration,
-its response text, the upstream that served it, and whatever it ran
-without</td>
+its response text and transcript, the upstream that served it, and
+whatever it ran without</td>
+</tr>
+<tr class="odd">
+<td><code>report.html</code></td>
+<td>The decision view: a cost-versus-quality chart per role with
+intervals and thresholds, the top suggestions, the selection table and
+every cell's transcript. It embeds every prompt and response verbatim,
+so read them before committing a copy of it into a repository</td>
 </tr>
 </tbody>
 </table>

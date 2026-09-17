@@ -1500,6 +1500,72 @@ drainer's time rather than in money.</p>
 to measure latency or run-to-run variance, both of which a cache
 falsifies, and remember that a cache-served cell reports no upstream
 route, because a cached response carries no fresh routing field.</p>
+<h4 id="91-the-html-report">9.1 The HTML report</h4>
+<p><code>HtmlReportWriter</code> writes a third file into the report
+directory, <code>report.html</code>, from the same call that writes the
+other two. It is the only one of the three aimed at a person making a
+decision rather than at a record or at the next tool, so its order is
+the order that decision is made in:</p>
+<ol type="1">
+<li><strong>Header</strong> - execution, workload, render date in UTC,
+package version, the judge line word for word as the summary prints it,
+actual spend against the ceiling it was given, and the cell counts
+including how many ran with a setting dropped or a declared requirement
+unmet.</li>
+<li><strong>Recommendations</strong> - one cost-versus-quality chart per
+role, above everything else. Cost per passing generation on x, pooled
+win rate against the incumbent on y, the Wilson 95% interval as a bar
+through each point, the incumbent marked at 0.5 by definition, the
+parity and upgrade picks and the dominators in distinct shapes, the
+sweep's own <code>SelectionOptions</code> thresholds as reference lines,
+and the price-efficient frontier as a line. The axis goes logarithmic,
+and says so, when the field spans more than 20x. Under each chart, the
+three cheapest candidates at parity with the sample count, interval,
+cost multiple against the incumbent and any dropped setting or unmet
+requirement that qualifies them. An episode sweep gets one chart per
+role that varied and names the roles that were held fixed, because a
+chart of a column that never changed says nothing.</li>
+<li><strong>How to read win rate</strong> - one paragraph for a reader
+who has not met the measure, defining the pooling, the two presentation
+orders, ties as halves, the interval, <code>MinSamples</code> and both
+thresholds at the values this sweep used.</li>
+<li><strong>Selection</strong> - the summary's own Selection section, as
+a table.</li>
+<li><strong>Prompt hints</strong> -
+<code>SweepResultsFile.PromptHints</code>, or one line saying none were
+recorded.</li>
+<li><strong>Round provenance</strong> -
+<code>SweepResultsFile.Round</code>, or
+<code>Round 1 (initial broad roster)</code>.</li>
+<li><strong>Full matrix</strong> - every cell, each expanding through a
+<code>details</code> element to its whole transcript, the judge's
+verdict text and its numeric metrics. Nothing is truncated: a reader who
+doubts a verdict has only one way to check it.</li>
+<li><strong>Value</strong> - cost per passing generation as a bar chart,
+with the pacing and retry line.</li>
+<li><strong>Roster provenance</strong> - per entry, its connection,
+upstream, family, prices and their source, capability annotations, tags
+and the <code>ModelUnderTest.Provenance</code> note the roster
+carried.</li>
+<li><strong>Judge notes</strong> - the runner, the number of judge
+requests, and whatever the exchange recorded about a refusal or a stale
+drainer.</li>
+</ol>
+<p>One file and nothing else: styles inline, charts as SVG computed in
+the writer, no script, no CDN, no external font. The markup is
+XHTML-compatible, which is not a formality - it is what lets the tests
+parse the whole document and prove that a model response full of angle
+brackets was escaped rather than rendered. Every string that came from a
+model, a prompt or a roster is HTML-encoded, and characters XML 1.0
+cannot represent are dropped, because one stray control byte in a
+truncated answer would otherwise make the file unreadable.</p>
+<p>A harness that wants to keep a run copies the file into its own
+repository as
+<code>docs/eval/&lt;yyyy-mm-dd&gt;-&lt;workload&gt;.html</code>. Nothing
+here does that: which runs are worth keeping is a judgement about the
+project, not about the sweep. The file embeds every prompt and every
+response verbatim, so the transcripts are read before a copy is
+committed - whatever a fixture put in front of a model is in it.</p>
 <hr />
 <h3 id="10-the-prompt-development-loop">10. The prompt-development
 loop</h3>

@@ -592,8 +592,11 @@ interrupted run resumes by being run again, because finished cells
 replay from cache.</p>
 <hr />
 <h3 id="step-10-read-the-report">Step 10. Read the report</h3>
-<p><code>LeaderboardWriter</code> writes two files into the output
-directory.</p>
+<p><code>LeaderboardWriter</code> writes three files into the output
+directory: <code>summary.md</code>, <code>results.json</code> and
+<code>report.html</code>, the self-contained HTML report a person reads
+to choose a model. The report embeds every prompt and every response
+verbatim, so read the transcripts before committing a copy of it.</p>
 <p><strong><code>summary.md</code></strong> is the one to read
 first:</p>
 <table>
