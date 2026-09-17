@@ -292,7 +292,7 @@ come from user secrets and environment variables at load time.</p>
       &quot;catalog&quot;: &quot;openrouter&quot;
     },
     &quot;first-party&quot;: {
-      &quot;provider&quot;: &quot;AzureOpenAI&quot;,
+      &quot;provider&quot;: &quot;Foundry&quot;,
       &quot;endpointSecret&quot;: &quot;FirstParty:Endpoint&quot;,
       &quot;auth&quot;: &quot;TokenCredential&quot;,
       &quot;catalog&quot;: &quot;azure-retail&quot;
@@ -344,7 +344,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="
 <span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> keyless <span class="op">=</span> <span class="kw">new</span> ProviderConnection</span>
 <span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
 <span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;first-party&quot;</span><span class="op">,</span></span>
-<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">AzureOpenAI</span><span class="op">,</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">Foundry</span><span class="op">,</span></span>
 <span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    Endpoint <span class="op">=</span> configuration<span class="op">[</span><span class="st">&quot;FirstParty:Endpoint&quot;</span><span class="op">],</span></span>
 <span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    Auth <span class="op">=</span> EvalAuth<span class="op">.</span><span class="fu">TokenCredential</span><span class="op">,</span></span>
 <span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    Credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span><span class="op">(),</span></span>
