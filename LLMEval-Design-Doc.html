@@ -1276,6 +1276,69 @@ answer when the flag matters.</p>
 <p>Thresholds are data on the sweep options and the rubric is stored
 alongside the numbers it produced, so a decision made last quarter can
 be read back against the rubric that was actually in force.</p>
+<h4 id="61-choosing-a-cast-not-a-model">6.1 Choosing a cast, not a
+model</h4>
+<p>A multi-agent workflow has no single model to choose. The selection
+rule above answers "which model in this seat, with everything else as it
+is"; the union of those answers is a different claim, and it assumes the
+seats do not interact. That assumption is the one that goes wrong
+quietly: a cheap drafter that wins while an expensive reviewer covers
+for it can lose badly once the reviewer is downgraded too, and no cell
+in a per-role sweep ever ran both changes.</p>
+<p>The cross product is not the alternative. Three roles over ten
+candidates is a thousand cells, almost none of which answer a question
+anybody asked. The answer is two passes.</p>
+<p><strong>Pass one varies one role at a time</strong>, every other role
+pinned on the incumbent's model. It is linear in the roster, and it is
+the pass that says which candidates are worth combining at all. The
+candidate a role already casts is dropped, because it rebuilds the
+incumbent under a second name and the sweep would pay to judge the
+incumbent against itself; the incumbent stays in the plan once, because
+the pairwise comparison needs the transcript it produced. The whole plan
+is one sweep rather than one per role: every cell is judged against the
+same incumbent cast, so pooling them is what gives each candidate the
+sample count a pick needs, and the per-role view is a grouping of the
+result rather than a separate run.</p>
+<p><strong>Pass two measures the combinations that pass one
+implies.</strong> Each role brings its parity-qualified candidates,
+cheapest first, capped, with the model it casts today always on the
+shortlist - a role where nothing beat what ships keeps what ships, and
+dropping it would make every combination change every role. The
+combinations are ordered by predicted cost and cut from the dear end,
+because the question a second sweep answers is "can we buy the cheap
+combination". Two are taken before the cap rather than rescued after it:
+the incumbent, and the combined best, which is the cast a per-role
+leaderboard would have recommended on its own and therefore the one this
+pass exists to check.</p>
+<p><strong>The interaction effect is the output.</strong> Each
+combination carries a predicted win rate, computed from the per-role
+results as a product of independent odds. Odds rather than a mean of the
+rates, and the choice is documented because the reported delta is
+meaningless without knowing what it is a delta from: a role left on the
+incumbent measured even against itself, whose odds are one, so it leaves
+the product untouched, where a mean would drag every prediction toward
+even and a one-role change in a five-role cast would be predicted at
+barely above even however decisive it was. Rates are clamped a little
+away from 0 and 1, so a role that won every comparison predicts strongly
+rather than predicting certainty from six samples.</p>
+<p>The verification sweep then measures those combinations for real, and
+the gap between measured and predicted is reported rather than assumed
+away. It is flagged when the prediction falls outside the measured 95
+percent interval, which is precisely the case where the per-role
+recommendation would have been wrong, and it is refused below the
+minimum sample count: subtracting a prediction from a win rate measured
+three times produces a number that looks exactly like a real interaction
+effect and carries none of the uncertainty that makes it
+meaningless.</p>
+<p><strong>One cast is recommended per workflow and prompt
+variant</strong>: the cheapest verified cast at or above the parity
+threshold, with the cheapest clearly better one named beside it as the
+upgrade, on the same cost multiple the single-model rule uses - the two
+reports must not recommend on different grounds. When nothing reaches
+parity the answer is to keep the incumbent cast, and the interaction
+count is stated on that refusal too, because a field where nothing
+reached parity although every role won on its own is the strongest
+interaction finding a run can produce.</p>
 <hr />
 <h3 id="7-throttle-and-continue">7. Throttle and continue</h3>
 <p>A sweep is a burst of traffic from one account against endpoints that
