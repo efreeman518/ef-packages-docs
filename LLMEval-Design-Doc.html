@@ -677,15 +677,98 @@ never runs what it proposed.</p>
 <p>The whole loop is therefore: run, read the suggested adjustments,
 decide which edits are real, name them as variants, and run again. The
 cached candidate responses mean every unchanged cell replays at no model
-cost, so the second run pays only for what changed.</p>
-<h4 id="acting-on-proposals-unattended-is-out-of-scope">Acting on
-proposals unattended is out of scope</h4>
-<p>This is a design boundary, not a missing feature. A loop in which a
-model edits the prompt, runs the edit and scores its own output is not
-an experiment, and the package refuses to close it: the advisor never
-runs what it proposed, and no path exists that turns a proposal into a
-measured variant without a person in between. See <a
-href="#11-design-boundaries">section 11</a>.</p>
+cost, so the second run pays only for what changed. The two subsections
+below are the shorter path through the same loop: letting the run
+propose its own variants while it still has ceiling left, and seeding
+the next round from the file this one wrote.</p>
+<h4
+id="proposals-the-run-makes-for-itself-opt-in-and-measured">Proposals
+the run makes for itself, opt-in and measured</h4>
+<p><code>SweepOptions.ProposeVariants</code> closes the loop inside one
+run, deliberately and with fences. After the matrix, at the batch
+boundary, the runner asks the drainer - the agent already reading every
+comparison - what to try next for each scenario: a request of
+<code>kind: "proposal"</code> carrying the editable prompts, the
+incumbent's and the leading candidate's answers, the rubric and one line
+per judged cell. <code>ProposalInterval</code> asks once per that many
+judged comparisons instead, each request seeing only the prefix of the
+evidence it would have seen at that point.</p>
+<p>Four gates decide whether an idea is paid for, and all four are
+recorded:</p>
+<ul>
+<li>it must name prompt keys the scenario declared editable, or nothing
+would apply it and the variant would silently measure the same request
+twice;</li>
+<li>its <code>confidence</code> must reach
+<code>ProposalMinConfidence</code> (0.8), and a proposal that declares
+none reads as zero;</li>
+<li>the cells it adds must fit inside <code>MaxSpend</code>,
+re-estimated against a probe of the <strong>proposed</strong> variant
+rather than the baseline's, since a variant is free to change the
+request it sends;</li>
+<li>and a refusal on the ceiling names the number of cells that would
+exceed it, because a matrix quietly shortened is a matrix nobody can
+read.</li>
+</ul>
+<p>Admitted variants run for the same models and repeats as the baseline
+variant, in a second pair of batches under the same stop and the same
+running spend total, and are judged pairwise like any other cell. A
+bound variant is priced for the incumbent's cells as well as its own,
+because those are the cells it will actually run: without the
+incumbent's answer to the same request under the same variant every
+comparison in it reports n/a. Every decision becomes a
+<code>VariantProposal</code> in <code>results.json</code> and a row in
+the report.</p>
+<p>The round is single-shot only, and a sweep that had already stopped
+does not run it. Both are said out loud - a warning naming the episode,
+a recorded reason on the report - rather than being an option that
+silently bought nothing.</p>
+<h4 id="the-boundary-that-moved-and-the-one-that-did-not">The boundary
+that moved, and the one that did not</h4>
+<p>Earlier versions refused this outright: a loop in which a model edits
+the prompt, runs the edit and scores its own output is not an
+experiment. That objection is still true, and the package no longer
+answers it by refusing to run - it answers it by being explicit. The
+proposer and the judge are the same drainer, so an admitted variant
+winning its comparisons is the proposer agreeing with itself, and the
+report says exactly that above the table rather than presenting the win
+as evidence. The whole loop is off by default, is gated on a confidence
+the proposer has to state, is bounded by the same ceiling as everything
+else, and records what it refused as carefully as what it ran.</p>
+<p>What has not moved: nothing edits the shipped prompt. A variant is a
+measurement beside the control, never a replacement for it;
+<code>PromptAdvisor</code> still writes to a file and runs nothing; and
+the decision to adopt an edit is still a person's, made from a report
+that says how thin the evidence for it is.</p>
+<h4
+id="rounds-narrowing-the-field-with-what-the-last-round-learned">Rounds:
+narrowing the field with what the last round learned</h4>
+<p>A broad first round buys a thin ranking over a wide field.
+<code>SweepOptions.SeedFrom</code> points at that round's
+<code>results.json</code> and turns the next run into round N+1: per
+role, the top <code>TopK</code> (3) by cost per pass among the
+candidates at or above the parity line, falling back to win rate when
+too few reached it and saying so, always keeping the incumbent. The
+prompts the last round earned come with it - admitted proposals, and
+hints concrete enough to carry a rewritten prompt - each bound through
+<code>PromptVariant.AppliesTo</code> to the model or family it was
+learned from, so an edit costs cells only where it might help. A
+multi-role round gets joint casts, and builds them with
+<code>AssignmentPlanner</code>'s own combination planner rather than a
+second one of its own (see 6.1): the incumbent cast and the best
+predicted cast first and never cut, the cheapest predicted casts filling
+the rest of <code>MaxJointAssignments</code> (9, the incumbent
+included), named as a joint verification names them. Two planners that
+ordered or named the same casts differently would produce a round whose
+assignment names did not line up with the joint selection report built
+from it.</p>
+<p><code>RoundProvenance</code> records the number, the execution that
+seeded it, the rule that cut the field and where each variant came from,
+and chains to the previous round through <code>Previous</code>, so the
+report prints the whole sequence. That chain is the point: a third-round
+win rate measured over a field two earlier rounds chose is not a
+measurement of the roster, and without the chain nothing in the file
+says so.</p>
 <hr />
 <h3 id="1-why-the-package-exists">1. Why the package exists</h3>
 <p>A team shipping a feature that calls a language model has to answer
@@ -1596,10 +1679,15 @@ thresholds at the values this sweep used.</li>
 a table.</li>
 <li><strong>Prompt hints</strong> -
 <code>SweepResultsFile.PromptHints</code>, or one line saying none were
-recorded.</li>
+recorded, then <code>SweepResultsFile.HintResearch</code>: what each
+family answered, so a family that documents nothing, one whose reply
+could not be read and one nobody asked are three different rows rather
+than one absence, followed by <code>SweepResultsFile.Proposals</code>:
+what the run proposed trying, whether it ran, and why, under a line
+saying that the proposer and the judge were the same agent.</li>
 <li><strong>Round provenance</strong> -
-<code>SweepResultsFile.Round</code>, or
-<code>Round 1 (initial broad roster)</code>.</li>
+<code>SweepResultsFile.Round</code> and every round it chains back to,
+or <code>Round 1 (initial broad roster)</code>.</li>
 <li><strong>Full matrix</strong> - every cell, each expanding through a
 <code>details</code> element to its whole transcript, the judge's
 verdict text and its numeric metrics. Nothing is truncated: a reader who
@@ -1657,16 +1745,27 @@ and the vendor notes in the brief. Two refusals define it: it rejects
 any proposal naming a key the workload did not declare editable, before
 anything is written, and it rejects an unparseable reply the same
 way.</p>
-<p><strong>It never runs what it proposed.</strong> Proposals are
-written to a file for a person to read, and the next sweep loads the
-ones that were accepted. That boundary is the point of the layer: a loop
-where a model edits the prompt and then measures its own edit is not an
-experiment.</p>
+<p><strong>The advisor never runs what it proposed.</strong> Its
+proposals are written to a file for a person to read, and the next sweep
+loads the ones that were accepted.</p>
+<p><strong>The in-run proposal loop does run what it proposed, on
+purpose and behind four gates.</strong> With
+<code>SweepOptions.ProposeVariants</code> on, the drainer is asked -
+after the matrix, from the evidence it has already judged - what to try,
+and an idea is paid for only when it names declared editable keys,
+states a confidence at or above <code>ProposalMinConfidence</code>, and
+fits inside <code>MaxSpend</code>, with every refusal recorded and a
+ceiling refusal naming the number of cells that would exceed it. The
+objection this used to be refused over is still true and is answered in
+the report rather than in the code: the proposer and the judge are the
+same agent, so an admitted variant's win is the proposer agreeing with
+itself, and the section says so.</p>
 <p>The loop in practice: run a sweep with the baseline variant as
-control, read the suggested adjustments for whatever failed, turn the
-ones that make sense into named variants, and re-run. The cached
-candidate responses mean the unchanged cells cost nothing the second
-time.</p>
+control, read the suggested adjustments for whatever failed and whatever
+the run proposed for itself, turn the ones that make sense into named
+variants - or seed the next round from the results file, which carries
+them - and re-run. The cached candidate responses mean the unchanged
+cells cost nothing the second time.</p>
 <hr />
 <h3 id="11-design-boundaries">11. Design boundaries</h3>
 <p>What the package refuses to do is as load-bearing as what it does.
@@ -1707,8 +1806,12 @@ results about that model.</td>
 <td>That would bill somebody who chose otherwise, silently.</td>
 </tr>
 <tr class="even">
-<td>Adopt its own prompt suggestions</td>
-<td>Proposals go to a file for a person to read.</td>
+<td>Adopt a prompt suggestion quietly, or for free</td>
+<td><code>PromptAdvisor</code>'s proposals go to a file for a person to
+read. The opt-in in-run loop does run what the drainer proposes, but
+only against declared editable keys, above a stated confidence and
+inside the ceiling, with every decision written down and the
+proposer-is-the-judge bias named in the report.</td>
 </tr>
 <tr class="odd">
 <td>Mutate the caller's state</td>
