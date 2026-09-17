@@ -47,6 +47,11 @@ report</li>
 <li><a href="#capabilities-and-candidate-filtering">Capabilities and
 candidate filtering</a> - what decides which candidates are in the
 field</li>
+<li><a href="#settings-as-candidates-and-narrowing-the-field">Settings
+as candidates, and narrowing the field</a> - when the cheapest
+configuration is not a different model</li>
+<li><a href="#selection-without-an-incumbent">Selection without an
+incumbent</a> - ranking a field when nothing ships yet</li>
 <li><a href="#hints-proposals-and-the-rerun-loop">Hints, proposals and
 the rerun loop</a> - what to do with a report full of failures</li>
 <li><a href="#appendix-sample-outputs">Appendix: sample outputs</a> -
@@ -622,6 +627,176 @@ than only naming the ones that did not.</li>
 retrieval and code interpreters stop being folded into the single
 tool-calling boolean read when a request is trimmed.</li>
 </ul>
+<hr />
+<h3 id="settings-as-candidates-and-narrowing-the-field">Settings as
+candidates, and narrowing the field</h3>
+<p>Everything above treats a candidate as a model. That is wrong often
+enough to matter: the same wire model at reasoning effort low and at
+high has two prices, two latencies and often two quality levels, so the
+cheapest configuration that does the work is sometimes a setting rather
+than a model, and a roster that can only name models cannot see the
+difference. A run that reports "model A is 3x cheaper than model B" when
+model B at low effort would have done the job has measured the wrong
+axis.</p>
+<h4 id="an-entry-not-an-annotation">An entry, not an annotation</h4>
+<p><code>ModelUnderTest.RequestSettings</code> carries what this entry
+sends on top of the application's request - a reasoning effort, a
+temperature, a top-p and an output cap - and <code>BaseModelId</code>
+names the entry it varies. There is deliberately no bag for a
+provider-specific field: the Microsoft.Extensions.AI OpenAI-wire clients
+drop <code>ChatOptions.AdditionalProperties</code> on both routes, so
+such an entry would be a candidate with its own id, price and cells that
+sends exactly what its base sends, which is the shape of silent failure
+this package exists to refuse. A field the wire clients do not carry has
+to be evaluated through a route that does. Such an entry is a
+<strong>candidate in its own right</strong>: its own id
+(<code>&lt;base id&gt;@&lt;label&gt;</code>), its own cells, its own
+price line, its own point on the chart, its own row in the tables,
+grouped under its base model in the roster table with a Settings column
+saying what it sends.</p>
+<p>The alternative - a single entry with a list of settings, folded
+together in the report - was rejected for the reason the whole package
+exists: a number that pools two different requests is not a measurement
+of either. Making the setting an entry costs one line in the roster and
+makes every existing mechanism work on it unchanged: selection, the
+pairwise comparison, round seeding, tag-based field selection, the
+ceiling and the estimate.</p>
+<h4 id="where-the-settings-go-on-and-what-is-recorded">Where the
+settings go on, and what is recorded</h4>
+<p>Per cell, top to bottom: recorder, then the entry's settings, then
+the capability stripper, then the client.</p>
+<ol type="1">
+<li><strong>The entry wins</strong> over the application where the two
+disagree. An entry that could not override the application would not be
+a candidate at all. Each disagreement is recorded on the cell as
+<code>setting overridden: ReasoningEffort app=Low entry=High</code>, in
+<code>EvalRunRecord.SettingOverrides</code>, and printed in the
+leaderboard's Notes column: a reader comparing a variant's row with its
+base's has to know which members differed and from what.</li>
+<li><strong>The stripper still strips.</strong> A variant asking for an
+effort its model does not publish is measured without the effort and
+says so in <code>DroppedOptions</code>, rather than losing the cell to a
+parameter rejection. This is also the reading for a variant and its base
+sitting at identical cost and win rate: the setting never reached the
+provider, which is a different finding from a setting that made no
+difference.</li>
+<li><strong>The recorder is above both</strong>, so
+<code>ChatCall.Options</code> keeps saying what the application asked
+for. The three facts - what the application built, what the entry
+changed, what the model refused - are separately recorded because a
+reader needs all three to interpret the score.</li>
+</ol>
+<p>Three things a variant shares with its base, because they are facts
+about the model rather than about the request: its client, its
+rate-limit bucket and its price. A provider meters an account per model,
+so a second client for a second effort would put two pacers on one cap;
+<code>EvalChatClientProvider</code> therefore resolves a variant to its
+base's registration and refuses a variant whose base is absent or whose
+wiring differs. The candidate cache is keyed per entry, so a variant is
+never served its base's cached generation, and the estimate prices each
+entry on the request it will actually send - a variant that caps output
+shorter is a cheaper candidate before it runs.</p>
+<p>The incumbent never carries settings. What the application sends
+today is what it is measured on.</p>
+<h4 id="rules-so-a-field-can-enumerate-settings">Rules, so a field can
+enumerate settings</h4>
+<p><code>SettingVariants.Expand</code> turns rules declared in the
+roster file into the entries they describe - "for every entry tagged
+<code>reasoning-field</code>, add low and high". The rules are data
+rather than code because which settings are worth paying for is a
+decision about one workload and one field, and a decision compiled into
+a library cannot be read back off the run that spent the money.
+Expansion happens at roster load, before anything is probed or priced,
+so the candidates a rule adds are in the dry-run plan and in the ceiling
+that refuses it, and each rule's <code>reason</code> and
+<code>source</code> land in the generated entry's provenance exactly as
+a hand-written variant's do.</p>
+<p>Three things are never expanded, each because the cell would be
+unreadable: an entry that is already a variant, a reasoning effort a
+known catalog says the model does not publish, and an id the roster
+already carries by hand.</p>
+<h4 id="the-discussion-before-the-spend">The discussion before the
+spend</h4>
+<p>The field is also the largest lever on what a round costs, and it is
+not the harness's decision. <code>llmeval-run</code> therefore opens
+with a mandatory step: price the matrix with a dry run, which plans and
+prices every cell and sends nothing - not a zero ceiling, which refuses
+only an estimate above zero and would run an unpriced roster for real -
+then state the field as roster, candidates, setting variants and
+set-aside entries separately - "48 in the roster file: 20 candidates, 14
+models plus 6 setting variants, 28 already set aside" - and offer the
+full field, a researched shortlist of the top 10 or 20 per role, or a
+different ceiling. Nothing launches until that is answered, and silence
+is not consent.</p>
+<p>Counting variants separately is the honest part: they cost cells like
+anything else, and a count of models against a candidate matrix
+understates the bill. The shortlist research proposes settings as
+candidates too, each with its own one-line reason and source, because
+the top ten candidates for a role are not always ten different
+models.</p>
+<p>A cut is recorded and reversible: the entry stays in
+<code>models.json</code> with <code>"shortlisted": false</code> and a
+<code>provenance</code> line saying why, and a frontier-price exclusion
+is recorded as the price decision it is rather than as a quality
+judgement nothing measured. A narrowing that cannot be undone is a
+deletion, and a deletion nobody recorded is how a field silently shrinks
+between rounds.</p>
+<p>The cut also reaches the report, which is the part the records cannot
+supply: they only know what ran, so a roster narrowed from forty-eight
+entries to twenty is indistinguishable from a roster of twenty. The
+harness - the only thing that read the roster file - passes its cut
+entries in as <code>SetAsideModel</code>s, on
+<code>SweepReport.SetAside</code> or as an argument to
+<code>LeaderboardWriter.WriteAsync</code>, and both
+<code>summary.md</code> and <code>report.html</code> render a
+<strong>Set aside before the run</strong> table under the roster
+provenance with the honest count in the header
+(<code>48 in the roster: 20 ran, 28 set aside</code>). Nothing in that
+table is a measurement, and it says so: these entries were never called,
+and what is printed is why. A run that narrowed nothing renders no table
+rather than an empty one, because an empty section implies a decision
+nobody made.</p>
+<hr />
+<h3 id="selection-without-an-incumbent">Selection without an
+incumbent</h3>
+<p>Everything in the selection rule assumes something to compare
+against, and the most common first run does not have one: the model an
+application calls today is often initial plumbing, and ranking a field
+against it measures how well each candidate imitates a placeholder.
+Refusing to select from such a run - which is what the package used to
+do - left exactly that run with a leaderboard, no recommendation, and no
+line anywhere saying why.</p>
+<p>With no <code>Baseline</code> and no <code>BaselineAssignment</code>,
+the runner attaches <code>RubricScoreEvaluator</code> itself and every
+generation is scored 1 to 5 against <code>SweepOptions.Rubric</code>,
+one judge call per cell through the same exchange and the same per-cell
+cache as the pairwise judge. Attaching it rather than leaving it to the
+harness is deliberate: the failure it prevents is silent. With no rubric
+either, the run warns and ranks on cost and the hard gates, which is
+honest but is not a quality ranking.</p>
+<p><code>SelectionReport.Basis</code> carries which instrument produced
+the numbers, into <code>results.json</code> and into every heading of
+both reports, because a 4.2 read as a win rate is a different claim
+entirely. The rule itself is the same trade against a different
+reference: the mean score with a Student t 95 percent interval (t, not
+normal, because n is six to twelve here; not a bootstrap, which would
+resample the same handful of values and make the report
+non-deterministic), <code>MinSamples</code> unchanged, the
+<strong>best</strong> mean named, and the pick the cheapest candidate at
+or above the bottom of the best candidate's interval (with a floor of
+two scored generations whatever <code>MinSamples</code> says, because a
+single score has no interval to pick against and the band would collapse
+to the bottom of the scale) - "not shown to be worse than the best"
+standing in for "not worse than what ships today". There is no upgrade
+pick and no dominator list, because both are defined against an
+incumbent.</p>
+<p>The honest output of such a round is not a decision but a reference
+point. Judges cluster absolute scores, so the instrument cannot separate
+a 4.1 from a 4.0; <code>RoundPlanner.PromotedBaseline</code> returns the
+best-scoring candidate, round 2 runs it as the incumbent, and the
+pairwise comparison - the stronger instrument - does the separating. The
+round provenance says the cut was made on scores rather than
+comparisons, so a later reader can see which round was which.</p>
 <hr />
 <h3 id="hints-proposals-and-the-rerun-loop">Hints, proposals and the
 rerun loop</h3>
@@ -1733,10 +1908,15 @@ verdict text and its numeric metrics. Nothing is truncated: a reader who
 doubts a verdict has only one way to check it.</li>
 <li><strong>Value</strong> - cost per passing generation as a bar chart,
 with the pacing and retry line.</li>
-<li><strong>Roster provenance</strong> - per entry, its connection,
-upstream, family, prices and their source, capability annotations, tags
-and the <code>ModelUnderTest.Provenance</code> note the roster
-carried.</li>
+<li><strong>Roster provenance</strong> - per entry, the request settings
+it sends, its connection, upstream, family, prices and their source,
+capability annotations, tags and the
+<code>ModelUnderTest.Provenance</code> note the roster carried. Ordered
+by base model, so a settings variant sits directly under the entry it
+varies rather than wherever its own id sorts. Underneath it, <strong>Set
+aside before the run</strong>: every roster entry the run did not call,
+with its reason and source, and the honest count of the field in the
+section's header line.</li>
 <li><strong>Judge notes</strong> - the runner, the number of judge
 requests, and whatever the exchange recorded about a refusal or a stale
 drainer.</li>
