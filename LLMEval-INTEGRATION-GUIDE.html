@@ -28,6 +28,54 @@ for every API detail rather than duplicating it, and at <a
 href="LLMEval-Design-Doc.html">LLMEval-Design-Doc.md</a> for why each
 mechanism is shaped the way it is. Day-to-day running is in <a
 href="LLMEval-Operations.html">LLMEval-Operations.md</a>.</p>
+<h3 id="at-a-glance">At a glance</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Answer</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>What is added to the solution</td>
+<td>One test project (<code>tests/Test.Eval</code>), referencing
+<code>EF.LLMEval</code> and the production code it measures. Nothing in
+the application takes a dependency on the harness.</td>
+</tr>
+<tr class="even">
+<td>What runs the sweep</td>
+<td>A Claude Code session: the three skills the package installs on
+build, and a subagent draining the judge exchange. There is no other
+judge.</td>
+</tr>
+<tr class="odd">
+<td>What it costs</td>
+<td>The candidate calls, capped by a spend ceiling priced before
+anything is sent. The judging is subscription quota and is reported as
+not billed, never as zero.</td>
+</tr>
+<tr class="even">
+<td>What comes out</td>
+<td><code>summary.md</code>, <code>results.json</code> and the
+self-contained <code>report.html</code>, ranked by cost per passing
+generation.</td>
+</tr>
+<tr class="odd">
+<td>What decides</td>
+<td>The <code>Selection</code> section: parity pick, upgrade pick,
+dominators, each with a pooled sample count and a Wilson 95 percent
+interval.</td>
+</tr>
+<tr class="even">
+<td>How long it takes to wire</td>
+<td>An afternoon for a single-shot workload over an existing composition
+root; longer where a chat client is <code>new</code>ed inside a service
+and needs a seam first.</td>
+</tr>
+</tbody>
+</table>
+<hr />
 <h3 id="what-to-install">What to install</h3>
 <table>
 <thead>
@@ -279,10 +327,23 @@ connections</h3>
 code: a roster is data that changes when a vendor ships a model, and a
 code change to add a candidate is friction that stops the field being
 refreshed.</p>
-<p>The file holds connections, the candidate list (or the role
-assignments for an episode), and the judge entry. <strong>It holds no
-secret values, only the configuration keys that hold them.</strong> Keys
-come from user secrets and environment variables at load time.</p>
+<p>The file holds connections and the candidate list (or the role
+assignments for an episode). There is <strong>no judge entry</strong>:
+the judge is a file exchange the runner builds from two options, not a
+connection. <strong>The file holds no secret values, only the
+configuration keys that hold them.</strong> Keys come from user secrets
+and environment variables at load time.</p>
+<p>The candidate list is a research output, not a list typed from
+memory. Read what each connection actually offers, search for what
+shipped recently in every main family, annotate each entry with its
+capabilities rather than filtering on them - no candidate is ever
+excluded over a capability, the unsupported setting is stripped at call
+time and recorded - and exclude a frontier-priced model only as an
+explicit price decision written into the roster. Commit a provenance
+table beside the file with prices, flags, sources and the date each was
+read; the <code>provenance</code> field on each entry is printed into
+the report's roster table. The <code>llmeval-harness</code> skill has
+the procedure.</p>
 <pre class="jsonc"><code>{
   &quot;connections&quot;: {
     &quot;aggregator&quot;: {
@@ -304,14 +365,11 @@ come from user secrets and environment variables at load time.</p>
     { &quot;id&quot;: &quot;agg/beta&quot;,  &quot;modelId&quot;: &quot;vendor-b/beta-2&quot;,  &quot;connection&quot;: &quot;aggregator&quot;,
       &quot;upstreamTag&quot;: &quot;vendor-b&quot;, &quot;family&quot;: &quot;vendor-b&quot;, &quot;tags&quot;: [&quot;challenger&quot;] },
     { &quot;id&quot;: &quot;fp/alpha&quot;,  &quot;modelId&quot;: &quot;alpha-3-deployment&quot;, &quot;connection&quot;: &quot;first-party&quot;,
-      &quot;catalogMatch&quot;: &quot;alpha 3&quot;, &quot;family&quot;: &quot;vendor-a&quot; }
-  ],
-  &quot;judge&quot;: {
-    &quot;id&quot;: &quot;judge/primary&quot;, &quot;modelId&quot;: &quot;vendor-c/judge-1&quot;, &quot;connection&quot;: &quot;aggregator&quot;,
-    &quot;family&quot;: &quot;vendor-c&quot;, &quot;requestsPerMinute&quot;: 20
-  }
+      &quot;catalogMatch&quot;: &quot;alpha 3&quot;, &quot;family&quot;: &quot;vendor-a&quot;,
+      &quot;provenance&quot;: &quot;the deployment production runs today&quot; }
+  ]
 }</code></pre>
-<p>Four fields earn their place and are easy to leave out by
+<p>Five fields earn their place and are easy to leave out by
 accident:</p>
 <ul>
 <li><strong><code>upstreamTag</code></strong> on every aggregator
@@ -320,13 +378,26 @@ model id is routed across upstreams whose prices differ and the run
 measures a blend.</li>
 <li><strong><code>catalogMatch</code></strong> on every first-party
 candidate priced from a retail meter list.</li>
-<li><strong><code>family</code></strong> on the judge and on any
-deployment-name or gateway-alias id. An unplaced family silently
-disables the same-family warning in the selection report.</li>
-<li><strong><code>requestsPerMinute</code></strong> on the judge,
-because the judge answers for every cell and meets a per-model cap long
-before the field does.</li>
+<li><strong><code>family</code></strong> on any deployment-name or
+gateway-alias id. An unplaced family silently disables the same-family
+warning in the selection report, and it is also the unit researched
+prompt hints are asked for.</li>
+<li><strong><code>requestsPerMinute</code></strong> on any candidate a
+provider caps tighter than the route, and
+<code>ProviderConnection.RequestsPerMinute</code> for a whole
+route.</li>
+<li><strong><code>provenance</code></strong> on every entry: why it is
+in the roster and where its facts came from. It is printed verbatim into
+the report, so it never carries a key or an endpoint value.</li>
 </ul>
+<p>The connection block is written in EF.AI's shape
+(<code>provider</code>, <code>endpoint</code> /
+<code>endpointSecret</code>, <code>apiKeySecret</code>,
+<code>auth</code>, <code>networkTimeout</code> as <code>hh:mm:ss</code>,
+<code>defaultHeaders</code>, <code>useResponsesApi</code>), so an
+application registering its production clients from an
+<code>EFAI:Connections</code> block and this roster describe the same
+endpoints once.</p>
 <h4 id="keyless-and-keyed-auth">Keyless and keyed auth</h4>
 <p>Two shapes, and the loader should support both because a team usually
 has both:</p>
@@ -502,11 +573,12 @@ queue.</p>
 <h3 id="step-9-run-it">Step 9. Run it</h3>
 <h4 id="from-claude-code-with-the-skills">From Claude Code, with the
 skills</h4>
-<p>Two agent skills travel inside the <code>EF.LLMEval</code> package,
+<p>Three agent skills travel inside the <code>EF.LLMEval</code> package,
 and <strong>building a project that references the package installs
 them</strong> into the consuming repository:</p>
 <pre><code>&lt;repository root&gt;/.claude/skills/llmeval-harness
-&lt;repository root&gt;/.claude/skills/llmeval-run</code></pre>
+&lt;repository root&gt;/.claude/skills/llmeval-run
+&lt;repository root&gt;/.claude/skills/llmeval-focus</code></pre>
 <p>Claude Code discovers them there with no further step. Restore alone
 does not install anything, so the first <code>dotnet build</code> after
 adding the reference is what does the copy. The package's targets are
@@ -535,7 +607,7 @@ no <code>.git</code>.</td>
 </tr>
 </tbody>
 </table>
-<p>The copy only adds and overwrites its own two folders and never
+<p>The copy only adds and overwrites its own three folders and never
 deletes anything else under <code>.claude/skills</code>. A destination
 it cannot write warns and carries on rather than failing the build.</p>
 <p><strong>Manual install, as a fallback</strong> for an opted-out
@@ -568,9 +640,16 @@ subagent is handed.</td>
 </tr>
 <tr class="even">
 <td><code>llmeval-run</code></td>
-<td>Run an existing harness end to end: pick the judge, start the
-drainer, launch the sweep, wait for the summary, read the selection and
-write the findings.</td>
+<td>Run the broad first round of an existing harness: start the drainer,
+launch the sweep in the background, wait for the summary, read the
+selection and the HTML report, keep the report and write the
+findings.</td>
+</tr>
+<tr class="odd">
+<td><code>llmeval-focus</code></td>
+<td>Run round N+1 seeded from a previous run's
+<code>results.json</code>: the shortlist per role, the prompt variants
+that round earned, and the joint casts for a multi-role workflow.</td>
 </tr>
 </tbody>
 </table>
@@ -651,6 +730,112 @@ it carries no credential and it is the evidence for the choice.</p>
 the evaluation library's own report tool. The two are meant to be read
 together: the leaderboard narrows the field, the transcript report
 explains why.</p>
+<hr />
+<h3 id="step-11-the-next-round">Step 11. The next round</h3>
+<p>One broad round ranks a field; it rarely separates the top of it. The
+second round narrows and deepens, and it is one option plus one
+number:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>SeedFrom <span class="op">=</span> <span class="st">&quot;&lt;the previous run&#39;s results.json&gt;&quot;</span><span class="op">,</span>   <span class="co">// null is round 1</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>TopK <span class="op">=</span> <span class="dv">3</span><span class="op">,</span>                                         <span class="co">// per role, on top of the incumbent</span></span></code></pre></div>
+<p>With <code>SeedFrom</code> set the runner keeps the top
+<code>TopK</code> per role by cost per pass <strong>among the candidates
+that reached the parity win rate over at least the minimum
+samples</strong>, keeps the incumbent whether or not it made the cut,
+carries in every admitted proposal and every prompt hint concrete enough
+to run as a variant bound to the model or family it was learned from,
+and for a multi-role run builds joint casts capped by
+<code>MaxJointAssignments</code> instead of a model list. A seed it
+cannot use - missing, unparseable, nothing judged, narrowing to no
+model, or measured in the other shape - stops the sweep before anything
+is sent rather than running the whole roster and calling it a
+shortlist.</p>
+<p>Raise the repeats as the field narrows. That is the point of
+narrowing: three candidates at six repeats over three fixtures pool
+eighteen comparisons each, where twelve candidates on the same budget
+pool four, and four comparisons separate nobody. Every round's
+provenance is chained into <code>results.json</code> and printed in the
+HTML report, so a report still reading round 1 means the seed never
+arrived.</p>
+<hr />
+<h3 id="appendix-what-a-finished-run-looks-like">Appendix. What a
+finished run looks like</h3>
+<p><code>summary.md</code> opens with the run's own facts, and those six
+lines are what a findings entry quotes:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode md"><code class="sourceCode markdown"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 20260917-101500</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>48 cells: 46 succeeded, 2 failed, 0 unsupported.</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 3.884000, actual 1.902144.</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (not billed).</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>6 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
+<p>Then <code>## Selection</code>, which is the answer the run exists
+for: the parity pick, the upgrade pick, any dominators, and a table
+carrying each candidate's pooled sample count, win rate, Wilson 95
+percent interval and cost per pass. The design doc's appendix has a full
+worked example of every table shape, including the multi-role one.</p>
+<p><code>report.html</code> is the same run for a person deciding,
+self-contained and printable, in this order:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Section</th>
+<th>What it is for</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Header</td>
+<td>Execution, workload, render date, package version, the judge line
+word for word, spend against the ceiling, cell counts</td>
+</tr>
+<tr class="even">
+<td>Recommendations</td>
+<td>One cost-versus-quality chart per role: cost per passing generation
+on x, pooled win rate on y, the Wilson interval as a bar through each
+point, the incumbent at 0.5, the thresholds as reference lines, the
+price-efficient frontier, and the three cheapest candidates at parity
+listed underneath</td>
+</tr>
+<tr class="odd">
+<td>How to read a win rate</td>
+<td>The plain-language paragraph to read before quoting one to anybody
+who did not run the sweep</td>
+</tr>
+<tr class="even">
+<td>Selection</td>
+<td>The same table as <code>summary.md</code></td>
+</tr>
+<tr class="odd">
+<td>Prompt hints and variations</td>
+<td>What each vendor family was asked, what came back with its source,
+and every proposal with the decision on it</td>
+</tr>
+<tr class="even">
+<td>Round provenance</td>
+<td>This round and every round back to the first</td>
+</tr>
+<tr class="odd">
+<td>Matrix</td>
+<td>Every cell, expanding to its whole untruncated transcript, the
+judge's verdict text and its numeric metrics</td>
+</tr>
+<tr class="even">
+<td>Roster provenance</td>
+<td>Each entry's <code>provenance</code> note, so the field can be
+checked later</td>
+</tr>
+</tbody>
+</table>
+<p>It embeds every prompt and every model response verbatim, so read the
+transcripts before committing a copy of it into a repository.</p>
 <hr />
 <h3 id="troubleshooting">Troubleshooting</h3>
 <table>
@@ -736,6 +921,21 @@ were registered</td>
 turn</td>
 <td>Configure one. A workload that genuinely never converses says so
 with an empty script.</td>
+</tr>
+<tr class="even">
+<td>A keyless Azure connection fails auth, or its models vanish from the
+roster</td>
+<td>The credential chain has nothing to hand it</td>
+<td>Test the CLI session first
+(<code>az account get-access-token</code>). A dropped connection takes
+its models with it, so a short roster is the symptom rather than an
+error.</td>
+</tr>
+<tr class="odd">
+<td>The report says round 1 when a round was seeded</td>
+<td>The seed path never reached <code>SweepOptions.SeedFrom</code></td>
+<td>The whole roster ran. Check the gate variable, and do not report the
+result as a shortlist.</td>
 </tr>
 <tr class="even">
 <td>Restoring the package fails</td>

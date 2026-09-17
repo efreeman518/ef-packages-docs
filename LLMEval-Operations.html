@@ -39,7 +39,9 @@ what invalidates a cache</a></li>
 <li><a href="#5-secrets">Secrets</a></li>
 <li><a href="#6-ci">CI</a></li>
 <li><a href="#7-reading-a-finished-run">Reading a finished run</a></li>
-<li><a href="#8-an-operating-checklist">An operating checklist</a></li>
+<li><a href="#8-rounds-narrowing-a-measured-field">Rounds: narrowing a
+measured field</a></li>
+<li><a href="#9-an-operating-checklist">An operating checklist</a></li>
 </ol>
 <hr />
 <h3 id="1-budgets-and-ceilings">1. Budgets and ceilings</h3>
@@ -317,6 +319,13 @@ added their own logging around the provider, check that too.</p>
 and its own decision. The package references only the core credential
 abstraction, never a credential-chain library, so there is no
 zero-configuration managed-identity path to be surprised by.</p>
+<p><strong>Test the sign-in before a keyless run</strong>, because a
+broken or expired CLI session is silent here: a connection whose
+credential resolves to nothing is dropped along with its models, so the
+symptom is a short roster rather than an error.
+<code>az account get-access-token</code> before a run against an Azure
+OpenAI or Foundry connection settles it in one command. Fix the sign-in
+rather than switching the connection to a static key to get past it.</p>
 <hr />
 <h3 id="6-ci">6. CI</h3>
 <p><strong>Offline lane only. No live models in CI.</strong></p>
@@ -349,13 +358,13 @@ request.</li>
 </ul>
 <h4 id="the-skills-install-on-build">The skills install on build</h4>
 <p>Building a project that references <code>EF.LLMEval</code> copies the
-two packaged agent skills into the consuming repository, at
-<code>&lt;repository root&gt;/.claude/skills/llmeval-harness</code> and
-<code>llmeval-run</code>. That happens on a CI runner too, which is
-worth knowing for two reasons: a job that asserts a clean working tree
-after a build will see those folders unless they are committed or
-ignored, and a checkout with no <code>.git</code> entry installs nothing
-at all.</p>
+three packaged agent skills into the consuming repository, at
+<code>&lt;repository root&gt;/.claude/skills/llmeval-harness</code>,
+<code>llmeval-run</code> and <code>llmeval-focus</code>. That happens on
+a CI runner too, which is worth knowing for two reasons: a job that
+asserts a clean working tree after a build will see those folders unless
+they are committed or ignored, and a checkout with no <code>.git</code>
+entry installs nothing at all.</p>
 <table>
 <thead>
 <tr class="header">
@@ -382,12 +391,13 @@ machine that should not build first.</td>
 </tr>
 </tbody>
 </table>
-<p>The copy only adds and overwrites its own two folders, never deletes
-anything else under <code>.claude/skills</code>, and warns rather than
-failing the build when the destination cannot be written. Commit the
-installed folders or add <code>.claude/skills/llmeval-*/</code> to
-<code>.gitignore</code>; either is fine, and committing them is what
-makes the skills travel to everyone who clones.</p>
+<p>The copy only adds and overwrites its own three folders, never
+deletes anything else under <code>.claude/skills</code>, and warns
+rather than failing the build when the destination cannot be written.
+Commit the installed folders or add
+<code>.claude/skills/llmeval-*/</code> to <code>.gitignore</code>;
+either is fine, and committing them is what makes the skills travel to
+everyone who clones.</p>
 <hr />
 <h3 id="7-reading-a-finished-run">7. Reading a finished run</h3>
 <p>A run leaves three files in its report directory, and they are what a
@@ -437,7 +447,37 @@ as <code>n/a</code> with a reason. The reason is the part to act
 on.</li>
 </ul>
 <hr />
-<h3 id="8-an-operating-checklist">8. An operating checklist</h3>
+<h3 id="8-rounds-narrowing-a-measured-field">8. Rounds: narrowing a
+measured field</h3>
+<p>A broad round ranks a field. A second round, seeded from the first
+run's <code>results.json</code> (<code>SweepOptions.SeedFrom</code>),
+keeps the top <code>TopK</code> per role among the candidates that
+reached parity, keeps the incumbent, and carries in the prompt variants
+the last round earned. Operationally there are four things to know.</p>
+<ul>
+<li><strong>Raise the repeats as the field narrows.</strong> That is
+what the narrowing buys. Three candidates at six repeats over three
+fixtures pool eighteen comparisons each; twelve candidates on the same
+money pool four, and four separate nobody.</li>
+<li><strong>Inherited variants split samples, they do not add
+them.</strong> Candidates times variants is the number of selection
+groups that each have to reach <code>MinSamples</code>, so count the
+groups before setting the ceiling.</li>
+<li><strong>The provenance is the proof the round happened.</strong>
+Every round is chained into <code>results.json</code> and printed in the
+HTML report. A report reading round 1 after a seeded launch means the
+seed never reached the sweep and the whole roster ran; that result is
+not a shortlist and must not be reported as one.</li>
+<li><strong>A seed that cannot support a round stops the sweep before
+anything is sent</strong>: a missing or unparseable file, a run in which
+nothing was judged, a seed that narrows to no model, or one measured in
+the other shape. Each says which in the message.</li>
+</ul>
+<p>Keep both rounds' findings entries. Read together they are the record
+of how the field narrowed, and an edited earlier entry destroys exactly
+that.</p>
+<hr />
+<h3 id="9-an-operating-checklist">9. An operating checklist</h3>
 <p>Before a run:</p>
 <ul class="task-list">
 <li><label><input type="checkbox" />The roster names the candidates you
@@ -451,6 +491,8 @@ means for this decision.</label></li>
 for every workload and role.</label></li>
 <li><label><input type="checkbox" />A dry run succeeded, and its
 estimate is one you are willing to spend.</label></li>
+<li><label><input type="checkbox" />For a seeded round, the seed path
+resolves and the shortlist size and repeat count are set.</label></li>
 <li><label><input type="checkbox" />The drainer is running, and the
 sweep will run in the background.</label></li>
 </ul>
@@ -465,8 +507,10 @@ run, not a retried one.</label></li>
 pooled samples to mean anything, and you have read its Wilson interval,
 not only its win rate.</label></li>
 <li><label><input type="checkbox" />The same-family flag did not fire on
-the candidate you are about to pick. If it did, re-judge with a judge
-from another vendor.</label></li>
+the candidate you are about to pick. If it did, say so in the finding:
+the harness judge cannot be swapped for another vendor's, so what
+settles it is the deterministic evaluators and a person reading that
+candidate's winning transcripts.</label></li>
 <li><label><input type="checkbox" />The finding records the judge and
 the date, and the results file is kept with it.</label></li>
 </ul>

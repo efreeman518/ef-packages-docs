@@ -308,11 +308,12 @@ explains the mechanism behind it.</p>
 alt="The steps of an evaluation: install and wire, inventory the call points, build the matrix, probe, trim each request to the model, estimate, run every cell, capture, report" /></p>
 <p><strong>1. Install the package and wire an eval host onto the real
 composition root.</strong> A project reference to
-<code>EF.LLMEval</code> installs the two agent skills into
+<code>EF.LLMEval</code> installs the three agent skills into
 <code>&lt;repository root&gt;/.claude/skills</code> on build, so the
-harness-building and harness-running instructions are present without a
-separate step. The wiring itself is one type: an eval host that calls
-the application's <strong>own</strong> registration entry point (the
+instructions for building a harness, for running the broad round and for
+running a focused round are present without a separate step. The wiring
+itself is one type: an eval host that calls the application's
+<strong>own</strong> registration entry point (the
 <code>AddXxxServices(configuration)</code> the production host calls,
 not a hand-built object graph) and then replaces only the chat clients
 with the cell's candidates. Storage, clocks, identity and outbound
@@ -1354,8 +1355,10 @@ connection-qualified label, because a label and a judge id could never
 match and the flag would never fire. An id the family resolver cannot
 place is unknown, which matches nothing. Running both orderings cancels
 position bias; it cannot cancel a judge scoring its own family, so that
-is made visible instead, and a second judge from another vendor is the
-answer when the flag matters.</p>
+is made visible instead. The harness judge is always the same family, so
+there is no second judge to re-run against: what settles a flagged
+winner is the deterministic evaluators and a person reading the
+transcripts of the cells it won.</p>
 <p>Thresholds are data on the sweep options and the rubric is stored
 alongside the numbers it produced, so a decision made last quarter can
 be read back against the rubric that was actually in force.</p>
@@ -1528,15 +1531,51 @@ connection in the roster and nothing to select.</p>
 Re-pointing the exchange at an endpoint would put a bill on somebody who
 never asked for one. When no drainer is online the sweep stops with a
 reason saying so.</p>
-<h4 id="81-two-kinds-of-request">8.1 Two kinds of request</h4>
-<p>Every request carries a <code>kind</code>. A <strong>judge</strong>
-request wants a verdict on somebody else's answer, as bare JSON in the
-shape the prompt asks for. A <strong>human</strong> request wants a turn
-in a conversation, spoken as the persona the request's system message
-describes - the same subagent playing the other side of a multi-turn
-workload, for an episode whose persona has no model cast for its role.
-The kind is part of the request id, so a persona turn can never be
-answered with a verdict left over from a judge request.</p>
+<h4 id="81-four-kinds-of-request">8.1 Four kinds of request</h4>
+<p>Every request carries a <code>kind</code>, and the four want
+completely different replies:</p>
+<table>
+<thead>
+<tr class="header">
+<th><code>kind</code></th>
+<th>What it wants</th>
+<th>Answered as</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>judge</code></td>
+<td>a verdict on somebody else's answer, against the rubric in front of
+it</td>
+<td>bare JSON, <code>{"verdict":"A"|"B"|"TIE","why":...}</code> for a
+pairwise prompt, <code>{"score":1-5,"why":...}</code> for a rubric
+one</td>
+</tr>
+<tr class="even">
+<td><code>human</code></td>
+<td>one turn spoken as the persona the system message describes, for an
+episode whose persona has no model cast for its role</td>
+<td>plain text, in that person's voice</td>
+</tr>
+<tr class="odd">
+<td><code>proposal</code></td>
+<td>the prompt edits worth the sweep paying to try, each with a
+confidence</td>
+<td>a bare JSON array of proposals</td>
+</tr>
+<tr class="even">
+<td><code>hints</code></td>
+<td>how one vendor family is meant to be prompted, researched from that
+vendor's own current guide, with the source</td>
+<td>a bare JSON array of hints</td>
+</tr>
+</tbody>
+</table>
+<p>The kind is part of the request id, so a persona turn can never be
+answered with a verdict left over from a judge request. The last two are
+queued <strong>after</strong> the matrix, at the batch boundary, which
+is why a drainer released when the last cell is judged leaves the report
+short of a section rather than failing anything.</p>
 <h4 id="82-the-exchange-and-why-the-request-id-is-a-hash">8.2 The
 exchange, and why the request id is a hash</h4>
 <p>Four folders carry the protocol: a pending folder the sweep writes
@@ -1912,9 +1951,11 @@ same suspicion, with nothing to settle it.</p>
 <p>The same-family flag on the upgrade pick is the thing to act on here:
 the candidate about to be chosen shares a vendor family with the judge
 that chose it. Running both orderings cancels position bias but cannot
-cancel that, so the answer is a second judge from another vendor, not a
-footnote. Note also how wide the intervals are at n=15. A win rate of
-0.72 with a lower bound of 0.47 is a lead, not a proof.</p>
+cancel that, and the harness judge cannot be swapped for another
+vendor's, so what settles it is the deterministic evaluators and a
+person reading those cells' transcripts. Note also how wide the
+intervals are at n=15. A win rate of 0.72 with a lower bound of 0.47 is
+a lead, not a proof.</p>
 <h4 id="a2-multi-agent-episode-leaderboard-synthetic-sample">A.2
 Multi-agent episode leaderboard (synthetic sample)</h4>
 <p>One table per (episode, variant), with a model and a cost column
