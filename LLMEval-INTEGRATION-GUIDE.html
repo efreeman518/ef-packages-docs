@@ -45,10 +45,6 @@ href="LLMEval-Operations.html">LLMEval-Operations.md</a>.</p>
 <td>A workflow measured as an episode</td>
 <td><code>EF.LLMEval.FlowEngine</code></td>
 </tr>
-<tr class="odd">
-<td>A local dashboard over the sweep results</td>
-<td><code>EF.LLMEval.Dashboard</code></td>
-</tr>
 </tbody>
 </table>
 <p>Only the test project references them. Nothing in the application
@@ -56,8 +52,8 @@ under test takes a dependency on this package: the harness reaches into
 the application, not the other way round.</p>
 <h4 id="central-package-management">Central Package Management</h4>
 <p>Teams using <code>Directory.Packages.props</code> with
-<code>ManagePackageVersionsCentrally=true</code> pin all three at the
-same version. Check the <a
+<code>ManagePackageVersionsCentrally=true</code> pin both at the same
+version. Check the <a
 href="https://github.com/efreeman518/EF.Packages.Enterprise/packages">GitHub
 Package Registry</a> for the current version.</p>
 <div class="sourceCode" id="cb1"><pre
@@ -65,8 +61,7 @@ class="sourceCode xml"><code class="sourceCode xml"><span id="cb1-1"><a href="#c
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- Replace [latest] with the current package version from the registry --&gt;</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval&quot;</span><span class="ot">            Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval.FlowEngine&quot;</span><span class="ot"> Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval.Dashboard&quot;</span><span class="ot">  Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
 <p>Then reference them versionless from the test project.</p>
 <hr />
 <h3 id="step-1-inventory-the-model-call-sites">Step 1. Inventory the
@@ -276,8 +271,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="
 what a role assignment names a model for.</p>
 <h4 id="discovery">Discovery</h4>
 <p>Implement the one-member host source so a tool that never compiled
-against the application can find the host. That is what lets the
-dashboard's run page launch a sweep.</p>
+against the application can find the host.</p>
 <hr />
 <h3 id="step-4-roster-and-connections">Step 4. Roster and
 connections</h3>
@@ -369,8 +363,7 @@ built it and every model is priced as unknown.</p>
 <p>Enrichment is asynchronous and belongs in the host's prepare step
 rather than in a constructor: the host runs it at most once per
 instance, before anything is estimated or sent, dry runs included.
-Without it, a dashboard-launched dry run prices an unenriched roster at
-nothing.</p>
+Without it, a dry run prices an unenriched roster at nothing.</p>
 <p>An unresolvable price stays unknown. The model still runs and is
 simply left out of the cost ranking. If a model you expect to be priced
 is not, read its pricing diagnostics: they carry the meter names or
@@ -474,11 +467,12 @@ runs today, or the one you would keep if nothing wins. Name it in the
 sweep options (for an episode, the incumbent assignment). Its cells run
 first as one batch, and every other cell is judged against its answer to
 the same workload, variant and iteration.</p>
-<p><strong>The judge</strong> is a model from outside the field under
-test. A judge drawn from the candidates is scoring its own family.
-Attach the pairwise evaluator with the rubric, declare the judge's
-pricing so its calls are inside the estimate, and cap its
-concurrency.</p>
+<p><strong>The judge</strong> is the harness subagent, and nothing
+configures it beyond where its exchange lives. What is worth a moment is
+the incumbent: a candidate from the judge's own vendor family is flagged
+in the selection report, and that flag is placed from
+<code>JudgeModelId</code>. Attach the pairwise evaluator with the rubric
+and leave the judging out of the budget - it is quota, not money.</p>
 <div class="sourceCode" id="cb9"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> options <span class="op">=</span> <span class="kw">new</span> SweepOptions</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
@@ -486,52 +480,24 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    MaxSpend <span class="op">=</span> ceiling<span class="op">,</span></span>
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    Baseline <span class="op">=</span> incumbent<span class="op">,</span></span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    Rubric <span class="op">=</span> rubric<span class="op">,</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    JudgeConfiguration <span class="op">=</span> <span class="kw">new</span> <span class="fu">ChatConfiguration</span><span class="op">(</span>judgeClient<span class="op">),</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    JudgePricing <span class="op">=</span> judgePricing<span class="op">,</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    MaxJudgeParallel <span class="op">=</span> <span class="dv">2</span><span class="op">,</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    Repeats <span class="op">=</span> <span class="dv">3</span><span class="op">,</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    Selection <span class="op">=</span> <span class="kw">new</span> SelectionOptions <span class="op">{</span> MinSamples <span class="op">=</span> <span class="dv">6</span> <span class="op">},</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
-<h4 id="which-judge-and-who-pays">Which judge, and who pays</h4>
-<p>This is the decision to make consciously, because the two paths bill
-different people:</p>
-<table>
-<thead>
-<tr class="header">
-<th>Path</th>
-<th>Who judges</th>
-<th>Who pays</th>
-<th>Available when</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><strong>API connection</strong></td>
-<td>A model on an ordinary endpoint, selected with
-<code>LLMEVAL_JUDGE_CONNECTION</code></td>
-<td>The account that owns the key, per call</td>
-<td>Always. The only option for a dashboard run, a CI run, or a test run
-with nobody draining an exchange.</td>
-</tr>
-<tr class="even">
-<td><strong>File exchange</strong></td>
-<td>A Claude Code subagent draining a folder pair</td>
-<td>Subscription quota. Reported as <strong>not available</strong>,
-never as zero</td>
-<td>Only when the eval is run from the Claude Code harness with a
-drainer online.</td>
-</tr>
-</tbody>
-</table>
-<p>There is <strong>no automatic fallback</strong> from the file
-exchange to a paid endpoint: that would put a bill on somebody who chose
-the subscription path. With no drainer online the sweep stops with a
-reason naming both ways out. See <a
-href="LLMEval-Design-Doc.html#8-the-two-judge-paths">design doc section
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    JudgeExchangeRoot <span class="op">=</span> <span class="st">&quot;judge-queue&quot;</span><span class="op">,</span>  <span class="co">// default: under StorageRootPath</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    Repeats <span class="op">=</span> <span class="dv">3</span><span class="op">,</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    Selection <span class="op">=</span> <span class="kw">new</span> SelectionOptions <span class="op">{</span> MinSamples <span class="op">=</span> <span class="dv">6</span> <span class="op">},</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<h4 id="who-judges-and-who-pays">Who judges, and who pays</h4>
+<p>The judge is the Claude Code harness subagent, draining the file
+exchange, and there is nothing else to select: no API judge, no
+connection entry, no judge price. Judging is subscription quota and is
+reported as <strong>not billed</strong>, never as zero. With no drainer
+online the sweep stops with a reason rather than finding a paid endpoint
+to use instead. See <a
+href="LLMEval-Design-Doc.html#8-the-judge-exchange">design doc section
 8</a>.</p>
-<p>Budget for the judge before running: two judge calls per
-non-incumbent cell, plus one per cell if a rubric score is attached. On
-any matrix of size, the judge is the bill.</p>
+<p>Budget the drainer's time before running: two judge calls per
+non-incumbent cell, plus one per cell if a rubric score is attached,
+plus one per persona turn when the simulated human goes through the same
+exchange. On any matrix of size, the judging is the bulk of the
+queue.</p>
 <hr />
 <h3 id="step-9-run-it">Step 9. Run it</h3>
 <h4 id="from-claude-code-with-the-skills">From Claude Code, with the
@@ -608,9 +574,9 @@ write the findings.</td>
 </tr>
 </tbody>
 </table>
-<p>The ordering constraint when the judge is a file exchange is not
-optional. The exchange client blocks on its replies, so a foreground
-sweep and a drainer in the same session deadlock:</p>
+<p>The ordering constraint is not optional. The exchange client blocks
+on its replies, so a foreground sweep and a drainer in the same session
+deadlock:</p>
 <ol type="1">
 <li><strong>Start the drainer first</strong>, so a heartbeat exists
 before the first request is queued.</li>
@@ -619,16 +585,6 @@ log.</li>
 <li><strong>Keep draining</strong> in a bounded loop until the run's
 summary file exists.</li>
 </ol>
-<h4 id="from-the-dashboard">From the dashboard</h4>
-<p>Register the dashboard over a storage root, add its assembly to the
-host's router, and make sure MudBlazor's providers are in the root
-component. With a host source registered, the run page can launch a
-sweep: pick a host and workload, name assignments and variants, dry-run
-(mandatory), then confirm the live run against the estimate. Live runs
-are off by default, the ceiling is a maximum the request cannot raise,
-and a cell cap refuses an oversized matrix before it is planned.</p>
-<p>A dashboard run is one of the "any other way" cases above, so its
-judge is an API judge and is billed.</p>
 <h4 id="from-a-plain-test-run">From a plain test run</h4>
 <p>Set the opt-in variable, optionally the ceiling and a model filter,
 and run the live test category. Nothing else is needed: a stopped or
@@ -727,18 +683,17 @@ that were on offer, then correct the match string or the model id.</td>
 </tr>
 <tr class="even">
 <td>The sweep hangs on its first cell</td>
-<td>A file-exchange judge with no drainer, or a foreground sweep
-deadlocking with a drainer in the same session</td>
+<td>A foreground sweep deadlocking with a drainer in the same
+session</td>
 <td>Start the drainer first, then launch the sweep in the background.
-With no drainer the sweep should fail fast instead; if it hangs, check
+With no drainer at all the sweep fails fast instead; if it hangs, check
 that the heartbeat file is being written.</td>
 </tr>
 <tr class="odd">
 <td>"No judge agent is draining"</td>
 <td>Nobody is draining the exchange, or the heartbeat is stale</td>
-<td>Start the drainer, or select an API judge with
-<code>LLMEVAL_JUDGE_CONNECTION</code> and pay for the judging. This is
-the intended outcome for a dashboard or CI run.</td>
+<td>Start the drainer. There is no other judge to fall back to, by
+design.</td>
 </tr>
 <tr class="even">
 <td>Selection says insufficient samples</td>
@@ -747,11 +702,11 @@ the intended outcome for a dashboard or CI run.</td>
 not help: it is a different question and gets its own group.</td>
 </tr>
 <tr class="odd">
-<td>Every cell returns an empty judge verdict</td>
-<td>A reasoning judge capped at the plain output cap</td>
-<td>Declare the judge as reasoning in the roster, so the larger
-reasoning cap applies. The cap covers hidden reasoning tokens on the
-OpenAI wire.</td>
+<td>Every cell returns an unreadable judge verdict</td>
+<td>The drainer is answering with prose, a code fence or a summary</td>
+<td>Re-read <code>judge-queue.md</code> with it: a verdict is bare JSON
+in exactly the shape the prompt asks for, and anything else is recorded
+as unmeasurable.</td>
 </tr>
 <tr class="even">
 <td>Latency looks impossibly good</td>
@@ -799,8 +754,8 @@ and prove the probe captures what you expected.</li>
 the matrix and send nothing.</li>
 <li>Add the spend-gated live lane and a cheap smoke test. Run it.</li>
 <li>Add evaluators and the rubric. Run a small sweep with no judge.</li>
-<li>Add the baseline and the judge. Run the real sweep.</li>
-<li>Add the dashboard once more than one sweep exists.</li>
+<li>Add the baseline and the rubric, start the drainer, and run the real
+sweep.</li>
 </ol>
 <p>Each step leaves something that works, and only steps 5, 7 and beyond
 spend anything.</p>

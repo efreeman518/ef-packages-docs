@@ -20,9 +20,8 @@
 <blockquote>
 <p><strong>Audience</strong>: Engineers adding, extending or operating a
 model-and-prompt evaluation harness <strong>Scope</strong>:
-<code>EF.LLMEval</code>, <code>EF.LLMEval.FlowEngine</code>,
-<code>EF.LLMEval.Dashboard</code> <strong>Last updated</strong>:
-2026-09</p>
+<code>EF.LLMEval</code>, <code>EF.LLMEval.FlowEngine</code> <strong>Last
+updated</strong>: 2026-09</p>
 </blockquote>
 <p>This document explains what the package is, how the pieces fit
 together and why each mechanism is shaped the way it is. It does not
@@ -62,13 +61,12 @@ what an engineer actually reads after a run</li>
 <li><a href="#5-evaluators-and-judges">Evaluators and judges</a></li>
 <li><a href="#6-the-selection-rule">The selection rule</a></li>
 <li><a href="#7-throttle-and-continue">Throttle and continue</a></li>
-<li><a href="#8-the-two-judge-paths">The two judge paths</a></li>
+<li><a href="#8-the-judge-exchange">The judge exchange</a></li>
 <li><a href="#9-storage-layout-and-caches">Storage layout and
 caches</a></li>
-<li><a href="#10-the-dashboard">The dashboard</a></li>
-<li><a href="#11-the-prompt-development-loop">The prompt-development
+<li><a href="#10-the-prompt-development-loop">The prompt-development
 loop</a></li>
-<li><a href="#12-design-boundaries">Design boundaries</a></li>
+<li><a href="#11-design-boundaries">Design boundaries</a></li>
 </ol>
 <hr />
 <h3 id="what-llmeval-does-for-each-workload">What LLMEval does for each
@@ -169,62 +167,60 @@ six.</p>
 <hr />
 <h3 id="how-an-eval-run-is-judged-and-what-it-costs">How an eval run is
 judged, and what it costs</h3>
-<p>An eval run has two cost centres, and they are not the same size. The
-candidate calls are the thing being measured; <strong>the judge is the
-thing being paid for.</strong> Deciding where the final judging and
-ranking happens is therefore the single biggest lever on what a sweep
-costs.</p>
+<p>An eval run has two cost centres, and only one of them is money. The
+candidate calls are the thing being measured and are billed to the
+account running the sweep; <strong>the judge is the thing that would
+dominate that bill</strong>, which is why it is not on it.</p>
 <!-- Mermaid source: diagrams/09-run-modes.mmd -->
 
 <p><img src="diagrams/09-run-modes.svg"
-alt="The two run modes: full-provider judging on an API connection, and in-harness judging through the file exchange" /></p>
-<h4 id="the-two-modes">The two modes</h4>
+alt="How a run is judged: candidate calls on API connections, judging and persona turns through the file exchange the harness subagent drains" /></p>
+<h4 id="one-way-to-run">One way to run</h4>
 <table>
 <thead>
 <tr class="header">
 <th></th>
-<th>Full-provider mode</th>
-<th>In-harness mode</th>
+<th>What it is</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><strong>Candidate roles</strong></td>
-<td>API connections</td>
-<td>API connections, exactly the same</td>
+<td>API connections, billed per token</td>
 </tr>
 <tr class="even">
 <td><strong>Judge</strong></td>
-<td>An API connection, selected with
-<code>LLMEVAL_JUDGE_CONNECTION</code></td>
-<td>The Claude Code subagent, answering through the file exchange</td>
+<td>The Claude Code harness subagent, answering through the file
+exchange</td>
 </tr>
 <tr class="odd">
+<td><strong>Simulated human</strong></td>
+<td>The same subagent, through the same exchange, unless a model is cast
+for the role</td>
+</tr>
+<tr class="even">
 <td><strong>What is billed</strong></td>
-<td>Candidate calls <strong>and</strong> judge calls</td>
 <td>Candidate calls only</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><strong>Judge cost reported as</strong></td>
-<td>A figure, included in the actual spend</td>
-<td><strong>Not available</strong>, never zero. Subscription quota, not
+<td><strong>Not billed</strong>, never zero. Subscription quota, not
 dollars</td>
 </tr>
-<tr class="odd">
-<td><strong>Runs unattended</strong></td>
-<td>Yes: dashboard, CI-triggered, scheduled, a plain test run</td>
-<td>No: needs the harness session and a live drainer heartbeat</td>
-</tr>
 <tr class="even">
+<td><strong>Runs unattended</strong></td>
+<td>No: it needs the harness session and a live drainer heartbeat</td>
+</tr>
+<tr class="odd">
 <td><strong>Reproducible judge</strong></td>
-<td>Yes, a pinned model id</td>
 <td>Only in the sense that the reply files are kept</td>
 </tr>
 </tbody>
 </table>
-<p>The candidate half of the run is identical between the two. Nothing
-about the models under test, the gates, the pricing or the ranking
-changes; only who answers the judge, and who pays for it.</p>
+<p>There is no second mode and no API judge to select. A sweep is run
+from a Claude Code session with a subagent draining the exchange, and a
+run started without one fails fast rather than quietly finding something
+to bill.</p>
 <h4 id="why-the-judge-dominates">Why the judge dominates</h4>
 <p>The judge answers for <strong>every cell of the matrix</strong>, and
 each of its calls is expensive in input tokens because of what it has to
@@ -239,10 +235,10 @@ position bias cancels. See <a href="#5-evaluators-and-judges">section
 absolute rubric score is attached, carrying one response and the rubric.
 In the usual configuration that is <strong>three judge calls per
 candidate cell</strong>.</li>
-<li><strong>A reasoning judge multiplies the output side.</strong> On
-the OpenAI wire the output cap covers hidden reasoning tokens, so a
-judge that reasons is given a much larger cap than one that does not,
-and bills accordingly.</li>
+<li><strong>A judge that reasons costs more of the drainer's attention,
+not more money.</strong> Nothing here caps the judge's output: it is a
+subagent writing a file, not a metered completion that a cap
+protects.</li>
 </ul>
 <p>A candidate cell, by contrast, is one request and one answer at that
 model's own price.</p>
@@ -254,61 +250,46 @@ with an incumbent and a rubric score attached:</p>
 <thead>
 <tr class="header">
 <th>Line</th>
-<th>Full-provider mode</th>
-<th>In-harness mode</th>
+<th>What it costs</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td>Candidate calls, 120 cells on mid-priced models</td>
 <td>A few tens of cents</td>
-<td>The same few tens of cents</td>
 </tr>
 <tr class="even">
 <td>Judge calls, roughly 270 of them (two pairwise on each of the 90
 non-incumbent cells, plus one rubric score on all 120)</td>
-<td>Several dollars with a mid-priced judge; tens of dollars with a
-frontier reasoning judge</td>
-<td>Not billed</td>
+<td>Several dollars with a mid-priced API judge, tens of dollars with a
+frontier reasoning one - which is why there is no API judge here. Not
+billed</td>
 </tr>
 <tr class="odd">
 <td><strong>What the report says</strong></td>
-<td><code>Judge cost 6.431200, included in the actual spend above.</code></td>
-<td><code>Judge cost: not available (judged by the Claude Code harness subagent).</code></td>
+<td><code>Judge: Claude Code harness subagent (not billed).</code></td>
 </tr>
 </tbody>
 </table>
 <p>The ratio, not the absolute figures, is the point: on a matrix of any
-size the judge is an order of magnitude more than the field it is
-judging. Two consequences follow. First, sizing a spend ceiling by
-counting candidate calls will refuse the run for the wrong reason or,
-worse, let it through and overspend on judging; declare the judge's
-pricing so its calls are inside the estimate. Second, before widening a
-matrix, widen it in the dimension that adds judged evidence (fixtures)
-rather than the one that multiplies judging without pooling it
-(variants).</p>
-<h4 id="which-judge-is-available">Which judge is available</h4>
-<p>The availability rule is stated in the package README and is
-reproduced here verbatim, because both modes depend on it:</p>
-<blockquote>
-<p><strong>If the eval is being run from the Claude Code harness (this
-session, with a judge-queue subagent draining the exchange), the harness
-subagent is the judge and no API spend is incurred for judging. If the
-eval is run any other way (dashboard, CI, a plain
-<code>dotnet test</code> with no draining agent), the harness judge is
-not available; the only available judge is an API connection such as
-OpenRouter, selected with <code>LLMEVAL_JUDGE_CONNECTION</code>, and
-judge calls are billed.</strong></p>
-</blockquote>
-<p>There is deliberately <strong>no automatic fallback</strong> between
-the modes. Re-pointing a file-exchange judge at a paid endpoint would
-put a bill on somebody who chose the subscription path, silently. A run
-started in in-harness mode with no drainer online, or with a heartbeat
-past the staleness bound, <strong>fails fast</strong> with
-<code>No judge agent is draining {root}</code> and names both ways out,
-rather than hanging on its first cell. <a
-href="#8-the-two-judge-paths">Section 8</a> covers the exchange protocol
-itself.</p>
+size a paid judge would be an order of magnitude more than the field it
+is judging, and it is the one part of the run that scales with every
+dimension at once. Two consequences follow. First, the spend ceiling
+gates the candidates and only them, because judging is not money; do not
+size a matrix as though it were. Second, before widening a matrix, widen
+it in the dimension that adds judged evidence (fixtures) rather than the
+one that multiplies judging without pooling it (variants) - the
+drainer's time is finite too.</p>
+<h4 id="what-the-judge-needs-from-you">What the judge needs from
+you</h4>
+<p>The one requirement is that somebody is draining. A run started with
+no drainer online, or with a heartbeat past the staleness bound,
+<strong>fails fast</strong> with
+<code>No judge agent is draining {root}</code> rather than hanging on
+its first cell, and nothing re-points the judge at a paid endpoint to
+keep going: that would put a bill on somebody who never asked for one.
+<a href="#8-the-judge-exchange">Section 8</a> covers the exchange
+protocol itself.</p>
 <p>To see what a finished run actually looks like, skip to <a
 href="#appendix-sample-outputs">Appendix: sample outputs</a>. It is
 placed at the end rather than here so this orientation stays short, and
@@ -527,11 +508,8 @@ list.</li>
 <li><strong>A roster override.</strong>
 <code>ModelUnderTest.Reasoning</code> is declared on the candidate
 rather than derived, and answers "does this model reason on every call"
-for an entry that was never enriched - which is the normal case for a
-judge. A reasoning judge called with a small output cap spends the cap
-on hidden tokens and answers nothing, so the answer has to be available
-before any catalog is consulted. <code>ModelUnderTest.Family</code> is
-the same shape of declaration for the vendor family.</li>
+for an entry that was never enriched. <code>ModelUnderTest.Family</code>
+is the same shape of declaration for the vendor family.</li>
 </ul>
 <p>Pricing travels the same path and has the same unknown state, with
 the same rule: an unknown price is never treated as zero.</p>
@@ -690,39 +668,24 @@ same way, in both cases before anything is written.</p>
 directory, and that is where it stops. Nothing in the file has been
 measured. A proposal is a suggestion about a prompt, sitting next to the
 run that motivated it.</p>
-<h4 id="accepting-a-proposal-and-the-rerun">Accepting a proposal, and
+<h4 id="taking-a-proposal-up-and-the-rerun">Taking a proposal up, and
 the rerun</h4>
-<p>The dashboard's <strong>Proposals</strong> page is where a person
-reads that file: one card per proposal, the variant's overrides shown,
-and an accept action. Accepting writes the variant into
-<strong><code>accepted-variants.json</code></strong> beside that
-execution's results, deliberately a <strong>separate file</strong> from
-the one the advisor wrote - what a model suggested and what a person
-approved are different claims, and one should not overwrite the other.
-Accepting the same name again replaces the stored text rather than
-appending.</p>
-<p>The accepted set is then offered on the run page for that execution,
-where it <strong>wins over a host variant of the same name</strong>, so
-a rerun can measure the accepted wording against the shipped one without
-editing the application. Starting that rerun is a separate, deliberate
-act: the run page still requires a dry run first, still refuses a
-request that would raise the spend ceiling, and still asks for
-confirmation showing the estimate. Acceptance stages a variant; it does
-not launch anything.</p>
+<p>Reading that file and deciding what is real is a person's job. A
+proposal worth measuring is named as a prompt variant in the harness and
+swept alongside the shipped wording, which is the control; the advisor
+never runs what it proposed.</p>
 <p>The whole loop is therefore: run, read the suggested adjustments,
-decide which edits are real, name them as variants (by hand, or by
-accepting a proposal), and run again. The cached candidate responses
-mean every unchanged cell replays at no model cost, so the second run
-pays only for what changed.</p>
+decide which edits are real, name them as variants, and run again. The
+cached candidate responses mean every unchanged cell replays at no model
+cost, so the second run pays only for what changed.</p>
 <h4 id="acting-on-proposals-unattended-is-out-of-scope">Acting on
 proposals unattended is out of scope</h4>
 <p>This is a design boundary, not a missing feature. A loop in which a
 model edits the prompt, runs the edit and scores its own output is not
 an experiment, and the package refuses to close it: the advisor never
-runs what it proposed, the dashboard writes an acceptance rather than a
-run, and no scheduled or CI path exists that turns a proposal into a
+runs what it proposed, and no path exists that turns a proposal into a
 measured variant without a person in between. See <a
-href="#12-design-boundaries">section 12</a>.</p>
+href="#11-design-boundaries">section 11</a>.</p>
 <hr />
 <h3 id="1-why-the-package-exists">1. Why the package exists</h3>
 <p>A team shipping a feature that calls a language model has to answer
@@ -830,14 +793,15 @@ evaluates and reports.</li>
 endpoints for the candidates and the judge, price and capability data
 for the estimate and the ranking.</li>
 <li><strong>Storage</strong> holds the reporting store, the response
-caches, the judge exchange and the written reports. <strong>The
-dashboard</strong> reads that storage, and with a host source registered
-can also launch a run against it.</li>
+caches, the judge exchange and the written reports.</li>
+<li><strong>The harness subagent</strong> drains the exchange: it
+answers every judged evaluator, and plays the simulated human where no
+model is cast for the role.</li>
 </ul>
 <!-- Mermaid source: diagrams/01-architecture-context.mmd -->
 
 <p><img src="diagrams/01-architecture-context.svg"
-alt="Architecture context: application, eval host, sweep runner, providers, storage, dashboard" /></p>
+alt="Architecture context: application, eval host, sweep runner, providers, storage, and the subagent draining the exchange" /></p>
 <p>The hard boundary worth naming is between the <strong>roster</strong>
 (connections, credentials, candidate models) and the
 <strong>report</strong> (records, metrics, costs, selection).
@@ -908,12 +872,6 @@ with an error that says nothing about the real cause.</td>
 <td>The package references <code>Azure.Core</code> but deliberately
 never <code>Azure.Identity</code>: which credential chain to build is
 the caller's decision, not the harness's.</td>
-</tr>
-<tr class="even">
-<td>File exchange</td>
-<td>Nothing. It is a folder pair.</td>
-<td>Carries no credential, is never paced and never retried. It exists
-for the judge; see <a href="#8-the-two-judge-paths">section 8</a>.</td>
 </tr>
 </tbody>
 </table>
@@ -1035,8 +993,8 @@ scoped service provider. The first role is primary: the one the turn cap
 counts and the leaderboard ranks on.</li>
 <li><strong>The eval host</strong> ties them together and is the object
 a tool discovers through the one-member host-source seam. That seam is
-what lets the dashboard launch a run against an application it never
-compiled against.</li>
+what lets a tool run a workload against an application it never compiled
+against.</li>
 </ul>
 <p>Three rules govern the replacement, and each is a consequence of a
 real failure mode.</p>
@@ -1166,8 +1124,7 @@ disk, so every finished cell replays at no model cost and the run picks
 up where it left off.</li>
 <li><strong>A dry run walks steps 1 to 3 and stops</strong>, recording
 every cell as skipped. It is the cheap way to see a matrix's cost before
-committing to it, and the dashboard makes it mandatory before a live
-run.</li>
+committing to it.</li>
 </ul>
 <hr />
 <h3 id="5-evaluators-and-judges">5. Evaluators and judges</h3>
@@ -1227,42 +1184,38 @@ which. It is never a failed candidate.</li>
 <li>A judge reply that is not exactly one of the three expected verdicts
 is reported with an unknown rating and an error diagnostic, never read
 as a tie.</li>
-<li>A reply the provider's output cap cut off partway through its
-explanation is <strong>not</strong> that case: the verdict it did finish
-is read and kept.</li>
+<li>A reply cut off partway through its explanation is
+<strong>not</strong> that case: the verdict it did finish is read and
+kept.</li>
 <li>A judge call that throws, after the bounded retry described in <a
 href="#7-throttle-and-continue">section 7</a> is exhausted,
 <strong>stops the sweep</strong>. See below for why.</li>
 </ul>
-<h4 id="54-judge-accounting-and-output-caps">5.4 Judge accounting and
-output caps</h4>
-<p>The cost is two judge calls per non-incumbent cell, plus one per cell
-carrying a rubric score (the incumbent's cells included, since they are
-scored even though they are never compared against themselves).
-Declaring the judge's pricing puts those calls inside the estimate;
-without it the sweep logs that the judging is outside the estimate
-rather than leaving it unsaid.</p>
-<p>A judge that reasons needs a different output cap from one that does
-not. On the OpenAI wire the cap covers hidden reasoning tokens, so a cap
-sized for a short verdict object returns an <strong>empty completion on
-every cell</strong> for a reasoning judge. The package therefore carries
-two caps, a plain one and a larger reasoning one, and applies the
-reasoning cap when the roster entry or the enriched capabilities say the
-judge reasons. The cap is still a cap: an uncapped call to a reasoning
-model is an open invitation to spend.</p>
-<p>The cap is handed to each judged evaluator as part of the request,
-which means it is part of what the evaluation library caches judge
-replies on. Changing it re-judges the affected cells rather than
-replaying stale verdicts. That is the correct behaviour and it has a
-cost: see <a href="#9-storage-layout-and-caches">section 9</a>.</p>
-<p><strong>Why a judge failure stops the sweep.</strong> A provider
-still refusing the judge after the bounded waits will refuse the next
-thirty cells too. Carrying on would record each of them as an unmeasured
-metric, paying in full for candidate calls and producing a report that
-then says there were not enough samples to select anything. Stopping
-keeps the finished cells, sets a stop reason, and lets a re-run replay
-everything from cache. Keeping a sweep off that path is a job for pacing
-and judge concurrency caps, not for more retries.</p>
+<h4 id="54-judge-accounting">5.4 Judge accounting</h4>
+<p>The volume is two judge calls per non-incumbent cell, plus one per
+cell carrying a rubric score (the incumbent's cells included, since they
+are scored even though they are never compared against themselves). None
+of it is priced. The judge is a subagent answering on subscription
+quota, so the calls are left out of the spend estimate with a logged
+note rather than folded in at a rate nobody will be billed, and the
+spend ceiling gates the candidates alone.</p>
+<p>Nothing caps a judge call's output either. A cap exists to protect a
+metered completion from running away, and there is no meter here; a
+request with no options is also the simplest thing to hash, which is
+what makes the same question land under the same id. What the evaluation
+library caches a judge reply on is therefore the prompt itself: change
+the rubric or either answer and the cell is re-judged, change nothing
+and it replays. See <a href="#9-storage-layout-and-caches">section
+9</a>.</p>
+<p><strong>Why a judge failure stops the sweep.</strong> An exchange
+nobody is draining will still be undrained at the next cell. Carrying on
+would record each of them as an unmeasured metric, paying in full for
+candidate calls and producing a report that then says there were not
+enough samples to select anything. Stopping keeps the finished cells,
+sets a stop reason, and lets a re-run replay everything from cache. A
+reply that cannot be used is the other case and is not an outage: it
+fails the one cell that asked, and the file is moved aside so the
+question is asked again next run.</p>
 <hr />
 <h3 id="6-the-selection-rule">6. The selection rule</h3>
 <p>Win rates and a cost-per-pass column are inputs, not an answer. The
@@ -1341,15 +1294,11 @@ provider caps actually have. An aggregator that caps a new account
 the matrix, meets its cap while the rest of the field on the same route
 is nowhere near one.</p>
 <p>The bucket is keyed on the connection and the <strong>wire</strong>
-model id, never the harness's roster id, so a judge entry and a
-candidate entry pointing at the same upstream model share one bucket
-exactly as they do at the provider. Where several entries declare a rate
-for the same bucket, the strictest applies to all of them.</p>
-<p><strong>Judge concurrency is the other half and is not a
-substitute.</strong> A concurrency cap bounds how many judge calls are
-<em>in flight</em>; the bucket bounds how many are <em>sent per
-minute</em>. A slow provider sits comfortably under a concurrency cap
-while exceeding a per-minute one.</p>
+model id, never the harness's roster id, so two roster entries pointing
+at the same upstream model share one bucket exactly as they do at the
+provider. Where several entries declare a rate for the same bucket, the
+strictest applies to all of them. None of this reaches the judge: the
+exchange is a folder, not an account with a rate.</p>
 <p><strong>If a 429 arrives anyway</strong> (the pacer knows only this
 process's own calls), the client re-sends, at most three times per call.
 What is worth re-sending is the SDK's own classification of transient
@@ -1414,59 +1363,53 @@ not forward them makes the pacing line silently disappear</strong>. The
 sweep logs a warning when models declare a rate and the provider reports
 no counters.</p>
 <hr />
-<h3 id="8-the-two-judge-paths">8. The two judge paths</h3>
+<h3 id="8-the-judge-exchange">8. The judge exchange</h3>
 <p>The judge is the one model that answers for every cell of a matrix,
-so it is the one that dominates the bill. The package supports two ways
-to answer it, and refuses to switch between them on its own.</p>
+so it is the one that would dominate the bill. There is exactly one way
+to answer it, and it is not an endpoint.</p>
 <!-- Mermaid source: diagrams/07-judge-paths.mmd -->
 
 <p><img src="diagrams/07-judge-paths.svg"
-alt="The two judge paths: a billed API connection, and a file exchange drained by a subagent" /></p>
-<p><strong>Path A: an API connection.</strong> An ordinary endpoint,
-selected by configuration, billed per call. This is the only path
-available to a dashboard run, a CI run, or a plain test run with nobody
-draining an exchange.</p>
-<p><strong>Path B: a file exchange drained by a Claude Code
-subagent.</strong> Not an endpoint at all. The sweep writes each judge
-request to a folder, an agent writes the reply to another, and the sweep
-reads it back. The judging is done by whoever drains the queue, on their
+alt="The judge exchange: the sweep writes requests to a folder, the harness subagent writes replies, and the same folders carry the simulated human&#39;s turns" /></p>
+<p>The sweep writes each judge request to a folder, the Claude Code
+harness subagent writes the reply to another, and the sweep reads it
+back. The judging is done by whoever drains the queue, on their
 subscription, and the account paying for the candidates pays nothing for
-the verdicts.</p>
-<p>The availability rule is stated in the package README and is
-reproduced here verbatim, because operating either path depends on
-it:</p>
-<blockquote>
-<p><strong>If the eval is being run from the Claude Code harness (this
-session, with a judge-queue subagent draining the exchange), the harness
-subagent is the judge and no API spend is incurred for judging. If the
-eval is run any other way (dashboard, CI, a plain
-<code>dotnet test</code> with no draining agent), the harness judge is
-not available; the only available judge is an API connection such as
-OpenRouter, selected with <code>LLMEVAL_JUDGE_CONNECTION</code>, and
-judge calls are billed.</strong></p>
-</blockquote>
-<p><strong>There is deliberately no automatic fallback from B to
-A.</strong> Re-pointing a file-exchange judge at a paid endpoint would
-put a bill on somebody who explicitly chose the subscription path,
-silently. When no drainer is online the sweep stops with a reason naming
-both ways out.</p>
-<h4 id="81-the-exchange-and-why-the-request-id-is-a-hash">8.1 The
+the verdicts. The runner builds the client itself from two options - the
+exchange root and the name the drainer answers as - so there is no judge
+connection in the roster and nothing to select.</p>
+<p><strong>There is deliberately no fallback to a paid judge.</strong>
+Re-pointing the exchange at an endpoint would put a bill on somebody who
+never asked for one. When no drainer is online the sweep stops with a
+reason saying so.</p>
+<h4 id="81-two-kinds-of-request">8.1 Two kinds of request</h4>
+<p>Every request carries a <code>kind</code>. A <strong>judge</strong>
+request wants a verdict on somebody else's answer, as bare JSON in the
+shape the prompt asks for. A <strong>human</strong> request wants a turn
+in a conversation, spoken as the persona the request's system message
+describes - the same subagent playing the other side of a multi-turn
+workload, for an episode whose persona has no model cast for its role.
+The kind is part of the request id, so a persona turn can never be
+answered with a verdict left over from a judge request.</p>
+<h4 id="82-the-exchange-and-why-the-request-id-is-a-hash">8.2 The
 exchange, and why the request id is a hash</h4>
 <p>Four folders carry the protocol: a pending folder the sweep writes
 to, a done folder the agent writes to, a heartbeat file, and a failed
 folder the sweep moves unusable replies into.</p>
-<p>The request id is a hash over the model, the messages and the options
-that change what a good answer looks like, and explicitly
-<strong>not</strong> over the timestamp. The same question therefore
-always lands under the same name, which makes the done folder a cache: a
-second sweep over the same matrix finds every reply already on disk,
-queues nothing, and needs no agent running at all. Request files are
-never deleted, so the pending folder is the audit trail of what was
-actually asked.</p>
+<p>The request id is a hash over the model, the kind, the messages and
+the options that change what a good answer looks like, and explicitly
+<strong>not</strong> over the timestamp. A persona turn hashes the cell
+it belongs to as well: its opening messages are identical in every cell,
+and caching is the wrong default for the half of the conversation whose
+variation is the experiment. The same question therefore always lands
+under the same name, which makes the done folder a cache: a second sweep
+over the same matrix finds every reply already on disk, queues nothing,
+and needs no agent running at all. Request files are never deleted, so
+the pending folder is the audit trail of what was actually asked.</p>
 <p>That design makes disagreeing with a verdict a file operation: delete
 the one reply and re-run, and the question is asked again. Delete the
 folder and everything is re-asked.</p>
-<h4 id="82-heartbeat-and-fail-fast">8.2 Heartbeat and fail-fast</h4>
+<h4 id="83-heartbeat-and-fail-fast">8.3 Heartbeat and fail-fast</h4>
 <p>The agent writes a heartbeat before its first pass and refreshes it
 on <strong>every</strong> pass, empty ones included. Without a heartbeat
 newer than the staleness bound the exchange refuses to queue anything
@@ -1483,15 +1426,16 @@ and a drainer in the same session deadlock, each waiting for the other.
 Start the drainer first so a heartbeat exists before the first request
 is queued, launch the sweep in the background, and keep draining in a
 bounded loop until the run's summary file exists.</p>
-<h4 id="83-what-the-reports-say-about-a-subscription-judge">8.3 What the
+<h4 id="84-what-the-reports-say-about-a-subscription-judge">8.4 What the
 reports say about a subscription judge</h4>
-<p>The cost is reported as <strong>not available, never as
-zero</strong>: the spend field is null, the runner is named, and the
-judge calls are left out of the estimate with a logged note instead of
-being priced at nothing. The judge itself is named from the exchange's
-own documents (the model from the replies, the runner from the
-heartbeat), and a heartbeat that names nobody is reported as a plain
-file exchange rather than as a subagent that may not have been one.</p>
+<p>The cost is reported as <strong>not billed, never as zero</strong>:
+the summary line names the runner and says so outright, no judge price
+is reported at all, and the judge calls are left out of the estimate
+with a logged note instead of being priced at nothing. The judge itself
+is named from the exchange's own documents (the model from the replies,
+the runner from the heartbeat), and a heartbeat that names nobody is
+reported as a plain file exchange rather than as a subagent that may not
+have been one.</p>
 <p>The honest caveat: there is no model pin behind a subscription agent,
 so a run is reproducible only in the sense that its reply files were
 kept, which is exactly why they are kept. Record the judge and the date
@@ -1509,10 +1453,9 @@ alt="Storage layout: the reporting store, the caches, the report half and the ju
 reporting store, one file per (execution, workload, iteration). Its
 layout is that library's business. The <strong>report half</strong> is
 what the leaderboard writer was pointed at: a summary, a results file,
-and the prompt proposal files. The dashboard reads both and treats a
-directory directly under the root as a report directory when it holds a
-results file, which is what keeps the store and cache folders from being
-mistaken for executions.</p>
+and the prompt proposal files. A directory directly under the root is a
+report directory when it holds a results file, which is what keeps the
+store and cache folders from being mistaken for executions.</p>
 <p>Three caches sit under the root, and they invalidate on different
 things:</p>
 <table>
@@ -1533,79 +1476,32 @@ assignment with a swapped model is a miss, not a replay of the old
 model's answers.</td>
 </tr>
 <tr class="even">
-<td>Judge replies (API path)</td>
-<td>The judge request, including the output cap</td>
-<td>Changing the rubric, the answers compared, or either output
-cap.</td>
+<td>Judge replies</td>
+<td>The request hash: the model, the kind, the messages and the
+options</td>
+<td>Changing the rubric or the answers compared, or deleting the reply
+file.</td>
 </tr>
 <tr class="odd">
-<td>Judge replies (file exchange)</td>
-<td>The request hash</td>
-<td>Deleting the reply file.</td>
+<td>Persona turns</td>
+<td>The same hash, plus the cell - episode, cast, variant and
+iteration</td>
+<td>Never replayed across cells, by construction. Deleting the reply
+file re-asks that one turn.</td>
 </tr>
 </tbody>
 </table>
 <p><strong>What a rerun re-pays.</strong> Re-running after a scorer
 change, a report change or an interruption costs nothing for any cell
 that finished. Re-running after a prompt edit re-pays the affected
-candidate cells. Re-running after an output-cap change re-pays the
-affected judge calls, which on a large matrix is most of the judging:
-the cap is part of the cached request precisely so that a changed cap
-re-judges rather than replaying verdicts produced under a different
-one.</p>
+candidate cells, and re-asks the judging that depended on them - in the
+drainer's time rather than in money.</p>
 <p>Caching is on by default because it makes iteration free. Turn it off
 to measure latency or run-to-run variance, both of which a cache
 falsifies, and remember that a cache-served cell reports no upstream
 route, because a cached response carries no fresh routing field.</p>
 <hr />
-<h3 id="10-the-dashboard">10. The dashboard</h3>
-<p><code>EF.LLMEval.Dashboard</code> is a Blazor Server dashboard over a
-storage root. It has three jobs.</p>
-<p><strong>Viewer.</strong> Every execution under the root, a
-leaderboard ranked by cost per passing generation and filtered by
-workload and variant, one cell's transcript with every metric and its
-reason, a variant diff, and the proposals the advisor wrote. No
-credential is ever bound to a component: the pages show provider and
-connection names, model ids and upstream routes, while the keys live
-inside the host's own client provider.</p>
-<p><strong>Run and steer.</strong> With a host source registered, the
-run page lists every host and launches one of its workloads against the
-application's own container. One sweep at a time for the whole site, on
-a background task rather than on the circuit, so a browser refresh
-rejoins a run rather than killing it. The guardrails are all decided in
-one place, so the page disables a button with the same sentence a start
-would have been refused with:</p>
-<ul>
-<li>Live runs are off by default. A dashboard meant only to be read
-cannot spend anything, whatever is posted to it.</li>
-<li>The spend ceiling is a maximum the request cannot raise. A request
-asking for more is refused rather than quietly lowered.</li>
-<li>A cell cap refuses an oversized matrix before it is planned.</li>
-<li>Every assignment and variant must be named. An empty selection is
-refused rather than read as "the host's defaults", and an unknown name
-is refused naming it, because either would let a run plan a matrix
-larger than the one the cell cap was checked against.</li>
-<li>A dry run is mandatory, and changing any field retires the estimate
-it produced. Live then asks for confirmation showing the estimate and
-the ceiling.</li>
-<li>A failure is a status, never a silence. The spend refusal is shown
-verbatim, because its message carries the whole breakdown.</li>
-</ul>
-<p>Because the dashboard is one of the "any other way" cases from <a
-href="#8-the-two-judge-paths">section 8</a>, a judged run launched from
-it uses an API judge and is billed.</p>
-<p><strong>Proposals.</strong> Accepting a proposal writes it into an
-accepted set, kept separately from the file the advisor wrote: what was
-suggested and what a person approved are different claims, and one
-should not overwrite the other. The accepted set is offered on the run
-page and wins over a host variant of the same name.</p>
-<p>One limitation worth knowing before reading a variant diff: a sweep
-records variant <strong>names</strong>, not variant text. Neither the
-results file nor the store carries a workload's editable prompts or a
-variant's overrides, so the diff renders override-only and says so on
-the page.</p>
-<hr />
-<h3 id="11-the-prompt-development-loop">11. The prompt-development
+<h3 id="10-the-prompt-development-loop">10. The prompt-development
 loop</h3>
 <p>Three layers, cheapest first, and only the last one costs
 anything.</p>
@@ -1643,7 +1539,7 @@ ones that make sense into named variants, and re-run. The cached
 candidate responses mean the unchanged cells cost nothing the second
 time.</p>
 <hr />
-<h3 id="12-design-boundaries">12. Design boundaries</h3>
+<h3 id="11-design-boundaries">11. Design boundaries</h3>
 <p>What the package refuses to do is as load-bearing as what it does.
 Each refusal exists because the alternative produces a number somebody
 would act on.</p>
@@ -1734,7 +1630,7 @@ upstream that actually answered where the endpoint reported one.</p>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>120 cells: 119 succeeded, 1 failed, 0 unsupported.</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 0.812400, actual 0.374512.</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>Judge cost: not available (judged by the Claude Code harness subagent).</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (not billed).</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>15 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>Pacing: 42 calls waited a total of 61.5 s on rate limits; 3 calls waited 24 s before a retry; 3 calls retried after a transient failure (429 x2, 503 x1).</span>
@@ -1901,19 +1797,13 @@ href="LLMEval-INTEGRATION-GUIDE.html">LLMEval-INTEGRATION-GUIDE.md</a></td>
 </tr>
 <tr class="odd">
 <td><a href="LLMEval-Operations.html">LLMEval-Operations.md</a></td>
-<td>Budgets, pacing, caches, secrets, CI, reading the dashboard.</td>
+<td>Budgets, pacing, caches, secrets, and reading a finished run.</td>
 </tr>
 <tr class="even">
 <td><a
 href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval.FlowEngine/README.md">EF.LLMEval.FlowEngine
 README</a></td>
 <td>Running a workflow as an episode.</td>
-</tr>
-<tr class="odd">
-<td><a
-href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval.Dashboard/README.md">EF.LLMEval.Dashboard
-README</a></td>
-<td>Registering and hosting the dashboard.</td>
 </tr>
 </tbody>
 </table>

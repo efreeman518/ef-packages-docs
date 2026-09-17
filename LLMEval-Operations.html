@@ -19,8 +19,8 @@
 <h2 id="efllmeval-operations">EF.LLMEval Operations</h2>
 <p>Running an evaluation harness day to day: what it costs, how to keep
 it from costing more than intended, what a rerun re-pays, where secrets
-are allowed to live, what belongs in CI, and how to read the
-dashboard.</p>
+are allowed to live, what belongs in CI, and how to read a finished
+run.</p>
 <p>This document assumes the harness already exists. To build one, see
 <a
 href="LLMEval-INTEGRATION-GUIDE.html">LLMEval-INTEGRATION-GUIDE.md</a>;
@@ -31,14 +31,14 @@ href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval
 <h3 id="table-of-contents">Table of Contents</h3>
 <ol type="1">
 <li><a href="#1-budgets-and-ceilings">Budgets and ceilings</a></li>
-<li><a href="#2-judge-cost-and-the-not-available-case">Judge cost, and
-the not-available case</a></li>
+<li><a href="#2-judge-cost-and-the-not-billed-case">Judge cost, and the
+not-billed case</a></li>
 <li><a href="#3-pacing-and-429s">Pacing and 429s</a></li>
 <li><a href="#4-resuming-and-what-invalidates-a-cache">Resuming, and
 what invalidates a cache</a></li>
 <li><a href="#5-secrets">Secrets</a></li>
 <li><a href="#6-ci">CI</a></li>
-<li><a href="#7-reading-the-dashboard">Reading the dashboard</a></li>
+<li><a href="#7-reading-a-finished-run">Reading a finished run</a></li>
 <li><a href="#8-an-operating-checklist">An operating checklist</a></li>
 </ol>
 <hr />
@@ -89,8 +89,7 @@ reasoning models generally reject temperature controls</td>
 <p><strong>Dry-run first, always.</strong> A dry run walks the probe,
 the per-model request trimming and the estimate, records every cell as
 skipped, and sends nothing. It is free and it is the only honest preview
-of a matrix's cost. The dashboard makes it mandatory before a live run
-for exactly this reason.</p>
+of a matrix's cost. Run one before every live sweep.</p>
 <p><strong>Declare expected output tokens.</strong> Without them, a
 workload is priced at its requested token ceiling, which it may never
 approach. That can overstate a sweep several-fold and refuse a run that
@@ -102,59 +101,36 @@ Actual spend is normally lower. Do not read the gap as the harness being
 wrong; read it as the ceiling having done its job.</p>
 <p><strong>Watch concurrency against the ceiling.</strong> Parallel
 cells can each clear the ceiling check before any of them has spent
-anything. Where cells share one ceiling, run them one at a time. That is
-why the dashboard's queue runs a single cell at a time and why a test
-project sharing a ceiling should turn off test parallelisation.</p>
+anything. Where cells share one ceiling, run them one at a time, and
+turn off test parallelisation in a test project that shares one.</p>
 <hr />
-<h3 id="2-judge-cost-and-the-not-available-case">2. Judge cost, and the
-not-available case</h3>
+<h3 id="2-judge-cost-and-the-not-billed-case">2. Judge cost, and the
+not-billed case</h3>
 <p>The judge answers for <strong>every</strong> cell of the matrix, so
-on any sweep of size it is the bill:</p>
+on any sweep of size it is the bulk of the work:</p>
 <ul>
 <li>Two judge calls per non-incumbent cell (the comparison is run in
 both orders).</li>
 <li>Plus one per cell carrying a rubric score, including the incumbent's
 own cells.</li>
+<li>Plus one per turn when the simulated human goes through the same
+exchange, which it does by default for a persona with no model cast for
+its role.</li>
 </ul>
-<p>Declare the judge's pricing so those calls are inside the estimate.
-Without it the sweep logs that the judging is outside the estimate,
-which is honest but leaves the ceiling protecting only half the
-spend.</p>
-<h4 id="the-two-paths">The two paths</h4>
-<table>
-<thead>
-<tr class="header">
-<th>Path</th>
-<th>Billed</th>
-<th>Available</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>An API connection, selected with
-<code>LLMEVAL_JUDGE_CONNECTION</code></td>
-<td>Yes, per call, to whoever owns the key</td>
-<td>Always</td>
-</tr>
-<tr class="even">
-<td>A file exchange drained by a Claude Code subagent</td>
-<td>No dollars. Subscription quota</td>
-<td>Only from the Claude Code harness, with a drainer online</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Cost on the subscription path is reported as not available,
-never as zero.</strong> The spend field is null, the runner is named,
-and the judge calls are left out of the estimate with a logged note. Do
-not paper over that in a finding by writing zero: the judging was paid
-for, in quota, by whoever drained the queue.</p>
-<p><strong>There is no automatic fallback.</strong> With no drainer
-online (none started, or a heartbeat past the staleness bound) the sweep
-stops with <code>No judge agent is draining {root}</code> and names both
-ways out. A run that needs to proceed without a drainer selects an API
-judge explicitly and pays for it.</p>
-<h4 id="operating-the-file-exchange-path">Operating the file-exchange
-path</h4>
+<p>None of it is money. The judge is the Claude Code harness subagent
+draining the file exchange, there is no API judge to select, and judging
+is left out of the spend estimate rather than priced at zero.</p>
+<p><strong>Cost is reported as not billed, never as zero:</strong> the
+summary reads
+<code>Judge: Claude Code harness subagent (not billed).</code>, and the
+report names the runner from the drainer's own heartbeat. Do not paper
+over that in a finding by writing zero, and do not read it as free: the
+judging was paid for, in quota, by whoever drained the queue.</p>
+<p><strong>There is no fallback.</strong> With no drainer online (none
+started, or a heartbeat past the staleness bound) the sweep stops with
+<code>No judge agent is draining {root}</code> rather than finding a
+paid endpoint to use instead.</p>
+<h4 id="operating-the-exchange">Operating the exchange</h4>
 <ol type="1">
 <li>Start the drainer <strong>first</strong>, so a heartbeat exists
 before the first request is queued.</li>
@@ -184,19 +160,14 @@ thing.</p>
 connection and one per model. A model that declares its own rate draws
 on its own bucket rather than the connection's, which matches the shape
 of most provider caps.</p>
-<p><strong>Cap the judge explicitly.</strong> It is one model on one
-account answering for the whole matrix, so it meets a per-model cap long
-before the rest of the field does. Set both a per-minute rate on the
-judge roster entry and a judge concurrency cap: the first bounds how
-many calls are <strong>sent per minute</strong>, the second how many are
-<strong>in flight</strong>. They are not substitutes, and a slow
-provider sits under a concurrency cap while exceeding a per-minute
-one.</p>
+<p>Nothing here applies to the judge. The exchange is a folder pair, not
+an account with a per-minute cap, so the only thing that bounds it is
+how fast the drainer works.</p>
 <p>The bucket is keyed on the connection and the <strong>wire</strong>
-model id, not the harness's roster id, so a judge entry and a candidate
-entry pointing at the same upstream model share one bucket exactly as
-they do at the provider. Where several entries declare a rate for one
-bucket, the strictest wins.</p>
+model id, not the harness's roster id, so two roster entries pointing at
+the same upstream model share one bucket exactly as they do at the
+provider. Where several entries declare a rate for one bucket, the
+strictest wins.</p>
 <p><strong>When a 429 arrives anyway</strong>, the client re-sends at
 most three times per call, on the SDK's own classification of transient
 faults. The schedule is flat: the provider's retry-after header where it
@@ -281,15 +252,16 @@ assignment <strong>and the cast it names</strong></td>
 inside an assignment that kept its name</td>
 </tr>
 <tr class="even">
-<td>Judge replies, API path</td>
-<td>The judge request, including the output cap</td>
-<td>Changing the rubric, the answers compared, or either output cap</td>
+<td>Judge replies</td>
+<td>A hash over the model, the kind and the messages</td>
+<td>Changing the rubric or the answers compared, or deleting the reply
+file</td>
 </tr>
 <tr class="odd">
-<td>Judge replies, file exchange</td>
-<td>A hash over the model, the messages and the options that change what
-a good answer looks like</td>
-<td>Deleting the reply file</td>
+<td>Persona turns</td>
+<td>The same hash, plus the cell the turn belongs to</td>
+<td>Never replayed across cells. Deleting the reply file re-asks that
+one turn</td>
 </tr>
 </tbody>
 </table>
@@ -333,9 +305,6 @@ log.</li>
 <li>A model under test carries no credential at all, and the eval host
 is never serialised. That is what makes a results file safe to
 commit.</li>
-<li>The dashboard binds no credential to a component. Its pages show
-provider and connection names, model ids and upstream routes; the keys
-live inside the host's own client provider.</li>
 <li>A connection with no resolvable key or credential is
 <strong>dropped</strong> at load time, along with every model and
 assignment naming it. A developer without one provider's key still gets
@@ -420,90 +389,63 @@ installed folders or add <code>.claude/skills/llmeval-*/</code> to
 <code>.gitignore</code>; either is fine, and committing them is what
 makes the skills travel to everyone who clones.</p>
 <hr />
-<h3 id="7-reading-the-dashboard">7. Reading the dashboard</h3>
-<p>Point the dashboard at a storage root and it lists every execution
-under it. A directory directly under the root counts as an execution
-only when it holds a results file, which is what keeps the store and
-cache folders from being listed as runs.</p>
+<h3 id="7-reading-a-finished-run">7. Reading a finished run</h3>
+<p>A run leaves two files in its report directory, and they are what a
+finding is written from.</p>
 <table>
 <thead>
 <tr class="header">
-<th>Page</th>
+<th>File</th>
 <th>Read it for</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Executions</td>
-<td>When each run happened, its cells, its spend, its workloads. The
-first check after a run</td>
+<td><code>summary.md</code></td>
+<td>The banner - cells, spend, who judged and that it was not billed,
+pacing, anything dropped or stopped - then one table per scenario and
+variant ranked by cost per passing generation, then the selection
+section</td>
 </tr>
 <tr class="even">
-<td>Leaderboard</td>
-<td>Cost per passing generation, filtered by workload and variant.
-Per-role model and cost columns for an episode, the model and its
-upstream route for a scenario. The suggested adjustments from the
-results file follow</td>
-</tr>
-<tr class="odd">
-<td>Cell</td>
-<td>One cell's transcript and response, every metric with its verdict
-and reason, the adjustment hints for that model and its vendor prompting
-note. Where to go when a model failed and it is not obvious why</td>
-</tr>
-<tr class="even">
-<td>Variants</td>
-<td>Two variants side by side, key by key</td>
-</tr>
-<tr class="odd">
-<td>Proposals</td>
-<td>What the advisor proposed, with an accept action that records one
-into the execution's accepted set</td>
-</tr>
-<tr class="even">
-<td>Run</td>
-<td>Launch a sweep against a discovered host</td>
+<td><code>results.json</code></td>
+<td>Every cell: its metrics rendered and raw, its cost, its duration,
+its response text, the upstream that served it, and whatever it ran
+without</td>
 </tr>
 </tbody>
 </table>
 <p>Three things to know before trusting what you read:</p>
 <ul>
-<li><strong>The variant diff is override-only.</strong> A sweep records
-variant names, not variant text, so the diff cannot reconstruct a
-baseline column from a finished run. The page says so.</li>
-<li><strong>A judged run launched here is billed.</strong> The dashboard
-is not the Claude Code harness, so its judge is an API judge.</li>
-<li><strong>Accepted is not proposed.</strong> What the advisor
-suggested and what a person approved are kept in separate files
-deliberately, and an accepted variant wins over a host variant of the
-same name.</li>
+<li><strong>A sweep records variant names, not variant text.</strong>
+Neither file carries a variant's overrides, so a diff between two
+variants has to be read from the harness, not from the run.</li>
+<li><strong>The judge is not pinned.</strong> There is no model version
+behind a subscription agent, so keep the reply files with the finding
+and do not compare win rates across runs judged by different
+things.</li>
+<li><strong><code>n/a</code> is not zero.</strong> An unpriced role, an
+unjudged cell and an incumbent with nothing to compare against all read
+as <code>n/a</code> with a reason. The reason is the part to act
+on.</li>
 </ul>
-<p>The run page's guardrails are all refusals with the same sentence the
-button's tooltip carries: live runs off by default, a ceiling the
-request cannot raise, a cell cap checked before planning, every
-assignment and variant named explicitly, and a mandatory dry run that is
-retired the moment any field changes. A plan refusal is shown verbatim,
-because its message carries the whole breakdown.</p>
 <hr />
 <h3 id="8-an-operating-checklist">8. An operating checklist</h3>
 <p>Before a run:</p>
 <ul class="task-list">
 <li><label><input type="checkbox" />The roster names the candidates you
-meant, with upstream pins and catalog matches where they apply, and a
-declared family on the judge.</label></li>
+meant, with upstream pins and catalog matches where they
+apply.</label></li>
 <li><label><input type="checkbox" />The incumbent is the model
 production actually runs.</label></li>
 <li><label><input type="checkbox" />The rubric still says what "better"
 means for this decision.</label></li>
 <li><label><input type="checkbox" />Expected output tokens are declared
 for every workload and role.</label></li>
-<li><label><input type="checkbox" />The judge has a per-minute rate and
-a concurrency cap.</label></li>
 <li><label><input type="checkbox" />A dry run succeeded, and its
 estimate is one you are willing to spend.</label></li>
-<li><label><input type="checkbox" />If the judge is a file exchange: the
-drainer is running, and the sweep will run in the
-background.</label></li>
+<li><label><input type="checkbox" />The drainer is running, and the
+sweep will run in the background.</label></li>
 </ul>
 <p>After a run:</p>
 <ul class="task-list">
