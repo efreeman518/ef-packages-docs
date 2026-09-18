@@ -194,6 +194,49 @@ agent's <code>EFAI:Agents</code> entry (EF.AI 1.2.107 or later):
 connection's and a caller-set <code>ChatOptions</code> member always
 winning - so an eval override still takes effect. Production sets its
 defaults once and the eval's setting variants override per cell.</p>
+<p>Wire the configured defaults into the harness so the incumbent stays
+measured on what ships. Build one provider from the host's own
+<code>CreateServices()</code> and hand it to each role binding:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> <span class="dt">var</span> application <span class="op">=</span> <span class="fu">CreateServices</span><span class="op">().</span><span class="fu">BuildServiceProvider</span><span class="op">();</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> roles <span class="op">=</span> <span class="kw">new</span><span class="op">[]</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;main&quot;</span><span class="op">,</span> <span class="st">&quot;chat-synthesis&quot;</span><span class="op">).</span><span class="fu">WithApplicationDefaults</span><span class="op">(</span>application<span class="op">),</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;judge&quot;</span><span class="op">,</span> <span class="st">&quot;chat-judge&quot;</span><span class="op">).</span><span class="fu">WithApplicationDefaults</span><span class="op">(</span>application<span class="op">),</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<p><code>WithApplicationDefaults</code> reads the merged
+connection-and-agent <code>Defaults</code> EF.AI registered as named
+options under that agent key - the same object the application's own
+client is built from - and returns the binding unchanged when that
+<code>Defaults</code> block sets nothing. A key the application
+registers no client under is refused by name instead, because reading it
+would report an agent that configures nothing and measure the whole
+field at the provider's own default. Add the section name
+(<code>WithApplicationDefaults(application, "MyAI")</code>) when the
+agents are not under <code>EFAI</code>, so the report points at the key
+a reader would actually edit.</p>
+<p>A single-shot scenario harness has no role binding - the sweep hands
+the scenario a client and its own code decides what to do with it - so
+it carries the resolved defaults on the scenario:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> <span class="dt">var</span> application <span class="op">=</span> <span class="fu">CreateServices</span><span class="op">().</span><span class="fu">BuildServiceProvider</span><span class="op">();</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> scenario <span class="op">=</span> <span class="kw">new</span> <span class="fu">EvalScenario</span><span class="op">(</span><span class="st">&quot;summarise&quot;</span><span class="op">,</span> RunSummarise<span class="op">)</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    RequestDefaults <span class="op">=</span> RoleRequestDefaults<span class="op">.</span><span class="fu">ForAgent</span><span class="op">(</span>application<span class="op">,</span> role<span class="op">:</span> <span class="st">&quot;main&quot;</span><span class="op">,</span> serviceKey<span class="op">:</span> <span class="st">&quot;chat-summarise&quot;</span><span class="op">),</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<p><code>role</code> is only what the reports call it. Everything else
+is identical to the episode path.</p>
+<p>The sweep then applies them below the roster entry's
+<code>requestSettings</code> and above the capability stripper, prices
+the completed request in the spend estimate, and prints one line per
+role in <code>summary.md</code>, <code>report.html</code> and
+<code>results.json</code>. Never wrap the bound client on the
+application side instead: that wrapper sits above the sweep's own
+settings layer, so every setting-variant cell would be reported as
+overriding a value pinned by the application and the recorder would
+claim the application asked for the defaults.</p>
 <h3 id="step-2-decide-scenario-or-episode">Step 2. Decide scenario or
 episode</h3>
 <table>
@@ -257,27 +300,27 @@ composition root</h4>
 <p>The host builds the application's own service collection per cell and
 swaps in the clients under test. Two callbacks, and the split between
 them is the thing to get right:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> host <span class="op">=</span> <span class="kw">new</span> EvalHost</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;interpretation&quot;</span><span class="op">,</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Everything that does not look at IChatClient while registering.</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    CreateServices <span class="op">=</span> <span class="op">()</span> <span class="op">=&gt;</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> services <span class="op">=</span> <span class="kw">new</span> <span class="fu">ServiceCollection</span><span class="op">();</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddApplicationServices</span><span class="op">(</span>configuration<span class="op">);</span></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> services<span class="op">;</span></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    ConfigureCell <span class="op">=</span> <span class="op">(</span>services<span class="op">,</span> cell<span class="op">)</span> <span class="op">=&gt;</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        cell<span class="op">.</span><span class="fu">AddRoleClients</span><span class="op">(</span>services<span class="op">);</span>                       <span class="co">// first: the clients under test</span></span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddAiServices</span><span class="op">(</span>configuration<span class="op">);</span>               <span class="co">// then anything that inspects them</span></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddDbContext</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">UseInMemoryDatabase</span><span class="op">(</span>$<span class="st">&quot;cell-{Guid.NewGuid()}&quot;</span><span class="op">));</span></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IClock<span class="op">&gt;(</span><span class="kw">new</span> <span class="fu">FixedClock</span><span class="op">(</span>FixedInstant<span class="op">));</span></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> host <span class="op">=</span> <span class="kw">new</span> EvalHost</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;interpretation&quot;</span><span class="op">,</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Everything that does not look at IChatClient while registering.</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    CreateServices <span class="op">=</span> <span class="op">()</span> <span class="op">=&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> services <span class="op">=</span> <span class="kw">new</span> <span class="fu">ServiceCollection</span><span class="op">();</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddApplicationServices</span><span class="op">(</span>configuration<span class="op">);</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> services<span class="op">;</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    ConfigureCell <span class="op">=</span> <span class="op">(</span>services<span class="op">,</span> cell<span class="op">)</span> <span class="op">=&gt;</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        cell<span class="op">.</span><span class="fu">AddRoleClients</span><span class="op">(</span>services<span class="op">);</span>                       <span class="co">// first: the clients under test</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddAiServices</span><span class="op">(</span>configuration<span class="op">);</span>               <span class="co">// then anything that inspects them</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddDbContext</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">UseInMemoryDatabase</span><span class="op">(</span>$<span class="st">&quot;cell-{Guid.NewGuid()}&quot;</span><span class="op">));</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddSingleton</span><span class="op">&lt;</span>IClock<span class="op">&gt;(</span><span class="kw">new</span> <span class="fu">FixedClock</span><span class="op">(</span>FixedInstant<span class="op">));</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">},</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
 <table>
 <thead>
 <tr class="header">
@@ -331,12 +374,12 @@ time-dependent prompt stable across cells, which matters more than it
 sounds: a timestamp in a prompt makes every cached response a miss.</li>
 </ul>
 <h4 id="the-workload">The workload</h4>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> workload <span class="op">=</span> <span class="kw">new</span> <span class="fu">EvalWorkload</span><span class="op">(</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;explain&quot;</span><span class="op">,</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;main&quot;</span><span class="op">,</span> <span class="st">&quot;chat-main&quot;</span><span class="op">),</span> <span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;checker&quot;</span><span class="op">,</span> <span class="st">&quot;chat-checker&quot;</span><span class="op">)],</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span>provider<span class="op">,</span> variant<span class="op">,</span> ct<span class="op">)</span> <span class="op">=&gt;</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        provider<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>InterpretationService<span class="op">&gt;().</span><span class="fu">ExplainAsync</span><span class="op">(</span>fixture<span class="op">,</span> variant<span class="op">,</span> ct<span class="op">));</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> workload <span class="op">=</span> <span class="kw">new</span> <span class="fu">EvalWorkload</span><span class="op">(</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;explain&quot;</span><span class="op">,</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">[</span><span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;main&quot;</span><span class="op">,</span> <span class="st">&quot;chat-main&quot;</span><span class="op">),</span> <span class="kw">new</span> <span class="fu">EvalRoleBinding</span><span class="op">(</span><span class="st">&quot;checker&quot;</span><span class="op">,</span> <span class="st">&quot;chat-checker&quot;</span><span class="op">)],</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span>provider<span class="op">,</span> variant<span class="op">,</span> ct<span class="op">)</span> <span class="op">=&gt;</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        provider<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>InterpretationService<span class="op">&gt;().</span><span class="fu">ExplainAsync</span><span class="op">(</span>fixture<span class="op">,</span> variant<span class="op">,</span> ct<span class="op">));</span></span></code></pre></div>
 <p>The service key in each binding is the key the
 <strong>application</strong> resolves its client under. The role name is
 what a role assignment names a model for.</p>
@@ -465,25 +508,25 @@ endpoints once.</p>
 <h4 id="keyless-and-keyed-auth">Keyless and keyed auth</h4>
 <p>Two shapes, and the loader should support both because a team usually
 has both:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyed: a secret resolved from user secrets or the environment.</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> keyed <span class="op">=</span> <span class="kw">new</span> ProviderConnection</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;aggregator&quot;</span><span class="op">,</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">OpenRouter</span><span class="op">,</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    ApiKey <span class="op">=</span> configuration<span class="op">[</span><span class="st">&quot;Aggregator:ApiKey&quot;</span><span class="op">],</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    CatalogName <span class="op">=</span> OpenRouterModelCatalog<span class="op">.</span><span class="fu">DefaultName</span><span class="op">,</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyless: whoever is signed in locally. Azure.Identity is the caller&#39;s own dependency.</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> keyless <span class="op">=</span> <span class="kw">new</span> ProviderConnection</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;first-party&quot;</span><span class="op">,</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">Foundry</span><span class="op">,</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    Endpoint <span class="op">=</span> configuration<span class="op">[</span><span class="st">&quot;FirstParty:Endpoint&quot;</span><span class="op">],</span></span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    Auth <span class="op">=</span> EvalAuth<span class="op">.</span><span class="fu">TokenCredential</span><span class="op">,</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    Credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span><span class="op">(),</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyed: a secret resolved from user secrets or the environment.</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> keyed <span class="op">=</span> <span class="kw">new</span> ProviderConnection</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;aggregator&quot;</span><span class="op">,</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">OpenRouter</span><span class="op">,</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    ApiKey <span class="op">=</span> configuration<span class="op">[</span><span class="st">&quot;Aggregator:ApiKey&quot;</span><span class="op">],</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    CatalogName <span class="op">=</span> OpenRouterModelCatalog<span class="op">.</span><span class="fu">DefaultName</span><span class="op">,</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Keyless: whoever is signed in locally. Azure.Identity is the caller&#39;s own dependency.</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> keyless <span class="op">=</span> <span class="kw">new</span> ProviderConnection</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    Name <span class="op">=</span> <span class="st">&quot;first-party&quot;</span><span class="op">,</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    Provider <span class="op">=</span> EvalProvider<span class="op">.</span><span class="fu">Foundry</span><span class="op">,</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    Endpoint <span class="op">=</span> configuration<span class="op">[</span><span class="st">&quot;FirstParty:Endpoint&quot;</span><span class="op">],</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    Auth <span class="op">=</span> EvalAuth<span class="op">.</span><span class="fu">TokenCredential</span><span class="op">,</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    Credential <span class="op">=</span> <span class="kw">new</span> <span class="fu">DefaultAzureCredential</span><span class="op">(),</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
 <p><strong>Drop, do not fail.</strong> A connection with no resolvable
 key or credential should be dropped at load time, and with it every
 model and assignment that names it. A developer without one provider's
@@ -524,20 +567,20 @@ expensive run is a harness nobody checks.</p>
 <p><strong>The live lane</strong> is opt-in, gated on an environment
 variable with a project-specific prefix (never a bare <code>EVAL</code>,
 so two harnesses on one machine cannot collide):</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">internal</span> <span class="kw">static</span> <span class="kw">class</span> EvalGate</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> RunVariable      <span class="op">=</span> <span class="st">&quot;MYAPP_RUN_EVAL&quot;</span><span class="op">;</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> RequireVariable  <span class="op">=</span> <span class="st">&quot;MYAPP_REQUIRE_EVAL&quot;</span><span class="op">;</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> MaxSpendVariable <span class="op">=</span> <span class="st">&quot;MYAPP_EVAL_MAX_SPEND&quot;</span><span class="op">;</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="kw">static</span> <span class="dt">void</span> <span class="fu">RequireLiveRun</span><span class="op">()</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span><span class="fu">IsSet</span><span class="op">(</span>RunVariable<span class="op">))</span> <span class="kw">return</span><span class="op">;</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span><span class="fu">IsSet</span><span class="op">(</span>RequireVariable<span class="op">))</span> Assert<span class="op">.</span><span class="fu">Fail</span><span class="op">(</span>$<span class="st">&quot;{RequireVariable} is set but {RunVariable} is not.&quot;</span><span class="op">);</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        Assert<span class="op">.</span><span class="fu">Inconclusive</span><span class="op">(</span>$<span class="st">&quot;Live model evaluation is opt-in. Set {RunVariable}=1 to run it.&quot;</span><span class="op">);</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">internal</span> <span class="kw">static</span> <span class="kw">class</span> EvalGate</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> RunVariable      <span class="op">=</span> <span class="st">&quot;MYAPP_RUN_EVAL&quot;</span><span class="op">;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> RequireVariable  <span class="op">=</span> <span class="st">&quot;MYAPP_REQUIRE_EVAL&quot;</span><span class="op">;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> MaxSpendVariable <span class="op">=</span> <span class="st">&quot;MYAPP_EVAL_MAX_SPEND&quot;</span><span class="op">;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="kw">static</span> <span class="dt">void</span> <span class="fu">RequireLiveRun</span><span class="op">()</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span><span class="fu">IsSet</span><span class="op">(</span>RunVariable<span class="op">))</span> <span class="kw">return</span><span class="op">;</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span><span class="fu">IsSet</span><span class="op">(</span>RequireVariable<span class="op">))</span> Assert<span class="op">.</span><span class="fu">Fail</span><span class="op">(</span>$<span class="st">&quot;{RequireVariable} is set but {RunVariable} is not.&quot;</span><span class="op">);</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        Assert<span class="op">.</span><span class="fu">Inconclusive</span><span class="op">(</span>$<span class="st">&quot;Live model evaluation is opt-in. Set {RunVariable}=1 to run it.&quot;</span><span class="op">);</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>Three rules make the gate trustworthy:</p>
 <ul>
 <li>A live test that finds nothing runnable (no configured key, no model
@@ -562,22 +605,22 @@ rubric as data</h3>
 <p>At minimum, one deterministic evaluator that checks the property the
 workload actually cares about. <strong>Never rely on a judge alone for
 the metric a decision rests on.</strong></p>
-<div class="sourceCode" id="cb8"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">internal</span> <span class="kw">sealed</span> <span class="kw">class</span> RequiredSectionsEvaluator <span class="op">:</span> IEvaluator</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> MetricName <span class="op">=</span> <span class="st">&quot;Required sections&quot;</span><span class="op">;</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> IReadOnlyCollection<span class="op">&lt;</span><span class="dt">string</span><span class="op">&gt;</span> EvaluationMetricNames <span class="op">=&gt;</span> <span class="op">[</span>MetricName<span class="op">];</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> ValueTask<span class="op">&lt;</span>EvaluationResult<span class="op">&gt;</span> <span class="fu">EvaluateAsync</span><span class="op">(</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        IEnumerable<span class="op">&lt;</span>ChatMessage<span class="op">&gt;</span> messages<span class="op">,</span> ChatResponse modelResponse<span class="op">,</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        ChatConfiguration<span class="op">?</span> chatConfiguration <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        IEnumerable<span class="op">&lt;</span>EvaluationContext<span class="op">&gt;?</span> additionalContext <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken <span class="op">=</span> <span class="kw">default</span><span class="op">)</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> context <span class="op">=</span> EvalCallContext<span class="op">.</span><span class="fu">Find</span><span class="op">(</span>additionalContext<span class="op">);</span>   <span class="co">// model plus the recorded call</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ... inspect modelResponse.Text, return a BooleanMetric with a reason ...</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">internal</span> <span class="kw">sealed</span> <span class="kw">class</span> RequiredSectionsEvaluator <span class="op">:</span> IEvaluator</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">const</span> <span class="dt">string</span> MetricName <span class="op">=</span> <span class="st">&quot;Required sections&quot;</span><span class="op">;</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> IReadOnlyCollection<span class="op">&lt;</span><span class="dt">string</span><span class="op">&gt;</span> EvaluationMetricNames <span class="op">=&gt;</span> <span class="op">[</span>MetricName<span class="op">];</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> ValueTask<span class="op">&lt;</span>EvaluationResult<span class="op">&gt;</span> <span class="fu">EvaluateAsync</span><span class="op">(</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        IEnumerable<span class="op">&lt;</span>ChatMessage<span class="op">&gt;</span> messages<span class="op">,</span> ChatResponse modelResponse<span class="op">,</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        ChatConfiguration<span class="op">?</span> chatConfiguration <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        IEnumerable<span class="op">&lt;</span>EvaluationContext<span class="op">&gt;?</span> additionalContext <span class="op">=</span> <span class="kw">null</span><span class="op">,</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>        CancellationToken cancellationToken <span class="op">=</span> <span class="kw">default</span><span class="op">)</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> context <span class="op">=</span> EvalCallContext<span class="op">.</span><span class="fu">Find</span><span class="op">(</span>additionalContext<span class="op">);</span>   <span class="co">// model plus the recorded call</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ... inspect modelResponse.Text, return a BooleanMetric with a reason ...</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>For an episode, read the episode context instead: it carries the role
 assignment, every role's calls and the episode result, including the
 final artifact your delegate produced. Where an evaluator needs to know
@@ -625,17 +668,17 @@ the incumbent: a candidate from the judge's own vendor family is flagged
 in the selection report, and that flag is placed from
 <code>JudgeModelId</code>. Attach the pairwise evaluator with the rubric
 and leave the judging out of the budget - it is quota, not money.</p>
-<div class="sourceCode" id="cb10"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> options <span class="op">=</span> <span class="kw">new</span> SweepOptions</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    StorageRootPath <span class="op">=</span> root<span class="op">,</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    MaxSpend <span class="op">=</span> ceiling<span class="op">,</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    Baseline <span class="op">=</span> incumbent<span class="op">,</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    Rubric <span class="op">=</span> rubric<span class="op">,</span></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    JudgeExchangeRoot <span class="op">=</span> <span class="st">&quot;judge-queue&quot;</span><span class="op">,</span>  <span class="co">// default: under StorageRootPath</span></span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    Repeats <span class="op">=</span> <span class="dv">3</span><span class="op">,</span></span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    Selection <span class="op">=</span> <span class="kw">new</span> SelectionOptions <span class="op">{</span> MinSamples <span class="op">=</span> <span class="dv">6</span> <span class="op">},</span></span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> options <span class="op">=</span> <span class="kw">new</span> SweepOptions</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    StorageRootPath <span class="op">=</span> root<span class="op">,</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    MaxSpend <span class="op">=</span> ceiling<span class="op">,</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    Baseline <span class="op">=</span> incumbent<span class="op">,</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    Rubric <span class="op">=</span> rubric<span class="op">,</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    JudgeExchangeRoot <span class="op">=</span> <span class="st">&quot;judge-queue&quot;</span><span class="op">,</span>  <span class="co">// default: under StorageRootPath</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    Repeats <span class="op">=</span> <span class="dv">3</span><span class="op">,</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    Selection <span class="op">=</span> <span class="kw">new</span> SelectionOptions <span class="op">{</span> MinSamples <span class="op">=</span> <span class="dv">6</span> <span class="op">},</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
 <h4 id="who-judges-and-who-pays">Who judges, and who pays</h4>
 <p>The judge is the Claude Code harness subagent, draining the file
 exchange, and there is nothing else to select: no API judge, no
@@ -698,8 +741,8 @@ package ships <code>tools/install-skills.ps1</code> and
 package it sits in, or the newest <code>ef.llmeval</code> in the NuGet
 cache, installs into the repository root it finds or into an explicit
 destination, prints what it did, and exits non-zero on failure.</p>
-<div class="sourceCode" id="cb12"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">~/.nuget/packages/ef.llmeval/</span><span class="op">&lt;</span>version<span class="op">&gt;</span>/tools/install-skills.sh <span class="at">--destination</span> /path/to/repo</span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">~/.nuget/packages/ef.llmeval/</span><span class="op">&lt;</span>version<span class="op">&gt;</span>/tools/install-skills.sh <span class="at">--destination</span> /path/to/repo</span></code></pre></div>
 <p>Whether to commit the installed <code>.claude/skills/llmeval-*</code>
 folders or add them to <code>.gitignore</code> is the repository's
 choice: committing makes them travel to everyone who clones, at the cost
@@ -834,9 +877,9 @@ explains why.</p>
 <p>One broad round ranks a field; it rarely separates the top of it. The
 second round narrows and deepens, and it is one option plus one
 number:</p>
-<div class="sourceCode" id="cb13"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>SeedFrom <span class="op">=</span> <span class="st">&quot;&lt;the previous run&#39;s results.json&gt;&quot;</span><span class="op">,</span>   <span class="co">// null is round 1</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>TopK <span class="op">=</span> <span class="dv">3</span><span class="op">,</span>                                         <span class="co">// per role, on top of the incumbent</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>SeedFrom <span class="op">=</span> <span class="st">&quot;&lt;the previous run&#39;s results.json&gt;&quot;</span><span class="op">,</span>   <span class="co">// null is round 1</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>TopK <span class="op">=</span> <span class="dv">3</span><span class="op">,</span>                                         <span class="co">// per role, on top of the incumbent</span></span></code></pre></div>
 <p>With <code>SeedFrom</code> set the runner keeps the top
 <code>TopK</code> per role by cost per pass <strong>among the candidates
 that reached the parity win rate over at least the minimum
@@ -861,20 +904,20 @@ arrived.</p>
 finished run looks like</h3>
 <p><code>summary.md</code> opens with the run's own facts, and those six
 lines are what a findings entry quotes:</p>
-<div class="sourceCode" id="cb14"><pre
-class="sourceCode md"><code class="sourceCode markdown"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 20260917-101500</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>48 cells: 46 succeeded, 2 failed, 0 unsupported.</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 3.884000, actual 1.902144.</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (not billed).</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>6 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode md"><code class="sourceCode markdown"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 20260917-101500</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>48 cells: 46 succeeded, 2 failed, 0 unsupported.</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 3.884000, actual 1.902144.</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (not billed).</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>6 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
 <p>Then <code>## Selection</code>, which is the answer the run exists
 for: the parity pick, the upgrade pick, any dominators, and a table
 carrying each candidate's pooled sample count, win rate, Wilson 95

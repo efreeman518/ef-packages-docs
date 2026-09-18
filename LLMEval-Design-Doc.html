@@ -663,8 +663,9 @@ pairwise comparison, round seeding, tag-based field selection, the
 ceiling and the estimate.</p>
 <h4 id="where-the-settings-go-on-and-what-is-recorded">Where the
 settings go on, and what is recorded</h4>
-<p>Per cell, top to bottom: recorder, then the entry's settings, then
-the capability stripper, then the client.</p>
+<p>Per cell, top to bottom: recorder, the entry's settings, the
+application's own configured request defaults for that role, the
+capability stripper, the client.</p>
 <ol type="1">
 <li><strong>The entry wins</strong> over the application where the two
 disagree. An entry that could not override the application would not be
@@ -698,6 +699,62 @@ entry on the request it will actually send - a variant that caps output
 shorter is a cheaper candidate before it runs.</p>
 <p>The incumbent never carries settings. What the application sends
 today is what it is measured on.</p>
+<h4
+id="the-applications-own-defaults-for-the-settings-it-no-longer-pins">The
+application's own defaults, for the settings it no longer pins</h4>
+<p>This package tells an application to move a pinned setting out of its
+call sites and into the <code>Defaults</code> block of its agent's
+<code>EFAI:Agents</code> entry, where an evaluation can vary it. An
+application that does so stops setting the member in
+<code>ChatOptions</code>, and a sweep's candidate clients are built from
+roster connections that carry no defaults, so a run that did nothing
+about it would send no effort at all: the whole field, incumbent first,
+measured at whatever the provider does by itself, while production sends
+the configured value. Following the guidance would have broken the
+measurement it exists to protect.</p>
+<p><code>EvalRoleBinding.WithApplicationDefaults(provider)</code> closes
+that. <code>AddEFChatClients</code> registers the merged
+connection-and-agent settings as named <code>EFChatClientSettings</code>
+options under the agent key, so the binding reads the object the
+application's own client is built from rather than a copy restated in
+the roster - the copy is what goes stale the day production changes the
+configuration, and the staleness would be invisible.
+<code>EvalHost.Episode</code> carries them onto
+<code>EvalEpisode.RoleDefaults</code>, because the sweep builds the
+client chain and never sees the binding.</p>
+<p>The position in the chain is the whole design, and every other
+position is wrong in a way no number in the report would show:</p>
+<ul>
+<li><strong>Above the entry's settings</strong> and a setting variant
+would measure the configured value instead of its own, and
+<code>RequestSettings.Apply</code> would note the variant as overriding
+a value <code>pinned by the application</code> - which is exactly
+backwards, since the application no longer pins it.</li>
+<li><strong>Above the recorder</strong> and
+<code>ChatCall.Options</code> would claim the application asked for the
+defaults. That is what wrapping the bound client from the application
+side does, which is why it is not the fix it looks like.</li>
+<li><strong>Below the stripper</strong> and a candidate that cannot
+honour a configured member would lose the cell to a parameter rejection
+instead of running without it and saying so.</li>
+</ul>
+<p>The spend estimate prices the completed request rather than the
+probed one: an output cap or a reasoning effort configured per agent is
+what the cell will send, and a ceiling that priced the probe's request
+would authorise a run a hundred times its own size. A role with no
+configured defaults is not wrapped at all and sends the application's
+own <code>ChatOptions</code> instance by reference.</p>
+<p>Nothing about it is silent. <code>summary.md</code> and
+<code>report.html</code> print
+<code>production defaults applied to &lt;role&gt;: ReasoningEffort=Low (from EFAI:Agents:&lt;key&gt;)</code>
+in the header ahead of the cell counts, <code>results.json</code>
+carries the list, the roster table's Settings column reads
+<code>as the application sends; see the production defaults in the header</code>
+for a plain entry (the column is keyed by entry and the defaults are per
+role, so it points rather than restates), and a configured member a
+candidate refuses is counted in the dropped-settings line like any
+other. A role expected to carry defaults and absent from those lines
+names a service key the application does not register.</p>
 <h4 id="rules-so-a-field-can-enumerate-settings">Rules, so a field can
 enumerate settings</h4>
 <p><code>SettingVariants.Expand</code> turns rules declared in the
