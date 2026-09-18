@@ -31,8 +31,8 @@ href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval
 <h3 id="table-of-contents">Table of Contents</h3>
 <ol type="1">
 <li><a href="#1-budgets-and-ceilings">Budgets and ceilings</a></li>
-<li><a href="#2-judge-cost-and-the-not-billed-case">Judge cost, and the
-not-billed case</a></li>
+<li><a href="#2-judge-cost-and-what-the-subscription-pays">Judge cost,
+and what the subscription pays</a></li>
 <li><a href="#3-pacing-and-429s">Pacing and 429s</a></li>
 <li><a href="#4-resuming-and-what-invalidates-a-cache">Resuming, and
 what invalidates a cache</a></li>
@@ -47,9 +47,31 @@ measured field</a></li>
 <h3 id="1-budgets-and-ceilings">1. Budgets and ceilings</h3>
 <p><strong>The ceiling is a hard limit, not a starting bid.</strong> The
 whole matrix is priced before a single call is sent, and a plan whose
-estimate exceeds the ceiling is refused with a full breakdown. The
-correct response to a refusal is almost always to cut a dimension, not
-to raise the number.</p>
+expected new spend exceeds the ceiling is refused with a full breakdown.
+The correct response to a refusal is almost always to cut a dimension,
+not to raise the number.</p>
+<p><strong>Three numbers, and the ceiling is about the third.</strong>
+The plan reports the whole matrix's estimate, the part of it the
+candidate cache already holds, and the difference. A cached cell replays
+from disk and costs nothing, so raising a repeat count on a storage root
+that already carries the earlier repeats buys only the new ones - and
+checking the full estimate refused such a re-run at a ceiling the real
+spend would have fitted under three times over. The cache is read, never
+written, while the plan is made, and an index that finds nothing prices
+the whole matrix, so this errs towards refusing rather than towards
+overspending. The mid-flight ceiling follows the same rule: a cell the
+plan counted as a replay reserves nothing against the limit, and a cell
+that then misses is reconciled at its real cost.</p>
+<p><strong>A replay is not a bill.</strong> A cell answered entirely
+from the candidate cache is marked <code>ServedFromCache</code>, is
+still priced on its own row at what it would cost live - which is what
+the leaderboard ranks on - and contributes nothing to the run's actual
+spend. Both reports print
+<code>actual spend X, of which Y was served from the cache at no cost</code>,
+so a re-run that measured a whole field for nothing reads as exactly
+that rather than as a second bill. Whether a cell replayed is read from
+a counter below the caching client, which counts the calls that actually
+reached the provider; nothing here guesses from latency.</p>
 <p>A matrix is cells times repeats, and cells are (workloads or
 episodes) times (candidates or assignments) times variants. Each factor
 multiplies:</p>
@@ -90,8 +112,17 @@ reasoning models generally reject temperature controls</td>
 </table>
 <p><strong>Dry-run first, always.</strong> A dry run walks the probe,
 the per-model request trimming and the estimate, records every cell as
-skipped, and sends nothing. It is free and it is the only honest preview
-of a matrix's cost. Run one before every live sweep.</p>
+skipped, and sends nothing. It costs no model calls and it is the only
+honest preview of a matrix's cost. Run one before every live sweep.</p>
+<p>Its <code>summary.md</code> says what the real run would be: the
+ceiling it was priced against, the production defaults every cell would
+apply, the set-aside table, the round that narrowed the field and the
+pacing counters, with the roster line reading <code>would run</code>
+rather than <code>ran</code>. The three files go into a
+<code>dry-run</code> subfolder of whatever output directory the harness
+names, so the preview cannot overwrite the report of the run it precedes
+- which is what a harness naming one folder per execution would
+otherwise do.</p>
 <p><strong>Declare expected output tokens.</strong> Without them, a
 workload is priced at its requested token ceiling, which it may never
 approach. That can overstate a sweep several-fold and refuse a run that
@@ -106,8 +137,8 @@ cells can each clear the ceiling check before any of them has spent
 anything. Where cells share one ceiling, run them one at a time, and
 turn off test parallelisation in a test project that shares one.</p>
 <hr />
-<h3 id="2-judge-cost-and-the-not-billed-case">2. Judge cost, and the
-not-billed case</h3>
+<h3 id="2-judge-cost-and-what-the-subscription-pays">2. Judge cost, and
+what the subscription pays</h3>
 <p>The judge answers for <strong>every</strong> cell of the matrix, so
 on any sweep of size it is the bulk of the work:</p>
 <ul>
@@ -119,15 +150,18 @@ own cells.</li>
 exchange, which it does by default for a persona with no model cast for
 its role.</li>
 </ul>
-<p>None of it is money. The judge is the Claude Code harness subagent
-draining the file exchange, there is no API judge to select, and judging
-is left out of the spend estimate rather than priced at zero.</p>
-<p><strong>Cost is reported as not billed, never as zero:</strong> the
-summary reads
-<code>Judge: Claude Code harness subagent (not billed).</code>, and the
-report names the runner from the drainer's own heartbeat. Do not paper
-over that in a finding by writing zero, and do not read it as free: the
-judging was paid for, in quota, by whoever drained the queue.</p>
+<p>None of it is money, and none of it is free. The judge is the Claude
+Code harness subagent draining the file exchange, there is no API judge
+to select, and judging is left out of the spend estimate rather than
+priced at zero - what it consumes instead is the tokens of the
+subscription running the harness.</p>
+<p><strong>Cost is reported as outside the eval's spend, charged to the
+harness subscription, never as zero:</strong> the summary reads
+<code>Judge: Claude Code harness subagent (outside the eval's spend, charged to the harness subscription).</code>
+with the judge-answer count on the line beside it, and the report names
+the runner from the drainer's own heartbeat. Do not paper over that in a
+finding by writing zero, and do not read it as free: a thousand-cell
+round is roughly two thousand judge answers of somebody's allowance.</p>
 <p><strong>There is no fallback.</strong> With no drainer online (none
 started, or a heartbeat past the staleness bound) the sweep stops with
 <code>No judge agent is draining {root}</code> rather than finding a
@@ -143,8 +177,8 @@ same session deadlock, each waiting for the other.</li>
 Refresh the heartbeat on every pass, including empty ones, or the
 exchange will refuse to queue.</li>
 </ol>
-<p>Draining is quota, not free. A long sweep is a long agent
-session.</p>
+<p>Draining is the subscription's tokens and its session time, not free.
+A long sweep is a long agent session.</p>
 <h4 id="disagreeing-with-a-verdict">Disagreeing with a verdict</h4>
 <p>Delete the one reply file and re-run: that question is asked again.
 Delete the whole done folder and everything is re-asked. Request files
@@ -412,10 +446,10 @@ finding is written from.</p>
 <tbody>
 <tr class="odd">
 <td><code>summary.md</code></td>
-<td>The banner - cells, spend, who judged and that it was not billed,
-pacing, anything dropped or stopped - then one table per scenario and
-variant ranked by cost per passing generation, then the selection
-section</td>
+<td>The banner - cells, spend, who judged and how many answers that took
+on the harness subscription, pacing, anything dropped or stopped - then
+one table per scenario and variant ranked by cost per passing
+generation, then the selection section</td>
 </tr>
 <tr class="even">
 <td><code>results.json</code></td>

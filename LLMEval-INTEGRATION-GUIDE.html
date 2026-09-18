@@ -52,8 +52,9 @@ judge.</td>
 <tr class="odd">
 <td>What it costs</td>
 <td>The candidate calls, capped by a spend ceiling priced before
-anything is sent. The judging is subscription quota and is reported as
-not billed, never as zero.</td>
+anything is sent, and the judge answers on top - outside that spend and
+charged to the harness subscription, about two per candidate cell,
+reported as a count beside the spend line and never as zero.</td>
 </tr>
 <tr class="even">
 <td>What comes out</td>
@@ -75,6 +76,75 @@ and needs a seam first.</td>
 </tr>
 </tbody>
 </table>
+<p>Every term of art in this guide has a one-line definition in the <a
+href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval/README.md#glossary">README
+glossary</a>.</p>
+<hr />
+<h3 id="getting-started">Getting started</h3>
+<h4
+id="where-this-package-joins-an-application-that-already-uses-llms">Where
+this package joins an application that already uses LLMs</h4>
+<p>An application that registers its chat clients through EF.AI's
+<code>AddEFChatClients</code> has one <strong>keyed
+<code>IChatClient</code> per agent</strong>, under that agent's key in
+the <code>EFAI:Agents</code> block. <em>That keyed registration is the
+seam.</em> For every cell, <code>EvalHost.CreateServices</code> builds
+the application's own service collection,
+<code>EvalCellServices.AddRoleClients</code> removes the keyed client
+for each eval role and registers the candidate under test under the same
+key - wrapped in the recorder, the roster entry's setting variant, that
+role's production defaults and the capability stripper - and then the
+workload calls the application's <strong>own</strong> entry point, the
+service or handler a request calls. The real prompts, tools, multi-agent
+sequencing, persistence and gates all run; only the model behind each
+role is swapped.</p>
+<p>What that buys: nothing is re-implemented in the harness, so a prompt
+or an orchestration change in production is measured by the next run
+without anybody editing the eval, and the incumbent is what actually
+ships.</p>
+<p>What it requires: the EF.AI registration exists first; the agent keys
+are stable, because a role binds to a key and a renamed key is a cell
+talking to the live endpoint; request settings live in the agent's
+<code>Defaults</code> block so the seam can vary them per cell; and each
+workload is a call to the production entry point, with doubles only for
+infrastructure a cell cannot have. See <a
+href="LLMEval-Design-Doc.html#35-the-composition-seam">design doc
+section 3.5</a> for why it is shaped that way, and Step 3 below for the
+code.</p>
+<h4 id="before-you-start">Before you start</h4>
+<ol type="1">
+<li><strong>Register the application's chat clients through EF.AI
+first</strong> - <code>AddEFChatClients</code> over an
+<code>EFAI:Connections</code> and <code>EFAI:Agents</code> block, one
+keyed <code>IChatClient</code> per agent, secrets in user secrets or the
+environment. The harness binds each eval role to an agent key and reads
+that agent's <code>Defaults</code>, so this is not optional.</li>
+<li><strong>Keep request settings out of the call sites</strong>, in the
+agent's <code>Defaults</code> block, or every cell that measures one is
+recorded as
+<code>setting overridden: ... (pinned by the application)</code>.</li>
+<li><strong>Put the package feed in <code>NuGet.config</code> and the
+credential in the user-level config</strong>, never in the
+repository.</li>
+<li><strong>For a Foundry or Azure-backed connection,
+<code>az account get-access-token</code> has to succeed first</strong>:
+such a connection runs as whoever is signed in locally.</li>
+<li><strong>Know what the judge costs.</strong> It is a Claude Code
+subagent draining the file exchange: outside the eval's dollar spend,
+and charged to the harness subscription at about two judge answers per
+candidate cell plus a proposal request per scenario and a hints request
+per vendor family. A 1000-cell round is roughly two thousand judge
+answers.</li>
+<li><strong>Plan for the samples rule.</strong> A selection needs
+<code>SelectionOptions.MinSamples</code> (6) judged comparisons per
+candidate: fixtures x repeats for single-shot scenarios, repeats alone
+for a single-fixture episode. Plan 6 repeats or two fixtures, and pass
+every fixture to one call.</li>
+<li><strong>Pass an <code>ILogger</code> to
+<code>SweepRunner</code>.</strong> The packed template does. Without it
+the plan line, the pacing, the dropped settings and every limitation the
+runner reports are discarded.</li>
+</ol>
 <hr />
 <h3 id="what-to-install">What to install</h3>
 <table>
@@ -682,17 +752,21 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href=
 <h4 id="who-judges-and-who-pays">Who judges, and who pays</h4>
 <p>The judge is the Claude Code harness subagent, draining the file
 exchange, and there is nothing else to select: no API judge, no
-connection entry, no judge price. Judging is subscription quota and is
-reported as <strong>not billed</strong>, never as zero. With no drainer
-online the sweep stops with a reason rather than finding a paid endpoint
-to use instead. See <a
+connection entry, no judge price. Judging is reported as <strong>outside
+the eval's spend, charged to the harness subscription</strong>, never as
+zero and never as free: it consumes that subscription's tokens, and both
+reports print the judge-answer count beside the spend line. With no
+drainer online the sweep stops with a reason rather than finding a paid
+endpoint to use instead. See <a
 href="LLMEval-Design-Doc.html#8-the-judge-exchange">design doc section
 8</a>.</p>
-<p>Budget the drainer's time before running: two judge calls per
-non-incumbent cell, plus one per cell if a rubric score is attached,
-plus one per persona turn when the simulated human goes through the same
-exchange. On any matrix of size, the judging is the bulk of the
-queue.</p>
+<p>Budget the drainer's time and that subscription's allowance before
+running: two judge calls per non-incumbent cell, plus one per cell if a
+rubric score is attached, plus one per persona turn when the simulated
+human goes through the same exchange, plus a proposal request per
+scenario and a hints request per vendor family when those are on. On any
+matrix of size, the judging is the bulk of the queue: a thousand-cell
+round is roughly two thousand judge answers.</p>
 <hr />
 <h3 id="step-9-run-it">Step 9. Run it</h3>
 <h4 id="from-claude-code-with-the-skills">From Claude Code, with the
@@ -909,15 +983,16 @@ class="sourceCode md"><code class="sourceCode markdown"><span id="cb16-1"><a hre
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>48 cells: 46 succeeded, 2 failed, 0 unsupported.</span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 3.884000, actual 1.902144.</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (not billed).</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>6 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
-<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
-<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (outside the eval&#39;s spend, charged to the harness subscription).</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>Judge answers: 24 through the Claude Code exchange, outside the spend above, charged to the harness subscription.</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>6 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
 <p>Then <code>## Selection</code>, which is the answer the run exists
 for: the parity pick, the upgrade pick, any dominators, and a table
 carrying each candidate's pooled sample count, win rate, Wilson 95
