@@ -52,26 +52,74 @@ The correct response to a refusal is almost always to cut a dimension,
 not to raise the number.</p>
 <p><strong>Three numbers, and the ceiling is about the third.</strong>
 The plan reports the whole matrix's estimate, the part of it the
-candidate cache already holds, and the difference. A cached cell replays
-from disk and costs nothing, so raising a repeat count on a storage root
-that already carries the earlier repeats buys only the new ones - and
-checking the full estimate refused such a re-run at a ceiling the real
-spend would have fitted under three times over. The cache is read, never
-written, while the plan is made, and an index that finds nothing prices
-the whole matrix, so this errs towards refusing rather than towards
-overspending. The mid-flight ceiling follows the same rule: a cell the
-plan counted as a replay reserves nothing against the limit, and a cell
-that then misses is reconciled at its real cost.</p>
-<p><strong>A replay is not a bill.</strong> A cell answered entirely
-from the candidate cache is marked <code>ServedFromCache</code>, is
-still priced on its own row at what it would cost live - which is what
-the leaderboard ranks on - and contributes nothing to the run's actual
-spend. Both reports print
-<code>actual spend X, of which Y was served from the cache at no cost</code>,
+candidate cache already holds, and the difference. A replayed call costs
+nothing, so raising a repeat count on a storage root that already
+carries the earlier repeats buys only the new ones - and checking the
+full estimate refused such a re-run at a ceiling the real spend would
+have fitted under three times over. The cache is read, never written,
+while the plan is made, and an index that finds nothing prices the whole
+matrix, so this errs towards refusing rather than towards
+overspending.</p>
+<p><strong>Expected new spend is an estimate, not a bound - size a
+ceiling with headroom over it.</strong> The plan counts the cache per
+call: it stores one entry per request, so an episode role with three
+unexpired entries and twenty calls to make is credited with three of
+them rather than with the whole role. An entry past its stored
+expiration, or one whose folder cannot be read, is not counted - the
+count errs towards pricing more of the matrix. What the plan cannot do
+is ask whether the entries on disk are the answers to the requests
+<em>this</em> run will send: computing that key would be a second
+implementation of the caching client's own hashing, and it would not
+help anyway, because an episode's later requests do not exist until the
+conversation happens. So the figure errs in both directions: a cell
+whose prompts moved on since the last run is counted as cached and is
+then charged in full, and a cell counted as new that replays half its
+calls is charged for half. A ceiling set to the expected new spend
+exactly is a ceiling a prompt edit can stop the run against.</p>
+<p><strong>Cached entries are never pruned, and a cell holding more than
+it can use is credited nothing.</strong> Every distinct request a cell
+has ever sent stays on disk. After a few prompt edits a one-call cell
+holds three or four answers, none of which anybody will ask for again,
+and crediting them would price the matrix at nothing - which lets even a
+zero ceiling through. A cell whose unexpired entry count exceeds the
+calls it can make is therefore priced as new, and the plan logs a
+warning naming how many cells or roles that happened to. The fix when it
+appears is to delete the <code>candidates</code> folder under the
+storage root, which prices the next matrix against a clean cache.</p>
+<p><strong>The mid-flight ceiling is the exact one.</strong> Each cell
+reserves what the plan expects it to spend and is reconciled, as soon as
+it settles, to what its calls that actually reached a provider cost.
+That is per call: an episode of twenty calls that replayed nineteen and
+sent one is charged for one call. Charging the whole cell because one
+call missed billed a real run about eight times what it spent and
+stopped it at a 2.00 ceiling after 34 of 259 cells. When the ceiling
+does stop a run, its reason names both figures - what was charged to
+providers and what the run replayed at no cost - because a ceiling
+reached on a mostly replayed matrix is a ceiling sized against the wrong
+number.</p>
+<p><strong>A replay is not a bill.</strong> Every row is priced at what
+its calls would cost live (<code>Cost</code>), which is what the
+leaderboard and the cost per pass rank on: a model is not cheaper
+because this run had its answers on disk. What was charged is
+<code>LiveCost</code>, the difference is <code>CachedCost</code>, and an
+episode splits both per role in <code>RoleCosts</code> and
+<code>RoleLiveCosts</code>. Both reports print
+<code>charged X to providers, with a further Y replayed from the cache at no cost</code>,
 so a re-run that measured a whole field for nothing reads as exactly
-that rather than as a second bill. Whether a cell replayed is read from
-a counter below the caching client, which counts the calls that actually
-reached the provider; nothing here guesses from latency.</p>
+that rather than as a second bill. <code>ServedFromCache</code> still
+marks a cell whose <em>every</em> call replayed, and
+<code>ReplayedCalls</code> says how many did, which is what the reports
+key the row note on so that an unpriced model's replayed rows still say
+they replayed. Whether a call replayed is read from a probe below the
+caching client, which marks the call in flight when it reaches the
+provider; nothing here guesses from latency.</p>
+<p><strong>A failed cell is charged for what it sent.</strong> A cast
+whose drafter answered and whose reviewer threw was billed for the
+drafter, so the run is charged for it and the ceiling counts it. The
+alternative - charging a failed cell nothing - let a sweep against a
+model that errors run past its ceiling while paying for every attempt.
+Failed cells stay out of the cost per pass and the mean cost, both of
+which count cells that succeeded.</p>
 <p>A matrix is cells times repeats, and cells are (workloads or
 episodes) times (candidates or assignments) times variants. Each factor
 multiplies:</p>

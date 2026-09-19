@@ -1073,7 +1073,9 @@ edits the original.</p>
 whole matrix is priced before anything is sent. A price that cannot be
 resolved stays unknown and the model is excluded from the cost ranking,
 never treated as free. The spend ceiling is checked against the estimate
-before the first call.</p>
+before the first call, and again against every call that reaches a
+provider while the run is going on - a replayed call is not a bill, and
+a cell is charged for what it sent rather than for what it is worth.</p>
 <p><strong>Nothing is silently downgraded, guessed or hidden.</strong> A
 model that cannot honour part of the probed request has that part
 removed and is called anyway, with the removal on its record: the member
@@ -1461,9 +1463,10 @@ without the incumbent's answer on disk there is nothing to compare
 against.</p>
 <p><strong>5. Cells.</strong> Each cell runs the workload once, through
 a recording client that captures every request and response, under the
-concurrency cap and the per-minute pacer. With response caching on, a
-cell whose request matches a cached response replays it at no model
-cost.</p>
+concurrency cap and the per-minute pacer. With response caching on, each
+call whose request matches a cached response replays it at no model
+cost, and the cell is charged for the calls that did reach the
+provider.</p>
 <p><strong>6. Recorders and evaluators.</strong> Every result is scored
 by the workload's own evaluators plus the package's built-ins.
 Deterministic evaluators run first and cost nothing; judged evaluators
@@ -2032,8 +2035,27 @@ file re-asks that one turn.</td>
 <p><strong>What a rerun re-pays.</strong> Re-running after a scorer
 change, a report change or an interruption costs nothing for any cell
 that finished. Re-running after a prompt edit re-pays the affected
-candidate cells, and re-asks the judging that depended on them - in the
-drainer's time rather than in money.</p>
+candidate <strong>calls</strong>, not the cells they are in, and re-asks
+the judging that depended on them - in the drainer's time rather than in
+money. That distinction is the accounting: a probe below the caching
+client marks each call that reaches the provider, and a cell is charged
+for the calls it sent. An episode of twenty calls that replayed nineteen
+and sent one is a bill for one call; charging it in full billed a real
+run about eight times what it spent and stopped it at its ceiling after
+34 of 259 cells. The notional price of every call stays on the row,
+because a model is not cheaper because this run had its answers on disk,
+and that is the number the cost per pass ranks on.</p>
+<p>The plan's own cache arithmetic is coarser than this and says so. It
+counts the unexpired entries a cell already holds - one per stored
+request - so it can price a role with three entries and twenty calls to
+make as three, but it cannot ask whether those entries are the answers
+to the requests this run will send. Nothing prunes them either, so a
+cell that has seen a prompt edit holds answers nobody will ask for
+again; a cell holding more entries than it can use is credited nothing
+and the plan warns, because crediting it would price the matrix at
+nothing and let any ceiling through. Expected new spend is therefore an
+estimate and neither a floor nor a ceiling, and the mid-flight ceiling,
+which charges what actually reached a provider, is the exact one.</p>
 <p>Caching is on by default because it makes iteration free. Turn it off
 to measure latency or run-to-run variance, both of which a cache
 falsifies, and remember that a cache-served cell reports no upstream
@@ -2047,9 +2069,10 @@ the order that decision is made in:</p>
 <ol type="1">
 <li><strong>Header</strong> - execution, workload, render date in UTC,
 package version, the judge line word for word as the summary prints it,
-actual spend against the ceiling it was given, and the cell counts
-including how many ran with a setting dropped or a declared requirement
-unmet.</li>
+charged spend against the ceiling it was given - with what the run
+replayed from the cache beside it, named as a separate figure rather
+than as part of the charge - and the cell counts including how many ran
+with a setting dropped or a declared requirement unmet.</li>
 <li><strong>Recommendations</strong> - one cost-versus-quality chart per
 role, above everything else. Cost per passing generation on x, pooled
 win rate against the incumbent on y, the Wilson 95% interval as a bar
