@@ -968,6 +968,17 @@ request it sends;</li>
 exceed it, because a matrix quietly shortened is a matrix nobody can
 read.</li>
 </ul>
+<p>It is a single-shot mechanism and is <strong>not supported for an
+episode sweep</strong>. A proposal is asked about one scenario's
+editable prompts and admitted as an extra variant for the models that
+ran it; an episode's prompts belong to a conversation across several
+roles, and which role's wording a comparison turned on is what a
+transcript cannot say. An episode sweep with the option on runs and
+charges nothing extra for it, and records a refused proposal saying so
+on the report and in <code>results.json</code> - on a dry run as well as
+a live one, since a log line in a background run is a silent no-op to
+whoever reads the report. Vary an episode's prompts with explicit prompt
+variants instead.</p>
 <p>Admitted variants run for the same models and repeats as the baseline
 variant, in a second pair of batches under the same stop and the same
 running spend total, and are judged pairwise like any other cell. A
@@ -1304,6 +1315,13 @@ makes two candidate models comparable. A model-backed persona is
 available where a script cannot carry the variation, and it is priced
 under its own role name so a chatty persona never inflates what the
 workload appears to cost.</p>
+<p>The sweep takes one factory for the whole run, which is right for a
+persona - one brief across the round - and wrong for a script. A
+scripted conversation belongs to its fixture, so an episode may carry a
+factory of its own that wins over the sweep's; without it, a
+multi-fixture round either says one fixture's lines to all of them or
+says nothing to most of them. Either factory is called once per cell,
+because a scripted human holds its position in its script.</p>
 <p>One refusal is worth knowing about before it bites: a workload that
 declares a human turn, or more than one role, with <strong>no</strong>
 human simulator configured anywhere is refused rather than run. With a
@@ -1521,7 +1539,21 @@ one:</p>
 not-applicable with a reason, never 0.5.</li>
 <li>A missing incumbent result (that cell failed, was skipped on the
 ceiling, or would not read back) is not-applicable with a reason naming
-which. It is never a failed candidate.</li>
+which. It is never a failed candidate. For an episode the test is that
+cell's <strong>conversation</strong> rather than its final response
+text: a cell that finished on a tool call with no text still had the
+exchange the rubric is about. Nothing substitutes another iteration for
+it, because a comparison against a different repeat is a different
+measurement wearing the same number.</li>
+<li>An exchange that <strong>renders to nothing</strong> - no message
+and no final response carrying text or a tool call, after the shared
+brief is taken out - is not-applicable on either side, and is never
+scored as a loss for the side that was empty. Sending a placeholder line
+instead asked the judge to compare a conversation against a hole, which
+it answers identically in both orderings: a fabricated win that then
+counted toward the minimum sample count. A candidate that produced
+nothing is already failed by the hard gates, which is where a cell with
+no output belongs.</li>
 <li>A judge reply that is not exactly one of the three expected verdicts
 is reported with an unknown rating and an error diagnostic, never read
 as a tie.</li>
@@ -1532,6 +1564,36 @@ kept.</li>
 href="#7-throttle-and-continue">section 7</a> is exhausted,
 <strong>stops the sweep</strong>. See below for why.</li>
 </ul>
+<h5 id="an-episode-is-two-complete-exchanges">An episode is two complete
+exchanges</h5>
+<p>A single-shot cell and its incumbent answered one identical request,
+so the judge is shown that request once with two answers under it. An
+episode did not. Its incumbent had a conversation of its own - its own
+human turns, its own intermediate answers - and its closing message was
+written at the end of that conversation.</p>
+<p>So an episode's comparison shows the judge <strong>two complete
+exchanges</strong>, A and B, each self-contained, and asks which better
+meets the rubric. Anything genuinely identical to both, which in
+practice is the brief or system prompt, is stated once above them;
+anything less than byte-identical stays inside its own exchange, because
+a brief hoisted above two exchanges that were not both given it is the
+same error in miniature. Both orderings are still judged and
+averaged.</p>
+<p><strong>Changed in this version, and it invalidates earlier
+numbers.</strong> Before this, an episode's comparison built one task
+section from the <em>candidate</em> cell's messages and showed both
+closing answers under it. The incumbent's answer was therefore judged
+against a conversation it never had, which reads as a model recalling
+things nobody said; and because swapping the orderings reuses the same
+candidate transcript, the bias was applied twice rather than cancelled.
+Measured on a real multi-turn sweep, casts whose compared role was
+identical to the incumbent won 0.89 over n=55 where 0.5 is the only
+honest answer, and 56 of 179 judge reasons said the losing side recalled
+facts that appeared nowhere in front of the judge. <strong>Episode
+pairwise win rates from 1.0.189 and earlier are biased toward the
+candidate and must not be used for a decision.</strong> Single-shot win
+rates are unaffected: that form is unchanged and is covered by its own
+tests.</p>
 <h4 id="54-judge-accounting">5.4 Judge accounting</h4>
 <p>The volume is two judge calls per non-incumbent cell, plus one per
 cell carrying a rubric score (the incumbent's cells included, since they
@@ -1594,6 +1656,22 @@ not: a variant is a different question and gets its own group.</p>
 workloads behind it, its win rate and a Wilson 95 percent interval over
 the pooled n. The interval is there because the win rate alone invites a
 decision the sample cannot support.</p>
+<p><strong>Usable incumbent iterations.</strong> A sample count says how
+many comparisons a candidate got; it does not say how many it could ever
+have got. Every candidate's comparison reads the incumbent's own cell
+for that iteration, so one unusable incumbent iteration removes a
+comparison from every candidate at once - six repeats on one fixture
+came back as five against a minimum of six, and the report refused to
+decide after the run had been paid for, with nothing in it saying that
+the shortfall was one incumbent cell rather than the field. Each group
+therefore reports, per workload, how many of the incumbent's repeats
+left something to compare against, k of n, counted by the same test the
+runner applies when it reads that cell back. Their sum is the ceiling on
+every candidate's pooled n, and both reports print it beside the
+minimum. The pre-flight states the same ceiling before anything is sent
+- workloads times repeats against the minimum - warning when it is
+below, and warning again when it lands exactly on it, which is a run
+with no margin for a single unusable incumbent iteration.</p>
 <p>Two refusals guard the output:</p>
 <ul>
 <li>Below the minimum sample count the group reports
@@ -1653,6 +1731,20 @@ combination". Two are taken before the cap rather than rescued after it:
 the incumbent, and the combined best, which is the cast a per-role
 leaderboard would have recommended on its own and therefore the one this
 pass exists to check.</p>
+<p>A pass two with nothing to verify is refused rather than returned: a
+plan holding only the incumbent prices a sweep that judges it against
+itself and can select nothing. The refusal names each role with its best
+candidate, that candidate's win rate and the comparisons behind it,
+because the two ways to arrive there need opposite responses - a best
+short of the minimum is a thin measurement wanting more repeats or
+fixtures, a best that had the comparisons and lost them is the decision.
+A plan over casts somebody names explicitly, with no prediction attached
+to any of them, exists for the one case the evidence rule should not
+block: pricing a pass two as a dry run before there is any evidence to
+plan one from. Such a plan is marked as what it is and <strong>refused
+on a live run</strong>, because run for real it produces a recommended
+cast and an upgrade pick that read exactly like measured ones over casts
+nothing selected.</p>
 <p><strong>The interaction effect is the output.</strong> Each
 combination carries a predicted win rate, computed from the per-role
 results as a product of independent odds. Odds rather than a mean of the
@@ -1805,8 +1897,9 @@ completely different replies:</p>
 <td>a verdict on somebody else's answer, against the rubric in front of
 it</td>
 <td>bare JSON, <code>{"verdict":"A"|"B"|"TIE","why":...}</code> for a
-pairwise prompt, <code>{"score":1-5,"why":...}</code> for a rubric
-one</td>
+pairwise prompt - one request with two answers, or, for an episode, two
+complete exchanges - and <code>{"score":1-5,"why":...}</code> for a
+rubric one</td>
 </tr>
 <tr class="even">
 <td><code>human</code></td>
