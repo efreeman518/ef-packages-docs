@@ -1947,6 +1947,20 @@ the pending folder is the audit trail of what was actually asked.</p>
 <p>That design makes disagreeing with a verdict a file operation: delete
 the one reply and re-run, and the question is asked again. Delete the
 folder and everything is re-asked.</p>
+<p>The model in the hash is never one the package supplies. The package
+cannot know which model a subagent runs until it says so, so the drainer
+names its own model in the heartbeat, and a run with no pin addresses
+every request to that model; a pin is checked against it and refused
+when the two differ. The run settles it once, before its first request,
+so one run's answers are never split across two judges, and a drainer on
+a new model re-judges rather than replaying another model's verdicts
+under its own name. A heartbeat that names no model, from a drainer on
+an older brief, is refused rather than guessed at: the older brief
+handed every drainer the same model name, whatever it really was. A run
+the runner itself will judge is refused before any cell runs, so a judge
+it cannot settle costs nothing; and a live drainer naming a model other
+than the settled one stops the run at once, naming both, since it will
+not answer requests addressed to another model.</p>
 <h4 id="83-heartbeat-and-fail-fast">8.3 Heartbeat and fail-fast</h4>
 <p>The agent writes a heartbeat before its first pass and refreshes it
 on <strong>every</strong> pass, empty ones included. Without a heartbeat

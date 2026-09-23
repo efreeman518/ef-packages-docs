@@ -235,9 +235,11 @@ actually asked.</p>
 <h4 id="reproducibility">Reproducibility</h4>
 <p>There is no model pin behind a subscription agent. A run is
 reproducible only in the sense that its reply files were kept, which is
-why they are kept. Record the judge and the date in every finding, and
-never compare win rates across runs whose judge was a different
-thing.</p>
+why they are kept. Record the judge as the report's judge model line
+names it, and the date, in every finding, and never compare win rates
+across runs whose judge was a different thing. The judge is the model
+the drainer names unless the harness pins one, so a series of rounds
+that must stay comparable pins it.</p>
 <hr />
 <h3 id="3-pacing-and-429s">3. Pacing and 429s</h3>
 <p>Pacing comes first and is not retrying. Two caps apply: one per

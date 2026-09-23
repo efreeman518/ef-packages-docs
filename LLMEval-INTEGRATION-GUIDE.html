@@ -733,11 +733,14 @@ sweep options (for an episode, the incumbent assignment). Its cells run
 first as one batch, and every other cell is judged against its answer to
 the same workload, variant and iteration.</p>
 <p><strong>The judge</strong> is the harness subagent, and nothing
-configures it beyond where its exchange lives. What is worth a moment is
-the incumbent: a candidate from the judge's own vendor family is flagged
-in the selection report, and that flag is placed from
-<code>JudgeModelId</code>. Attach the pairwise evaluator with the rubric
-and leave the judging out of the budget - it is quota, not money.</p>
+configures it beyond where its exchange lives: its model is whichever
+model the drainer names in its heartbeat - the latest Opus, on Claude
+Code's <code>opus</code> alias - unless <code>JudgeModelId</code> pins
+one. What is worth a moment is the incumbent: a candidate from the
+judge's own vendor family is flagged in the selection report, and that
+flag is placed from the judge's model. Attach the pairwise evaluator
+with the rubric and leave the judging out of the budget - it is quota,
+not money.</p>
 <div class="sourceCode" id="cb12"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> options <span class="op">=</span> <span class="kw">new</span> SweepOptions</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
@@ -873,8 +876,8 @@ deadlock:</p>
 <ol type="1">
 <li><strong>Discuss the field and the ceiling</strong> with the
 developer, and wait for the answer.</li>
-<li><strong>Start the drainer first</strong>, so a heartbeat exists
-before the first request is queued.</li>
+<li><strong>Start the drainer first</strong>, so a heartbeat naming its
+model exists before the sweep settles its judge.</li>
 <li><strong>Launch the sweep in the background</strong>, keeping its
 log.</li>
 <li><strong>Keep draining</strong> in a bounded loop until the run's
