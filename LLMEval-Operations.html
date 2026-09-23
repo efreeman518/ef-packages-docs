@@ -136,7 +136,7 @@ multiplies:</p>
 <td>Candidates</td>
 <td>A wider field</td>
 <td>Linear in cells, and every non-incumbent cell is also two judge
-calls</td>
+calls, times <code>JudgeReplicates</code></td>
 </tr>
 <tr class="even">
 <td>Workloads or fixtures</td>
@@ -588,8 +588,10 @@ estimate).</label></li>
 <li><label><input type="checkbox" />The pacing line looks like a paced
 run, not a retried one.</label></li>
 <li><label><input type="checkbox" />The selection section has enough
-pooled samples to mean anything, and you have read its Wilson interval,
-not only its win rate.</label></li>
+pooled samples to mean anything, and you have read its Wilson interval
+and its cluster-level interval, not only its win rate - and the header's
+judge prompt and order-disagreement lines, if the result is compared
+with another run's.</label></li>
 <li><label><input type="checkbox" />The same-family flag did not fire on
 the candidate you are about to pick. If it did, say so in the finding:
 the harness judge cannot be swapped for another vendor's, so what

@@ -1533,7 +1533,9 @@ shown first, and a single ordering measures that preference as much as
 it measures the models. Under both orderings, a judge that always picks
 the first answer scores every candidate at exactly 0.5, which makes
 position bias visible instead of letting it masquerade as a result. The
-win metric is therefore one of 0, 0.25, 0.5, 0.75 or 1.</p>
+win metric is therefore one of 0, 0.25, 0.5, 0.75 or 1 - or a finer step
+of the same scale when each ordering is asked more than once (see <a
+href="#55-judge-consistency">5.5</a>).</p>
 <p>The reporting rules around it are all instances of the same
 principle, that an unmeasured thing must never read as a measured
 one:</p>
@@ -1582,6 +1584,25 @@ anything less than byte-identical stays inside its own exchange, because
 a brief hoisted above two exchanges that were not both given it is the
 same error in miniature. Both orderings are still judged and
 averaged.</p>
+<p><strong>The form follows the content, not the kind of cell.</strong>
+The argument above is about conversations that differ before their final
+answers. An episode whose two conversations are the same up to the
+answers - every single-turn episode, where both casts were given one
+brief and one message - is one request and two answers, and the
+two-exchange form showed that one request twice, once inside each
+exchange. Such a comparison is now asked with the single-shot prompt,
+byte for byte, so the same answers compared as a single-shot cell and as
+a single-turn episode are the same question with the same request id.
+The comparison is made on the two sides' conversations as the
+two-exchange form would render them, with the final answers taken off,
+and three things keep the two-exchange form even when they match: a
+final answer with no text, since the single-task form shows only the
+answers; an empty shared part; and a shared part that ran a tool, since
+the single-task rendering is text only and a tool call and its result
+would vanish from in front of the judge - the very failure the
+two-exchange form was built to prevent. The tool note stays conditional
+on an annotation being in the prompt, which in the single-task form it
+never is.</p>
 <p><strong>Changed in this version, and it invalidates earlier
 numbers.</strong> Before this, an episode's comparison built one task
 section from the <em>candidate</em> cell's messages and showed both
@@ -1600,15 +1621,20 @@ tests.</p>
 <h4 id="54-judge-accounting">5.4 Judge accounting</h4>
 <p>The volume is two judge calls per non-incumbent cell, plus one per
 cell carrying a rubric score (the incumbent's cells included, since they
-are scored even though they are never compared against themselves). None
-of it is priced. The judge is a subagent answering on subscription
-quota, so the calls are left out of the spend estimate with a logged
-note rather than folded in at a rate nobody will be billed, and the
-spend ceiling gates the candidates alone.</p>
+are scored even though they are never compared against themselves), each
+times the replicate count of <a href="#55-judge-consistency">5.5</a>.
+The pre-flight plan line states that figure before anything runs, and a
+dry run's report carries it. None of it is priced. The judge is a
+subagent answering on subscription quota, so the calls are left out of
+the spend estimate with a logged note rather than folded in at a rate
+nobody will be billed, and the spend ceiling gates the candidates
+alone.</p>
 <p>Nothing caps a judge call's output either. A cap exists to protect a
 metered completion from running away, and there is no meter here; a
 request with no options is also the simplest thing to hash, which is
-what makes the same question land under the same id. What the evaluation
+what makes the same question land under the same id. A repeated judgment
+carries options, and only the salt that makes it a question of its own
+(see <a href="#55-judge-consistency">5.5</a>). What the evaluation
 library caches a judge reply on is therefore the prompt itself: change
 the rubric or either answer and the cell is re-judged, change nothing
 and it replays. See <a href="#9-storage-layout-and-caches">section
@@ -1622,6 +1648,109 @@ sets a stop reason, and lets a re-run replay everything from cache. A
 reply that cannot be used is the other case and is not an outage: it
 fails the one cell that asked, and the file is moved aside so the
 question is asked again next run.</p>
+<h4 id="55-judge-consistency">5.5 Judge consistency</h4>
+<p>The judge is an instrument with noise of its own, and two runs' win
+rates are one measurement only when the instrument was the same. The
+case this section was written from: a confirmation run re-judged 21
+comparisons whose answers were byte-identical to a run five days
+earlier, and the mean candidate win rate moved from 0.71 to 0.38, with
+the two orderings disagreeing on 12 of 83 comparisons against 2 of 150.
+Between the runs the judge model moved (Opus 5 to Opus 5.5) and the
+presentation changed (the two-exchange form, shown for a single-turn
+episode), and neither report said so. With both changed at once the two
+causes cannot be separated after the fact. The response has four parts,
+following three pieces of published work: Anthropic's "A statistical
+approach to model evaluations" (cluster standard errors on the unit of
+randomisation; average repeated judgments per item), "Who Drifted: the
+System or the Judge?" (arXiv 2606.15474; change one axis at a time, keep
+an anchor set), and "Rating Roulette" (arXiv 2510.27106; judges are not
+self-consistent under identical re-judging, repeated judging helps, and
+little is gained beyond about three).</p>
+<p><strong>Say what the judge was asked.</strong> Every judged record
+carries a <strong>prompt version</strong> - the first eight hex
+characters of a SHA-256 over the judged evaluator's system prompts and
+templates, rendered with placeholders, and the rubric - recorded
+<strong>per kind of judgment</strong>: a comparison's version with its
+<strong>presentation</strong>, single-task or two-exchange, and a rubric
+score's version beside it. Per kind because one cell can carry both, and
+they are always two prompts: recorded as one value, a pairwise run that
+also scored the rubric gave its candidates the comparison's hash and its
+incumbent the score's, and read as a run whose prompt had changed. The
+templates are hashed as rendered so that an edit to a prompt's wording
+moves the version without anybody remembering to bump it, and line
+endings are normalised first, because a Windows checkout compiles the
+raw string templates with CRLF and the published package with LF and one
+prompt must not carry two versions. The presentation is recorded beside
+the version rather than inside it, so a run that judged some comparisons
+each way reads as one prompt with two forms; a run whose comparisons, or
+whose scores, carry more than one version says so, a split being counted
+only within one kind. Both reports print the line beside the judge model
+line. The facts travel from the evaluator to the record as metric
+metadata rather than as metrics, because every numeric metric becomes a
+leaderboard column and these describe the judging, not the model.</p>
+<p><strong>Say how often the orderings disagreed.</strong> A comparison
+whose two orderings named opposite winners is averaged to 0.5, which
+reads as a tie and is not one: a judge answering by position produces
+exactly that on every comparison. Each record carries whether it
+happened, both reports print the count per run, and each Selection
+candidate carries its own count in <code>results.json</code>. With
+repeated judging the orderings are compared by their means.</p>
+<p><strong>Ask again, and say how often the judge agreed with
+itself.</strong> <code>JudgeReplicates</code> asks each ordering, and
+each rubric score, k times, and the win is the mean over all 2k
+verdicts. The repeats have to be questions of their own, or the caches
+would replay the first answer k times. Two caches sit in the path: the
+evaluation library's response cache, above the judge client, keyed on
+the messages, the options and the scenario, and the exchange's
+<code>done/</code> folder below it, keyed on the request id. A salt in a
+separate client would be invisible to the first - the cache would answer
+before the client was reached - so the repeat's salt travels in the
+request's options, under one additional-properties key. The library
+hashes the options into its key, and the exchange hashes that salt as a
+field of its own beside the client's salt - separate fields rather than
+one joined string, so no run salt can be spelled to collide with a
+repeat - so one value re-keys both. The first judgment of each question
+sends no options at all, which is exactly what it sent before replicates
+existed, so every verdict already on disk still replays; the repeats are
+cached like any other request, so a re-run asks nothing. Self-agreement
+is the share of repeated verdicts identical to the first verdict of
+their ordering, over how many - the judge's reliability on the run's own
+questions, <strong>as an upper bound</strong>. The evaluator waits for a
+question's first answer before it queues the repeat, so a long-lived
+drainer answers the repeat with the identical prompt and its own earlier
+verdict still in its context, which pulls towards agreeing; the drainer
+brief forbids consulting <code>done/</code> or its memory of earlier
+verdicts, but a session cannot forget what it has read. The reports say
+so where they print the line. Engineering around it - queueing every
+repeat before any is answered, or a drainer per repeat - is left for
+when the bias is measured to matter; the honest test-retest is the
+salted re-run below, with a fresh drainer. The evaluators learn k from
+the judge client they are handed, through <code>GetService</code>, so a
+caller that builds its own judge asks each question once.</p>
+<p><strong>Re-judge a run on purpose.</strong> <code>JudgeSalt</code> is
+added to every judge request's key - the exchange client's salt, and the
+reporting configuration's caching keys - so a whole run is asked afresh
+while the candidate cache replays its answers at no spend. That is the
+test-retest: the same answers judged twice, which measures how much of a
+result is the judge - provided the second judging is done by a fresh
+drainer started after the first run finished, since one that judged the
+first run still has those verdicts in context. It is also how an anchor
+set is re-judged when the judge has to change. Persona turns, proposals
+and hints are neither salted nor repeated: they shape the answers or
+come after them, and are not verdicts.</p>
+<p><strong>Neither option moves an id at its default.</strong> With k at
+1 and no salt the first judgment sends no options and the exchange has
+no salt, so every request is the one the previous version asked. That is
+pinned by a test that runs a fixed input - a single-shot comparison, a
+rubric run and a two-exchange episode - and compares the request ids
+with those version 1.0.192 produced for it. A request's text depends on
+the build as well as the input (the templates carry the checkout's line
+endings and the rendered task the runtime's newline), so the expected
+ids were observed three times: on Windows from CRLF and LF checkouts,
+and on Linux from an LF checkout, which is what CI runs. The evaluation
+library's response-cache keys for the same input, with caching on, are
+pinned the same way, since that cache answers before the exchange is
+reached.</p>
 <hr />
 <h3 id="6-the-selection-rule">6. The selection rule</h3>
 <p>Win rates and a cost-per-pass column are inputs, not an answer. The
@@ -1659,6 +1788,48 @@ not: a variant is a different question and gets its own group.</p>
 workloads behind it, its win rate and a Wilson 95 percent interval over
 the pooled n. The interval is there because the win rate alone invites a
 decision the sample cannot support.</p>
+<p><strong>The cluster-level interval.</strong> The Wilson interval
+counts every comparison as independent, and the repeats of one workload
+are not: the same request, the same kind of answer from each side and
+the same judge, so a candidate that wins one repeat tends to win the
+others. The unit of randomisation is the workload, and each candidate
+therefore also carries a 95 percent interval with the workload as the
+cluster, reported beside the Wilson one, which is labelled
+per-comparison. Where it sits against the parity threshold is recorded
+as one of three answers: at or above, straddling - flagged as not
+distinguishable from parity at the cluster level - or wholly below,
+flagged as below parity at the cluster level. The two flags are
+different findings, and a flag that said "not distinguishable" whenever
+the low end was under the line understated the second. The selection
+rule reads neither: picks are made on the point win rate exactly as
+before, and the interval and the flags qualify them.</p>
+<p>The method is a Wilson interval at a design-effect sample size, and
+the choice is deliberate. The cluster-robust (sandwich) standard error
+is the textbook answer, but a harness run has two to seven workloads,
+and there it is biased low and, because it reads only the spread between
+workload totals, estimates no variance at all whenever the workloads'
+means happen to agree - certainty printed where the evidence is
+thinnest. Its small-sample repairs either need more clusters than a run
+has or, like the wild cluster bootstrap, are random, and a report has to
+render the same twice. Instead a one-way analysis of variance splits the
+comparisons' variance into a within-workload and a between-workload part
+(the between part truncated at zero, with the usual adjustment for
+unequal workload sizes), and the pooled win rate's variance follows
+Kish's design effect, 1 - rho + rho * m, with rho the between share and
+m the size-weighted mean workload size. The between part is estimated
+from G - 1 degrees of freedom, so it alone is inflated by (t(G-1) / z)
+squared, after the degrees-of-freedom correction Korn and Graubard apply
+to an effective sample size; the within part, estimated from N - G,
+keeps z. The interval is Wilson's at N over that design effect, so it
+stays inside 0 to 1. Its behaviour at the edges is what makes it
+readable: workloads that agree give exactly the Wilson interval, since
+there is nothing between them to account for; workloads that disagree
+widen it, until, when each workload is internally unanimous, it carries
+the precision of a t interval on the workload means - the analysis with
+the workload as the unit; one comparison per workload gives Wilson's,
+since there is no within-workload correlation; and one workload gives no
+interval, because it says nothing about workload-to-workload spread.
+Each of these is a test.</p>
 <p><strong>Usable incumbent iterations.</strong> A sample count says how
 many comparisons a candidate got; it does not say how many it could ever
 have got. Every candidate's comparison reads the incumbent's own cell
