@@ -340,10 +340,18 @@ a person is expected to reply in the middle.</p>
 <ul>
 <li><strong>The roles.</strong> Name them for what they do
 (<code>main</code>, <code>checker</code>, <code>student</code>). The
-first declared role is primary: the turn cap counts its calls and the
+first declared role is primary: the turn cap counts its turns and the
 leaderboard ranks on it.</li>
 <li><strong>The turn budget.</strong> A cap, not a target. An episode
-that hits it is recorded as having hit it, not as a failure.</li>
+that hits it is recorded as having hit it, not as a failure. It counts
+turns, not calls: a tool round trip made by the application's own agent
+continues its turn. A tool-using workload must declare
+<code>ToolRoundTripsPerTurn</code>: it sets the call ceiling the spend
+ceiling reserves,
+<code>MaxTurns * (1 + 2 * ToolRoundTripsPerTurn)</code>, and at 0 the
+ceiling is <code>MaxTurns</code> calls, so a round trip uses up a turn.
+An episode that catches the cap (<code>context.TurnCapReached</code>)
+and returns what it had keeps its transcript and artifact.</li>
 <li><strong>The human.</strong> A scripted human is the default and the
 right one: it sends nothing, costs nothing and says the same thing every
 run, which is what makes two candidates comparable. Reach for a
