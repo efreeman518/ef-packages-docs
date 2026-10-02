@@ -692,10 +692,13 @@ public sealed class RetryPolicy
     public List&lt;DecisionOutcome&gt; RetryOn { get; init; } = [DecisionOutcome.Error];
 
     /// &lt;summary&gt;
-    /// For integration nodes: which HTTP status codes trigger a retry.
-    /// If empty, all Error outcomes are retried regardless of status code.
+    /// HTTP status codes that trigger a retry. Integration nodes retry by this
+    /// status list, not by every Error: safe methods (GET/HEAD/OPTIONS) use the
+    /// full list plus transport errors and NODE_EXECUTION_TIMEOUT; unsafe methods
+    /// use only 409/429/503 unless the integration config sets idempotencyKeyHeader.
+    /// Integration config retryOnStatusCodes replaces this list. 412 is invalid.
     /// &lt;/summary&gt;
-    public List&lt;int&gt; RetryOnHttpStatus { get; init; } = [429, 500, 502, 503, 504];
+    public List&lt;int&gt; RetryOnHttpStatus { get; init; } = [408, 409, 429, 500, 502, 503, 504];
 }
 
 public enum BackoffType { Fixed, Linear, Exponential, ExponentialWithJitter }
@@ -1135,7 +1138,8 @@ public interface IFlowClient
     string ClientRef { get; }
 
     /// &lt;summary&gt;
-    /// Called by ValidateWorkflowDependenciesAsync before any instance starts.
+    /// Called by the StartAsync dependency guard (ValidateWorkflowDependenciesAsync)
+    /// before any instance starts; a failure throws ClientValidationException.
     /// Validate connectivity, credentials, and required schema/config.
     /// Throw a descriptive exception if validation fails.
     /// Implementations should be fast (probe, not full warmup).
@@ -1225,7 +1229,9 @@ public interface IClientRegistry
     T? GetAs&lt;T&gt;(string clientRef) where T : class, IFlowClient;
 
     /// &lt;summary&gt;
-    /// All registered clients. Used by ValidateWorkflowDependenciesAsync.
+    /// All registered clients (every registered IFlowClient, not only HTTP ones).
+    /// Get(clientRef) is the lookup used by executors and by save-time clientRef
+    /// validation (WorkflowDefinitionValidator.ValidateClients).
     /// &lt;/summary&gt;
     IReadOnlyList&lt;IFlowClient&gt; All { get; }
 }
@@ -1525,8 +1531,9 @@ deployments where a real <code>IDistributedLockProvider</code> is registered.</p
 ///       after crash, but this is acceptable — the delay restarts from scratch)
 ///
 ///   Must be made idempotent:
-///     integration (writes — POST/PUT/DELETE) — use IdempotencyKey; the registered
-///       IRequestResponseClient deduplicates on the server side
+///     integration (writes - POST/PUT/PATCH/DELETE) - set idempotencyKeyHeader; the
+///       engine sends one generated key per node execution in that header and the
+///       server must deduplicate on it (IdempotencyKey is client metadata only)
 ///     message — use message deduplication on the broker, or IdempotencyKey
 ///     human — IHumanTaskStore.SaveAsync must be idempotent by (InstanceId, NodeId);
 ///       if a task record already exists for this execution point, return it
@@ -1776,7 +1783,10 @@ public interface IWorkflowRegistry
         string id, string? version, CancellationToken ct = default);
 
     /// All provided implementations call WorkflowDefinitionValidator.ValidateAndThrow
-    /// before persisting. Throws WorkflowDefinitionValidationException on structural errors.
+    /// before persisting. Registries registered through FlowEngineBuilder are also
+    /// wrapped to reject any node clientRef not in IClientRegistry. Throws
+    /// WorkflowDefinitionValidationException (Details codes DEFINITION_INVALID,
+    /// CLIENT_NOT_REGISTERED). GetAsync/ListAsync do not validate.
     Task SaveAsync(WorkflowDefinition definition, CancellationToken ct = default);
 
     Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
@@ -1802,13 +1812,53 @@ public static class WorkflowDefinitionValidator
 
     /// &lt;summary&gt;Throws WorkflowDefinitionValidationException if any errors found.&lt;/summary&gt;
     public static void ValidateAndThrow(WorkflowDefinition definition);
+
+    /// &lt;summary&gt;
+    /// One CLIENT_NOT_REGISTERED error per node whose non-blank clientRef (key matched
+    /// case-insensitively) is not provided by clients. Checks every node, including
+    /// untaken branches.
+    /// &lt;/summary&gt;
+    public static IReadOnlyList&lt;WorkflowDefinitionError&gt; ValidateClients(
+        WorkflowDefinition definition, IClientRegistry clients);
+
+    /// &lt;summary&gt;Structure plus clientRefs; throws with structured Details.&lt;/summary&gt;
+    public static void ValidateAndThrow(WorkflowDefinition definition, IClientRegistry clients);
+
+    /// &lt;summary&gt;Non-blocking advisory warnings as messages.&lt;/summary&gt;
+    public static IReadOnlyList&lt;WorkflowDefinitionWarning&gt; GetWarnings(WorkflowDefinition definition);
+
+    /// &lt;summary&gt;
+    /// The same warnings, structured. Codes: MESSAGE_IDEMPOTENCY_KEY_MISSING,
+    /// AGENT_IDEMPOTENCY_KEY_MISSING, INTEGRATION_IDEMPOTENCY_KEY_MISSING,
+    /// UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER. Node config keys are read
+    /// case-insensitively. Assert on Code; Message may change.
+    /// &lt;/summary&gt;
+    public static IReadOnlyList&lt;WorkflowDefinitionWarning&gt; GetWarnings(WorkflowDefinition definition);
+}
+
+public sealed class WorkflowDefinitionWarning
+{
+    public string  Code    { get; }   // stable code (constants on this type)
+    public string? NodeId  { get; }   // null for a workflow-level warning
+    public string  Message { get; }
+}
+
+public sealed class WorkflowDefinitionError
+{
+    public const string DefinitionInvalid   = &quot;DEFINITION_INVALID&quot;;
+    public const string ClientNotRegistered = &quot;CLIENT_NOT_REGISTERED&quot;;
+
+    public string  Code    { get; }   // stable code (constants above); assert on this
+    public string? NodeId  { get; }   // null for a workflow-level error
+    public string  Message { get; }   // may change
 }
 
 public class WorkflowDefinitionValidationException : Exception
 {
     public string                WorkflowId { get; }
     public string                Version    { get; }
-    public IReadOnlyList&lt;string&gt; Errors     { get; }
+    public IReadOnlyList&lt;string&gt; Errors     { get; }   // messages
+    public IReadOnlyList&lt;WorkflowDefinitionError&gt; Details { get; }   // structural errors use DEFINITION_INVALID
 }
 
 /// <summary>

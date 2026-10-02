@@ -89,7 +89,7 @@ definition itself.</p>
         nextNodeId      → any node in the graph (including backward edges)
         label           → human-readable branch name
 
-Execution context namespaces (JSONPath) — used in `storeAs`, `config` paths, `target`, `valuePath`:
+Execution context namespaces (JSONPath) - used in `storeAs`, `config` paths, `target`, `items`:
   $.entity            read-only primary entity passed at invocation
   $.entity.Field      nested field access (e.g. $.entity.Order.Total)
   $.params.x          read-only invocation parameters (supports nested: $.params.order.id)
@@ -335,8 +335,40 @@ cadence.</li>
 service intermittently returns empty results that are genuinely
 transient.</li>
 <li><strong><code>retryOnHttpStatus</code></strong>: defaults to
-<code>[429, 500, 502, 503, 504]</code>. Narrow this list if the service
-uses non-standard codes for permanent failures.</li>
+<code>[408, 409, 429, 500, 502, 503, 504]</code>. Narrow this list if
+the service uses non-standard codes for permanent failures. 412 in any
+retry list is a validation error; 2xx is never retried; 404 keeps its
+<code>NoMatch</code> route.</li>
+<li><strong>Integration nodes retry by status list, not every
+<code>Error</code>.</strong> Safe methods (GET/HEAD/OPTIONS) retry the
+full list plus transport errors
+(<code>INTEGRATION_TRANSPORT_ERROR</code>) and
+<code>NODE_EXECUTION_TIMEOUT</code>. Unsafe methods
+(POST/PUT/PATCH/DELETE) retry only 409/429/503 unless the integration
+config sets <code>idempotencyKeyHeader</code>, which enables the full
+list and transport retries.</li>
+<li><strong>Integration config overrides:</strong>
+<code>retryOnStatusCodes</code> replaces the inherited list (null
+inherits, <code>[]</code> disables status retries; a
+<code>retryPolicy</code> is still required). Retry-After on 429/503 is
+honored: wait = max(backoff, Retry-After), capped by
+<code>retryAfterMaxDelay</code> (default: effective
+<code>maxDelay</code>, or 60s without a policy); above the cap the node
+fails with <code>RETRY_AFTER_LIMIT_EXCEEDED</code> and is not
+resent.</li>
+<li><strong>HTTP adapters never retry</strong>
+(<code>EF.FlowEngine.Clients.Http</code>); the node policy owns all
+retries.</li>
+<li><strong>Inline loop bodies</strong> (<code>bodyEntryNodeId</code>)
+run under the body node's effective policy with the same rules. The
+effective policy is the body node's own <code>retryPolicy</code>, else
+the nearest enclosing loop node's <code>retryPolicy</code> (inner loop
+first, then outer loops), else <code>defaultRetryPolicy</code>. When a
+body fails after its retries (<code>StopOnError</code>), the loop fails
+and the loop node is not retried again for it, so attempts never
+multiply. If the loop node is retried for its own failure (its
+<code>executionTimeout</code>, an executor exception), it resumes at the
+iteration that was running; completed iterations are not rerun.</li>
 <li><strong><code>retryPolicy</code> is in-process and fast</strong>
 (milliseconds to seconds). For durable waits that survive a server
 restart — e.g. retrying after 10 minutes — model the retry explicitly
@@ -399,6 +431,12 @@ required upstream step was skipped.</p>
 <p>An edge with <code>on: null</code> or no <code>on</code> field
 matches <strong>any</strong> outcome — use for unconditional
 transitions.</p>
+<p><strong>Node <code>config</code> keys are case-insensitive.</strong>
+Every built-in executor reads <code>config</code> with the same
+case-insensitive options as the definition deserializer, so camelCase
+keys (<code>assignedTo</code>, <code>eventName</code>,
+<code>workflowId</code>) bind the same as PascalCase. Write camelCase,
+as in the examples below.</p>
 <hr />
 <h3 id="node-type-reference">Node type reference</h3>
 <h4 id="filter--filterbuilder-condition-check"><code>filter</code> —
@@ -447,7 +485,7 @@ id="decision--resolve-a-context-value-branch-via-when-predicates"><code>decision
 class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;decision&quot;</span><span class="fu">,</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Route based on the risk tier calculated in the previous step&quot;</span><span class="fu">,</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;valuePath&quot;</span><span class="fu">:</span> <span class="st">&quot;$.context.riskTier&quot;</span> <span class="fu">},</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">&quot;target&quot;</span><span class="fu">:</span> <span class="st">&quot;$.context.riskTier&quot;</span> <span class="fu">},</span></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;edges&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Low risk&quot;</span><span class="fu">,</span>    <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;when&quot;</span><span class="fu">:</span> <span class="st">&quot;Context[</span><span class="ch">\&quot;</span><span class="st">riskTier</span><span class="ch">\&quot;</span><span class="st">]?.ToString() == </span><span class="ch">\&quot;</span><span class="st">low</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span>    <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-auto-approve&quot;</span>   <span class="fu">}</span><span class="ot">,</span></span>
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Medium risk&quot;</span><span class="fu">,</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;when&quot;</span><span class="fu">:</span> <span class="st">&quot;Context[</span><span class="ch">\&quot;</span><span class="st">riskTier</span><span class="ch">\&quot;</span><span class="st">]?.ToString() == </span><span class="ch">\&quot;</span><span class="st">medium</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-underwriter&quot;</span>    <span class="fu">}</span><span class="ot">,</span></span>
@@ -545,8 +583,8 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb12-1"><a href=
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;storeAs&quot;</span><span class="fu">:</span> <span class="st">&quot;product&quot;</span><span class="fu">,</span></span>
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;clientRef&quot;</span><span class="fu">:</span>   <span class="st">&quot;product-api&quot;</span><span class="fu">,</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;integration&quot;</span><span class="fu">:</span> <span class="st">&quot;product-details-api&quot;</span><span class="fu">,</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;request&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;path&quot;</span><span class="fu">:</span>   <span class="st">&quot;/products/{{$.entity.ProductId}}&quot;</span><span class="fu">,</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;body&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;productId&quot;</span><span class="fu">:</span> <span class="st">&quot;$.entity.ProductId&quot;</span></span>
 <span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
 <span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;headers&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
@@ -569,15 +607,24 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb12-1"><a href=
 <ul>
 <li><code>clientRef</code> names the registered
 <code>IRequestResponseClient</code> (required)</li>
-<li><code>integration</code> optionally names an
-<code>IntegrationDefinition</code> overlay for schema validation and
-outcome mapping</li>
-<li><code>request</code> maps context values → integration request
-fields (JSONPath or literals)</li>
+<li><code>method</code> (default <code>POST</code>) and
+<code>path</code> (supports <code>{{$.path}}</code> interpolation)
+select the request</li>
+<li><code>body</code> maps context values to request body fields
+(JSONPath or literals)</li>
 <li><code>responseMapping</code> maps response fields → context keys
 (JSONPath into response)</li>
-<li><code>idempotencyKey</code> prevents duplicate side effects on retry
-— always set for writes</li>
+<li><code>idempotencyKeyHeader</code> (for example
+<code>"Idempotency-Key"</code>) makes the engine send one generated key
+per node execution, the same across retries and lease recovery; the
+server must deduplicate on that header. Set it for writes the API can
+deduplicate; it also enables full status-list and transport retries for
+unsafe methods</li>
+<li><code>idempotencyKey</code> is client metadata only; it does not
+enable HTTP deduplication</li>
+<li><code>retryOnStatusCodes</code> replaces the inherited
+<code>retryOnHttpStatus</code> list; <code>retryAfterMaxDelay</code>
+caps a Retry-After wait (see Retry policy)</li>
 <li>Use <code>integration</code> over <code>fetch</code> whenever a
 typed client definition exists</li>
 </ul>
@@ -609,7 +656,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb14-1"><a href=
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;loop&quot;</span><span class="fu">,</span></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Check stock availability for each line item, separating available from backordered&quot;</span><span class="fu">,</span></span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;over&quot;</span><span class="fu">:</span>          <span class="st">&quot;$.entity.LineItems&quot;</span><span class="fu">,</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;items&quot;</span><span class="fu">:</span>         <span class="st">&quot;$.entity.LineItems&quot;</span><span class="fu">,</span></span>
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;itemAs&quot;</span><span class="fu">:</span>        <span class="st">&quot;currentItem&quot;</span><span class="fu">,</span></span>
 <span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;indexAs&quot;</span><span class="fu">:</span>       <span class="st">&quot;currentIndex&quot;</span><span class="fu">,</span></span>
 <span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;idAs&quot;</span><span class="fu">:</span>          <span class="st">&quot;currentItemId&quot;</span><span class="fu">,</span></span>
@@ -635,8 +682,10 @@ strategies:</strong> <code>collect</code> (array — default),
 <code>StopOnError</code> or <code>ContinueOnError</code>
 <strong><code>idAs</code></strong> (default <code>currentItemId</code>):
 a stable per-iteration id, a version 5 UUID over
-<code>{instanceId}/{loopNodeId}/{index}</code>. A retried iteration
-recomputes the same value, so using
+<code>{instanceId}/{loopNodeId}/{index}</code> (a nested inline loop
+includes the enclosing iterations:
+<code>{instanceId}/{enclosing}/{loopNodeId}/{index}</code>). A retried
+iteration recomputes the same value, so using
 <code>{{$.context.currentItemId}}</code> in a request body or
 <code>idempotencyKey</code> makes the per-item call safely repeatable.
 Do not use a fresh random GUID for this - a new value on every retry is
@@ -1044,13 +1093,13 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb25-1"><a href=
 <code>IAgentClient</code>:</p>
 <div class="sourceCode" id="cb26"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">AddClient</span><span class="op">(</span><span class="st">&quot;foundry-risk-agent&quot;</span><span class="op">,</span> <span class="kw">new</span> <span class="fu">FoundryAgentClient</span><span class="op">(</span>foundryClient<span class="op">,</span> agentId<span class="op">));</span></span></code></pre></div>
-<p><strong>OpenAI / Azure AI via
-<code>EF.FlowEngine.Clients.OpenAI</code>:</strong></p>
+<p><strong>Any <code>IChatClient</code> (OpenAI, Azure OpenAI, Foundry,
+Ollama) via <code>EF.FlowEngine.Clients.AI</code>:</strong></p>
 <div class="sourceCode" id="cb27"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddOpenAIAgentClient</span><span class="op">(</span><span class="st">&quot;gpt4o&quot;</span><span class="op">,</span></span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>        chatClient<span class="op">:</span> openAIClient<span class="op">.</span><span class="fu">AsChatClient</span><span class="op">(</span><span class="st">&quot;gpt-4o&quot;</span><span class="op">),</span></span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>        modelName<span class="op">:</span>  <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span></code></pre></div>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddChatClientAgentClient</span><span class="op">(</span><span class="st">&quot;gpt4o&quot;</span><span class="op">,</span> sp <span class="op">=&gt;</span> chatClient<span class="op">,</span> modelName<span class="op">:</span> <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure OpenAI deployment:</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co">//  .AddAzureOpenAIAgentClient(&quot;gpt4o&quot;, sp =&gt; sp.GetRequiredService&lt;AzureOpenAIClient&gt;(), deploymentName: &quot;gpt-4o&quot;);</span></span></code></pre></div>
 <p><strong>Output</strong> stored as
 <code>$.context.contractTerms</code> — a JSON object matching
 <code>outputSchema</code>.</p>
@@ -1625,89 +1674,98 @@ responses</td>
 Default catch-all edge</td>
 </tr>
 <tr class="even">
-<td><code>integration</code> node without <code>idempotencyKey</code> on
-writes</td>
-<td>Any POST/PUT/DELETE call must have <code>idempotencyKey</code> to
-prevent double-execution on retry</td>
+<td><code>integration</code> write without
+<code>idempotencyKeyHeader</code></td>
+<td>Set <code>idempotencyKeyHeader</code> on POST/PUT/PATCH/DELETE calls
+whose API deduplicates on a header; <code>idempotencyKey</code> alone is
+client metadata and does not prevent double-execution</td>
 </tr>
 <tr class="odd">
+<td>Expecting a body failure to retry the whole inline
+<code>loop</code></td>
+<td>A loop node's <code>retryPolicy</code> is inherited by body nodes
+without their own; a body that fails after its retries fails the loop
+without retrying the loop node. Set <code>retryPolicy</code> on a body
+node only when it needs a different policy</td>
+</tr>
+<tr class="even">
 <td><code>when</code> predicate on an edge with no <code>on</code>
 field</td>
 <td><code>when</code> only evaluates after outcome matches — add
 <code>"on": null</code> for a when-only edge</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Using <code>$.context.*</code> directly in a <code>filter</code>
 node config</td>
 <td>Set <code>"target": "$.context.myObject"</code> — don't reference
 context paths inside the filterSet itself</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Parallel branches without explicit <code>joinStrategy</code></td>
 <td>Default is <code>All</code> — explicitly set
 <code>joinStrategy</code> when you want <code>FirstOf</code> or
 <code>Threshold</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>workflow</code> node <code>fireAndForget: true</code> with
 <code>storeAs</code></td>
 <td>FireAndForget parent never sees child output — <code>storeAs</code>
 will always be null</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Missing <code>intent</code> field</td>
 <td>Always write <code>intent</code> on every node and the workflow
 definition</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Credentials or connection strings in workflow JSON</td>
 <td>Use <code>clientRef</code> pointing to a registered
 <code>IFlowClient</code> — never embed secrets</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>query</code> node for a yes/no check returning all
 results</td>
 <td>Use <code>resultMode: any</code> — translates to EXISTS, no data
 transfer, emits Match/NoMatch directly</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>filter</code> node targeting a database table</td>
 <td><code>filter</code> is in-memory only — use <code>query</code>
 first, then <code>filter</code> on the stored results</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>outputSchema</code> set on a node without
 <code>storeAs</code></td>
 <td>Schema validation only runs when <code>storeAs</code> is also set —
 the validator warns at registration time</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>outputSchema</code> on <code>agent</code> node but only in
 <code>config</code> (AgentNodeConfig)</td>
 <td><code>AgentNodeConfig.outputSchema</code> shapes the LLM prompt;
 <code>NodeDefinition.outputSchema</code> enforces the shape engine-side
 — set both</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>contextRequirements</code> key names include
 <code>$.context.</code> prefix</td>
 <td>Use bare key names (e.g. <code>"apiResult"</code> not
 <code>"$.context.apiResult"</code>) — same convention as
 <code>storeAs</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>agent</code> node with model/temperature config in workflow
 JSON</td>
 <td>Model config belongs on the registered <code>IAgentClient</code>,
 not in the workflow definition</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>agent</code> node with <code>contentFilterPolicy</code> but no
 <code>IContentFilter</code> registered</td>
 <td><code>contentFilterPolicy</code> names a registered filter — if the
 name can't be resolved, the node faults at execution time</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>compute</code> node or <code>when</code> edge predicate on an
 engine with <code>AllowComputeNodes = false</code> or
 <code>AllowWhenExpressions = false</code></td>
@@ -1715,71 +1773,72 @@ engine with <code>AllowComputeNodes = false</code> or
 check the engine's security policy before authoring Roslyn
 expressions</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>message</code> node <code>deliveryMode: RequestReply</code>
 without <code>replyEventName</code></td>
 <td>RequestReply suspends waiting for a signal —
 <code>replyEventName</code> is required to match it</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Migrating instances without running
 <code>CompatibilityAnalyzer</code> first</td>
 <td>Always call <code>CompatibilityAnalyzer.Analyze(from, to)</code>
 before bulk migration — breaking findings mean suspended instances would
 be stranded</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Assuming <code>MigrateInstanceAsync</code> is safe without testing
 it</td>
 <td>Use <code>dryRun: true</code> first — it validates the remapping
 without persisting and records a <code>[dry-run]</code> history
 entry</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>wait</code> node without a timeout</td>
 <td>Always set <code>timeout</code> — an indefinitely suspended instance
 is a resource leak and an ops nightmare</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Using <code>$.context._humanTaskResponse</code> in a non-human
 node</td>
 <td><code>_humanTaskResponse</code> is only written by the human node
 executor — not available after other node types</td>
 </tr>
-<tr class="even">
-<td><code>workflow</code> node cross-engine without
-<code>clientRef</code> registered</td>
-<td>Pre-execution validation will throw
-<code>MissingClientException</code> — register the client before first
-invocation</td>
-</tr>
 <tr class="odd">
+<td>Any node with a <code>clientRef</code> that is not registered</td>
+<td>Registry <code>SaveAsync</code> (and JSON seeding at startup)
+rejects the definition with
+<code>WorkflowDefinitionValidationException</code>, <code>Details</code>
+code <code>CLIENT_NOT_REGISTERED</code> - register the
+<code>IFlowClient</code> before saving the definition</td>
+</tr>
+<tr class="even">
 <td><code>query</code> node with TestValueParam filters but no
 <code>params</code> mapping</td>
 <td>TestValueParam filters need their values resolved from context via
 the <code>params</code> dict</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Signal payload fields accessed before checking <code>_signal</code>
 is set</td>
 <td><code>$.context._signal</code> is only populated after a
 <code>wait</code> or <code>message</code> RequestReply resumes — guard
 with a null check or filter</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>loop</code> node <code>mode: Parallel</code> with
 <code>errorBehavior: StopOnError</code> on high-volume collections</td>
 <td>Parallel + StopOnError cancels all in-flight children on first
 failure — use <code>ContinueOnError</code> if partial results are
 acceptable</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Write operation (<code>integration</code> POST/PUT/DELETE,
 <code>message</code>) without <code>idempotencyKey</code></td>
 <td>Crash recovery re-executes the chain — without idempotency keys you
 get double-charges, double-sends, duplicate records</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Assuming state is saved after every node</td>
 <td>By default, state saves at async boundaries only (wait, human,
 output, checkpoint) — a crash mid-chain re-runs all nodes since the last
@@ -1787,13 +1846,13 @@ save. Set <code>persistAfterEveryNode: true</code> on the
 <code>WorkflowDefinition</code> to opt in to per-node saves at the cost
 of extra store writes.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Checkpoint as a substitute for idempotency keys</td>
 <td>Checkpoint reduces re-execution window but a crash can still happen
 after the checkpoint and before the next save — write nodes must be
 idempotent regardless</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Checkpoint between every node</td>
 <td>Every checkpoint is a state store round-trip — place at meaningful
 boundaries only (before expensive compute, before write chains, before
@@ -2175,7 +2234,8 @@ we go to..."</p>
 case]?" for any paths not yet covered. Check: every node has at least
 one edge (except output nodes). Check: at least one output node is
 reachable on every path. Check: every backward edge has a visit limit.
-Check: every integration write has an idempotencyKey. Check: nodes with
+Check: every integration write has an idempotencyKeyHeader (or a
+documented reason the API cannot deduplicate). Check: nodes with
 <code>outputSchema</code> also have <code>storeAs</code> (otherwise
 schema validation never runs). Check: <code>contextRequirements</code>
 key names use bare keys, not <code>$.context.*</code> prefixes.</p>

@@ -42,7 +42,9 @@ public sealed class MyCustomNodeExecutor : INodeExecutor
         IExecutionContext  ctx,
         CancellationToken ct)
     {
-        // 1. Deserialize config
+        // 1. Deserialize config. Built-in executors read config keys case-insensitively
+        //    (JsonSerializerDefaults.Web), so camelCase workflow JSON binds; pass
+        //    new JsonSerializerOptions(JsonSerializerDefaults.Web) to do the same here.
         var config = node.Config.Deserialize&lt;MyCustomNodeConfig&gt;()
             ?? throw new InvalidOperationException(&quot;Missing config&quot;);
 
@@ -115,8 +117,8 @@ many times it is called.</p>
 <td>Naturally idempotent</td>
 </tr>
 <tr>
-<td>Write operations via <code>integration</code> (POST/PUT/DELETE)</td>
-<td>Use <code>IdempotencyKey</code> field; your <code>IRequestResponseClient</code> deduplicates</td>
+<td>Write operations via <code>integration</code> (POST/PUT/PATCH/DELETE)</td>
+<td>Set <code>idempotencyKeyHeader</code>; the engine sends one generated key per node execution (same across retries and lease recovery) and the server deduplicates on that header. <code>IdempotencyKey</code> alone is client metadata only</td>
 </tr>
 <tr>
 <td>Write operations via <code>fetch</code> with <code>clientRef</code></td>
@@ -428,7 +430,7 @@ return new NodeResult { Outcome = DecisionOutcome.Error, Error = ... };
 </code></pre>
 <hr />
 <h2>Accessing external clients</h2>
-<p>Use <code>IClientRegistry</code> (via <code>ctx.Services</code>) to resolve named clients:</p>
+<p>Use <code>IClientRegistry</code> (via <code>ctx.Services</code>) to resolve named clients. A non-blank <code>clientRef</code> key (any case) in a node's config is also checked when the definition is saved to the workflow registry: an unregistered one is rejected with <code>WorkflowDefinitionValidationException</code> code <code>CLIENT_NOT_REGISTERED</code>.</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">// In constructor — inject IClientRegistry
 private readonly IClientRegistry _clients;
 

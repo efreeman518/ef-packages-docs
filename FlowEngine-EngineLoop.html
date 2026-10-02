@@ -30,6 +30,7 @@ Central piece that all node executors, state store implementations, and backgrou
 - <code>EF.FlowEngine/Engine/FlowEngine.cs</code>                    — main engine class<br />
 - <code>EF.FlowEngine/Engine/WhenEvaluator.cs</code>                 — edge predicate evaluator<br />
 - <code>EF.FlowEngine/Engine/RetryHandler.cs</code>                  — retry policy logic<br />
+- <code>EF.FlowEngine/Engine/NodeAttempts.cs</code>                  - node attempt runner (timeout, retry classification, Retry-After), shared with inline loop bodies<br />
 - <code>EF.FlowEngine/Engine/ChildSignalHandler.cs</code>            — child→parent signalling<br />
 - <code>EF.FlowEngine/Background/ExecutionSweepService.cs</code>          — background sweep<br />
 - <code>EF.FlowEngine/Background/LeaseRenewalService.cs</code>            — claim heartbeat<br />
@@ -159,7 +160,7 @@ internal Task ResumeChildAsync(
     if (definition.Status != DefinitionStatus.Active)
         throw new WorkflowNotActiveException(workflowId, definition.Status);
 
-    // 2. Validate all client dependencies are registered and reachable
+    // 2. Guard: re-validate, check clientRefs are registered, and confirm clients are reachable
     await ValidateWorkflowDependenciesAsync(definition, ct);
 
     // 3. Validate params against definition.ParamsSchema if set
@@ -211,32 +212,38 @@ internal Task ResumeChildAsync(
 // ── ValidateWorkflowDependenciesAsync ──────────────────────────────────────────
 
 /// &lt;summary&gt;
-/// Called before any instance starts. Scans all nodes for clientRef values,
-/// verifies each is registered in the IClientRegistry, and calls ValidateAsync
-/// on each to confirm connectivity.
+/// Called before any instance starts. Re-runs structural validation, logs
+/// UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER warnings, applies the security policy,
+/// checks every node's clientRef against IClientRegistry, and calls ValidateAsync
+/// on each referenced client to confirm connectivity.
 ///
-/// Fails fast with a MissingClientException before any execution begins.
-/// This prevents workflows with misconfigured dependencies from silently
-/// failing on the first node that tries to use an unregistered client.
+/// The clientRef check is a guard, not the primary check: registries registered
+/// through FlowEngineBuilder reject unregistered clientRefs at SaveAsync (and
+/// JSON seeding fails host startup). The guard catches definitions that bypassed
+/// that (written by another host, or a registry registered outside the builder)
+/// and throws the same structured WorkflowDefinitionValidationException
+/// (Details code CLIENT_NOT_REGISTERED) before any execution begins.
 /// &lt;/summary&gt;
 private async Task ValidateWorkflowDependenciesAsync(
     WorkflowDefinition definition, CancellationToken ct)
 {
-    // Extract all clientRefs from node configs
+    WorkflowDefinitionValidator.ValidateAndThrow(definition);
+    // ... log UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER warnings, enforce security policy ...
+
+    var clientErrors = WorkflowDefinitionValidator.ValidateClients(definition, _clientRegistry);
+    if (clientErrors.Count &gt; 0)
+        throw new WorkflowDefinitionValidationException(definition.Id, definition.Version, clientErrors);
+
+    // clientRef keys are matched case-insensitively; blank values are ignored
     var clientRefs = definition.Nodes.Values
-        .Select(n =&gt; ExtractClientRef(n))
-        .Where(r =&gt; r != null)
+        .Select(WorkflowDefinitionValidator.GetClientRef)
+        .OfType&lt;string&gt;()
         .Distinct()
         .ToList();
 
     foreach (var clientRef in clientRefs)
     {
-        var client = _clientRegistry.Get(clientRef!)
-            ?? throw new MissingClientException(
-                $&quot;Workflow '{definition.Id}' node requires client '{clientRef}' &quot; +
-                $&quot;which is not registered. Register it via &quot; +
-                $&quot;FlowEngineBuilder.AddClient(\&quot;{clientRef}\&quot;, ...).&quot;);
-
+        var client = _clientRegistry.Get(clientRef)!;
         try
         {
             await client.ValidateAsync(ct);
@@ -249,24 +256,8 @@ private async Task ValidateWorkflowDependenciesAsync(
         }
     }
 }
-
-/// &lt;summary&gt;
-/// Extract the clientRef from a node's Config JsonElement.
-/// Returns null for node types that don't use external clients.
-/// &lt;/summary&gt;
-private static string? ExtractClientRef(NodeDefinition node)
-{
-    try
-    {
-        if (node.Config.ValueKind == JsonValueKind.Object
-            &amp;&amp; node.Config.TryGetProperty(&quot;clientRef&quot;, out var prop))
-            return prop.GetString();
-    }
-    catch { /* ignore deserialization errors — caught at execution time */ }
-    return null;
-}
 </code></pre>
-<p>Add to exceptions:</p>
+<p>Add to exceptions (<code>MissingClientException</code> is still thrown by executors if a client is missing at run time):</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public class MissingClientException    : Exception { public MissingClientException(string msg) : base(msg) {} }
 public class ClientValidationException : Exception { public ClientValidationException(string msg, Exception inner) : base(msg, inner) {} }
 </code></pre>
@@ -697,73 +688,26 @@ from the sequence.</p>
     var executor     = _executorRegistry.Get(node.Type)
                        ?? throw new NodeExecutorNotFoundException(node.Type);
     var ctx          = BuildExecutionContext(instance, definition);
-    var attemptCount = 0;
+    var clock        = _services.GetService&lt;TimeProvider&gt;() ?? TimeProvider.System;
 
-    while (true)
-    {
-        attemptCount++;
+    // (circuit-breaker check and the per-node-type concurrency slot nodeSem omitted here)
 
-        // Apply per-node execution timeout
-        using var nodeCts = node.ExecutionTimeout.HasValue
-            ? CancellationTokenSource.CreateLinkedTokenSource(ct)
-            : null;
-        if (nodeCts != null)
-            nodeCts.CancelAfter(node.ExecutionTimeout!.Value);
-        var nodeCt = nodeCts?.Token ?? ct;
+    // Attempts run in the internal NodeAttempts runner, shared with inline loop bodies.
+    // Per attempt it applies node.ExecutionTimeout (NODE_EXECUTION_TIMEOUT), maps executor
+    // exceptions to NODE_EXECUTOR_EXCEPTION, fails with RETRY_AFTER_LIMIT_EXCEEDED (not
+    // resent) when Retry-After exceeds the cap, and decides whether to retry:
+    //   - non-integration nodes: policy.RetryOn contains the outcome, or the HTTP status
+    //     is in policy.RetryOnHttpStatus
+    //   - integration nodes: by status list (never 2xx or 412; config.RetryOnStatusCodes
+    //     replaces the inherited list; unsafe methods without idempotencyKeyHeader use only
+    //     409/429/503), plus INTEGRATION_TRANSPORT_ERROR / NODE_EXECUTION_TIMEOUT for safe
+    //     methods or when idempotencyKeyHeader is set
+    // Wait = max(backoff, Retry-After), on the TimeProvider clock.
+    var (result, attemptCount) = await NodeAttempts.RunAsync(
+        executor, node, instance, ctx, policy, clock, _logger, nodeSem, ct);
 
-        NodeResult result;
-        try
-        {
-            result = await executor.ExecuteAsync(node, instance, ctx, nodeCt);
-        }
-        catch (OperationCanceledException) when (
-            nodeCts != null &amp;&amp; nodeCts.IsCancellationRequested)
-        {
-            // Per-node timeout (not host cancellation)
-            result = new NodeResult
-            {
-                Outcome = DecisionOutcome.Error,
-                Error   = new ExecutionError
-                {
-                    Code       = &quot;NODE_EXECUTION_TIMEOUT&quot;,
-                    Message    = $&quot;Node '{node.Id}' exceeded timeout {node.ExecutionTimeout}&quot;,
-                    NodeId     = node.Id,
-                    OccurredAt = DateTimeOffset.UtcNow
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            result = new NodeResult
-            {
-                Outcome = DecisionOutcome.Error,
-                Error   = new ExecutionError
-                {
-                    Code       = &quot;NODE_EXECUTOR_EXCEPTION&quot;,
-                    Message    = ex.Message,
-                    Detail     = ex.ToString(),
-                    NodeId     = node.Id,
-                    OccurredAt = DateTimeOffset.UtcNow
-                }
-            };
-        }
-
-        // Check if retry applies
-        if (policy != null
-            &amp;&amp; policy.RetryOn.Contains(result.Outcome)
-            &amp;&amp; attemptCount &lt; policy.MaxAttempts
-            &amp;&amp; !ct.IsCancellationRequested)
-        {
-            var delay = RetryHandler.CalculateDelay(policy, attemptCount);
-            _logger.LogDebug(
-                &quot;Retrying node {NodeId} attempt {Attempt}/{Max} after {Delay}ms&quot;,
-                node.Id, attemptCount, policy.MaxAttempts, delay.TotalMilliseconds);
-            await Task.Delay(delay, ct);
-            continue;
-        }
-
-        return (result, attemptCount);
-    }
+    // (circuit-breaker success/failure recording omitted here)
+    return (result, attemptCount);
 }
 </code></pre>
 <hr />
@@ -2076,7 +2020,7 @@ public sealed class CheckpointNodeExecutor : INodeExecutor
 <li>[ ] <code>ChildSignalHandler</code> either resumes parent directly or enqueues signal</li>
 <li>[ ] <code>ExecutionSweepService</code> calls <code>FindResumableInstanceIdsAsync</code> and triggers resumption</li>
 <li>[ ] <code>LeaseRenewalService</code> cancels execution CTS if renewal fails</li>
-<li>[ ] <code>ValidateWorkflowDependenciesAsync</code> throws <code>MissingClientException</code> for unregistered clientRefs</li>
+<li>[ ] Registry <code>SaveAsync</code> (via <code>FlowEngineBuilder</code>) rejects unregistered clientRefs with <code>WorkflowDefinitionValidationException</code> (<code>Details</code> code <code>CLIENT_NOT_REGISTERED</code>); <code>ValidateWorkflowDependenciesAsync</code> throws the same exception as a guard for definitions that bypassed it</li>
 <li>[ ] <code>ValidateWorkflowDependenciesAsync</code> throws <code>ClientValidationException</code> if <code>ValidateAsync</code> fails</li>
 <li>[ ] <code>BuildExecutionContext</code> returns a properly constructed <code>ExecutionContext</code></li>
 <li>[ ] <code>ExecutionContext.Resolve("$.engine.visits.{nodeId}")</code> returns correct visit count</li>
@@ -2117,7 +2061,8 @@ public sealed class CheckpointNodeExecutor : INodeExecutor
 <code>$.engine.visits</code> resolution, <code>WhenEvaluator</code> with engine namespace,<br />
       checkpoint mid-loop save (verify CurrentNodeId is nextNodeId after save),<br />
       crash recovery re-execution (verify sync chain re-runs from last saved node),<br />
-      missing client throws MissingClientException before execution starts,<br />
+      unregistered clientRef rejected at registry save and by the StartAsync guard<br />
+      (WorkflowDefinitionValidationException, CLIENT_NOT_REGISTERED),<br />
       CancelAsync closes HumanTasks and is idempotent,<br />
       HumanNodeExecutor crash-recovery idempotency (no duplicate tasks),<br />
       SubmitResponseAsync quorum logic and engine resume</li>
@@ -2449,7 +2394,7 @@ internal async Task ResumeFromSweepAsync(string instanceId, CancellationToken ct
     if (instance == null || IsTerminal(instance.Status)) return;
 
     // Case 1: Running with expired claim — server crashed; re-execute from saved state.
-    // Node executors must be idempotent; use idempotencyKey on integration nodes.
+    // Node executors must be idempotent; use idempotencyKeyHeader on integration writes.
     if (instance.Status == ExecStatus.Running)
     {
         await ExecuteLoopAsync(instance, ct);

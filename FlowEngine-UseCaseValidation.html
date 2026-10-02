@@ -352,7 +352,7 @@ and adverse action notice generation.</p>
 <p><code>parallel</code> with <code>joinStrategy: All</code> and <code>errorBehavior: ContinueWithPartial</code><br />
    — partial bureau result is acceptable, engine proceeds with what it has</p>
 <p><code>compute</code> nodes for score and DTI — Roslyn expression with <code>Context["bureauScore"]</code></p>
-<p><code>decision</code> node — <code>valuePath: "$.context.riskTier"</code> with edge <code>when</code> predicates</p>
+<p><code>decision</code> node - <code>target: "$.context.riskTier"</code> with edge <code>when</code> predicates</p>
 <p><code>human</code> node with <code>quorum: 2</code> and <code>assignedTo: "role:credit-committee"</code><br />
    — <code>IHumanTaskStore.SubmitResponseAsync</code> tracks quorum, resumes when 2 respond</p>
 <p>Multi-response handling — <code>$.context._humanTaskResponses</code> accumulates all responses when <code>quorum &gt; 1</code>. <code>$.context._humanTaskConsensus</code> is set automatically: <code>"unanimous"</code>, <code>"majority"</code>, <code>"any-denied"</code>, or <code>"split"</code>. Edges use simple string comparison: <code>"$.context._humanTaskConsensus == 'unanimous'"</code>.</p>

@@ -218,14 +218,16 @@ builder.Services.AddRefitClient&lt;IFlowEngineAdminClient&gt;()
   "type": "integration",
   "config": {
     "clientRef":      "payment-api",
-    "integration":    "charge-card",
-    "idempotencyKey": "$.entity.OrderId + '-payment'"
+    "path":    "charge-card",
+    "idempotencyKey": "$.entity.OrderId + '-payment'",
+    "idempotencyKeyHeader": "Idempotency-Key"
   }
 }
 </code></pre>
+<p>For <code>integration</code> nodes <code>idempotencyKey</code> is client metadata only. Set <code>idempotencyKeyHeader</code> to have the engine send a generated key (stable across retries and lease recovery of one node execution) in that header; the server must deduplicate on it.</p>
 
 <div class="callout callout-teal">
-  <strong>Validation warning:</strong> <code>WorkflowDefinitionValidator</code> emits a warning when <code>idempotencyKey</code> is absent from an agent/message/integration node. This does not block registration but surfaces in validation output — treat it as an at-least-once delivery risk.
+  <strong>Validation warning:</strong> <code>WorkflowDefinitionValidator</code> emits a warning when <code>idempotencyKey</code> is absent from an agent/message/integration node (not for an integration node that sets <code>idempotencyKeyHeader</code>), and <code>UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER</code> when an unsafe-method integration node lists 408/500/502/504 in <code>retryOnStatusCodes</code> without <code>idempotencyKeyHeader</code>. <code>GetWarnings(definition)</code> returns structured <code>WorkflowDefinitionWarning { Code, NodeId, Message }</code>. Warnings do not block registration — treat them as an at-least-once delivery risk.
 </div>
 
 <hr>

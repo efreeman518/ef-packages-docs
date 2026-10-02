@@ -654,10 +654,10 @@ processor.ProcessMessageAsync += async args =>
 <div class="table-wrap"><table style="margin-top:10px">
   <tr><th></th><th>JSONPath — <code>$.context.key</code></th><th>C# globals — <code>Context["key"]</code></th></tr>
   <tr><td><strong>Mechanism</strong></td><td>Declarative path string, resolved at runtime</td><td>Roslyn-compiled C# expression</td></tr>
-  <tr><td><strong>Used in</strong></td><td>Node config fields: <code>valuePath</code>, <code>target</code>, transform <code>mapping</code> values, fetch/human template strings (<code>{{$.path}}</code>)</td><td>Edge <code>when</code> predicates, <code>compute</code> node expressions, <code>wait</code> correlation key expressions</td></tr>
+  <tr><td><strong>Used in</strong></td><td>Node config fields: <code>target</code>, <code>items</code>, transform <code>mapping</code> values, fetch/human template strings (<code>{{$.path}}</code>)</td><td>Edge <code>when</code> predicates, <code>compute</code> node expressions, <code>wait</code> correlation key expressions</td></tr>
   <tr><td><strong>Returns</strong></td><td><code>JsonElement</code> — structural JSON value</td><td>Unwrapped CLR object — cast as needed: <code>(decimal)</code>, <code>(int)</code>, <code>(string)</code></td></tr>
   <tr><td><strong>Namespaces</strong></td><td><code>$.entity.*</code> · <code>$.params.*</code> · <code>$.context.*</code> · <code>$.engine.*</code></td><td><code>Context</code> · <code>Entity</code> · <code>Params</code> · <code>Engine</code></td></tr>
-  <tr><td><strong>Example</strong></td><td><code>"valuePath": "$.context.riskScore"</code></td><td><code>"when": "(decimal)Context[\"riskScore\"] &gt; 750"</code></td></tr>
+  <tr><td><strong>Example</strong></td><td><code>"target": "$.context.riskScore"</code></td><td><code>"when": "(decimal)Context[\"riskScore\"] &gt; 750"</code></td></tr>
 </table></div>
 <p style="margin-top:12px">Both access the same underlying store — <code>$.context.riskScore</code> and <code>Context["riskScore"]</code> refer to the same value. The format to use is determined solely by where it appears: <strong>JSONPath for data wiring, C# globals for logic.</strong></p>
 <p>The four C# globals available in <code>when</code> predicates and <code>compute</code> expressions:</p>
@@ -819,15 +819,15 @@ processor.ProcessMessageAsync += async args =>
         └── ExecutionTimeout: TimeSpan?   → wall-clock cap per execution attempt</code></pre>
 
 <h3>NodeConfig types</h3>
-<p><code>NodeDefinition.Config</code> is a <code>JsonElement</code>. Each executor deserializes it with <code>node.Config.Deserialize&lt;T&gt;()</code>:</p>
+<p><code>NodeDefinition.Config</code> is a <code>JsonElement</code>. Each executor deserializes it with <code>node.Config.Deserialize&lt;T&gt;()</code>, using case-insensitive options that match the definition deserializer, so camelCase keys (<code>assignedTo</code>, <code>eventName</code>, <code>workflowId</code>) bind:</p>
 <div class="table-wrap"><table>
   <tr><th>Node type</th><th>Config class</th><th>Key fields</th></tr>
   <tr><td><code>filter</code></td><td><code>FilterNodeConfig</code></td><td><code>Target</code> (JSONPath), <code>FilterSet</code> (FilterBuilder)</td></tr>
-  <tr><td><code>decision</code></td><td><code>DecisionNodeConfig</code></td><td><code>ValuePath</code> (JSONPath) — Match/NoMatch/Unknown on value presence</td></tr>
-  <tr><td><code>store</code></td><td><code>StoreNodeConfig</code></td><td><code>Key</code>, <code>Value</code> or <code>ValuePath</code></td></tr>
+  <tr><td><code>decision</code></td><td><code>DecisionNodeConfig</code></td><td><code>Target</code> (JSONPath) - Match/NoMatch/Unknown on value presence</td></tr>
+  <tr><td><code>store</code></td><td><code>StoreNodeConfig</code></td><td><code>Key</code>, <code>Value</code> (JSONPath or literal)</td></tr>
   <tr><td><code>compute</code></td><td><code>ComputeNodeConfig</code></td><td><code>Expression</code> (Roslyn C#; result becomes Output)</td></tr>
   <tr><td><code>transform</code></td><td><code>TransformNodeConfig</code></td><td><code>Mappings</code> (field-level JSONPath reshaping)</td></tr>
-  <tr><td><code>integration</code></td><td><code>IntegrationNodeConfig</code></td><td><code>ClientRef</code>, <code>Integration</code>, <code>Request</code>, <code>ResponseMapping</code>, <code>IdempotencyKey</code></td></tr>
+  <tr><td><code>integration</code></td><td><code>IntegrationNodeConfig</code></td><td><code>ClientRef</code>, <code>Method</code>, <code>Path</code>, <code>Body</code>, <code>ResponseMapping</code>, <code>IdempotencyKey</code></td></tr>
   <tr><td><code>fetch</code></td><td><code>FetchNodeConfig</code></td><td><code>Url</code>, <code>Method</code>, <code>Headers</code>, <code>Body</code>, <code>ResponseMapping</code></td></tr>
   <tr><td><code>query</code></td><td><code>QueryNodeConfig</code></td><td><code>ClientRef</code>, <code>FilterSet</code>, <code>OutputMapping</code></td></tr>
   <tr><td><code>agent</code></td><td><code>AgentNodeConfig</code></td><td><code>ClientRef</code>, <code>Prompt</code>, <code>InputMapping</code>, <code>OutputKey</code></td></tr>
@@ -1018,17 +1018,19 @@ processor.ProcessMessageAsync += async args =>
 
 <p><strong>Step 5 — Checkpoint.</strong> If <code>result.ForceCheckpoint == true</code>, state is saved mid-loop before the next node. This bounds the crash re-execution window. <code>checkpoint</code> nodes always set this.</p>
 
-<h3>Integration node and the <code>Integration</code> field</h3>
-<p><code>IntegrationNodeConfig.Integration</code> is an optional discriminator forwarded to the registered <code>IRequestResponseClient</code>. Use it when a single client handles multiple operations:</p>
-<pre><span class="lang-tag">csharp</span><code>new IntegrationNodeConfig
-{
-    ClientRef       = "order-service",
-    Integration     = "CreateOrder",        // client decides how to route this
-    Request         = new() { ["orderId"] = "$.entity.Id", ["amount"] = "$.entity.Total" },
-    ResponseMapping = new() { ["confirmedOrderId"] = "$.id", ["status"] = "$.status" },
-    IdempotencyKey  = "$.entity.Id"         // safe retry deduplication
+<h3>Integration node request</h3>
+<p><code>IntegrationNodeConfig.Path</code> (with <code>{{$.path}}</code> interpolation) and <code>Method</code> (default <code>POST</code>) select the operation on the registered <code>IRequestResponseClient</code>; <code>Body</code> maps context values into the request body:</p>
+<pre><span class="lang-tag">json</span><code>"config": {
+  "clientRef":            "order-service",
+  "method":               "POST",
+  "path":                 "/orders",
+  "body":                 { "orderId": "$.entity.Id", "amount": "$.entity.Total" },
+  "responseMapping":      { "confirmedOrderId": "$.id", "status": "$.status" },
+  "idempotencyKey":       "$.entity.Id",
+  "idempotencyKeyHeader": "Idempotency-Key"
 }</code></pre>
-<div class="callout callout-blue">The <code>integration</code> node returns <span class="pill pm">Match</span> on 2xx, <span class="pill pn">NoMatch</span> on 404, <span class="pill pe">Error</span> on any other response or exception. Use <code>IdempotencyKey</code> on any POST / PUT / DELETE — crash recovery re-runs nodes from the last save point.</div>
+<p><code>idempotencyKey</code> is client metadata only; <code>idempotencyKeyHeader</code> names the header that receives the engine-generated key the server deduplicates on.</p>
+<div class="callout callout-blue">The <code>integration</code> node returns <span class="pill pm">Match</span> on 2xx, <span class="pill pn">NoMatch</span> on 404, <span class="pill pe">Error</span> on any other response or exception. Set <code>IdempotencyKeyHeader</code> on any POST / PUT / PATCH / DELETE whose server supports a deduplication header - crash recovery re-runs nodes from the last save point. See <a href="#idempotency">Idempotency Key</a>.</div>
 
 <h3>Suspension and WaitDescriptor</h3>
 <p>When <code>result.PendingWait != null</code>, the descriptor is stored on <code>ExecutionInstance.PendingWait</code>:</p>
@@ -1072,10 +1074,10 @@ processor.ProcessMessageAsync += async args =>
 <div class="outcomes"><span class="pill pm">Match</span><span class="pill pn">NoMatch</span><span class="pill pu">Unknown (null target)</span><span class="pill pe">Error</span></div>
 
 <h2 id="n-decision">decision</h2>
-<p>Resolves a context value at <code>valuePath</code> and emits <code>Match</code> (value present), <code>NoMatch</code> (value explicitly null), or <code>Unknown</code> (path unresolvable). Does not call any external service — it is purely a routing gate over existing context. All actual branching lives in the edge <code>when</code> predicates.</p>
+<p>Resolves a context value at <code>target</code> and emits <code>Match</code> (value present), <code>NoMatch</code> (value explicitly null), or <code>Unknown</code> (path unresolvable). Does not call any external service - it is purely a routing gate over existing context. All actual branching lives in the edge <code>when</code> predicates.</p>
 <pre><span class="lang-tag">json</span><code>{
   "type": "decision",
-  "config": { "valuePath": "$.context.riskTier" },
+  "config": { "target": "$.context.riskTier" },
   "edges": [
     { "on": ["Match"], "when": "$.context.riskTier == 'low'",  "nextNodeId": "n-auto"      },
     { "on": ["Match"], "when": "$.context.riskTier == 'high'", "nextNodeId": "n-committee" },
@@ -1098,17 +1100,19 @@ processor.ProcessMessageAsync += async args =>
 <p>All three are naturally idempotent and always emit <span class="pill pm">Match</span>.</p>
 
 <h2 id="n-integration">integration</h2>
-<p>Calls a registered <code>IRequestResponseClient</code>. Auth, retries, and timeouts live on the client — not in the workflow definition.</p>
+<p>Calls a registered <code>IRequestResponseClient</code>. Auth and transport timeouts live on the client; retries are owned by the node's <code>retryPolicy</code> (or the workflow <code>defaultRetryPolicy</code>), never by the HTTP pipeline. See <a href="#retry-policy">Retry Policy</a>.</p>
 <pre><span class="lang-tag">json</span><code>{
   "type": "integration", "storeAs": "payResult",
   "config": {
     "clientRef":       "payment-api",
-    "request":         { "amount": "$.context.orderTotal", "customerId": "$.entity.CustomerId" },
+    "body":         { "amount": "$.context.orderTotal", "customerId": "$.entity.CustomerId" },
     "responseMapping": { "txId": "$.id", "status": "$.status" },
-    "idempotencyKey":  "$.entity.OrderId + '-payment'"
+    "idempotencyKey":  "$.entity.OrderId + '-payment'",
+    "idempotencyKeyHeader": "Idempotency-Key"
   }
 }</code></pre>
-<div class="callout callout-amber"><strong>idempotencyKey required for writes.</strong> On crash recovery, nodes re-execute from the last save. Without an idempotency key a POST/PUT/DELETE fires twice.</div>
+<div class="callout callout-amber"><strong>idempotencyKeyHeader for writes.</strong> On crash recovery, nodes re-execute from the last save. Without server-side deduplication a POST/PUT/PATCH/DELETE fires twice. <code>idempotencyKeyHeader</code> sends an engine-generated key the server must deduplicate on; it also enables full status-list and transport retries for unsafe methods. <code>idempotencyKey</code> is client metadata only.</div>
+<p>Optional retry fields: <code>retryOnStatusCodes</code> (replaces the inherited <code>retryOnHttpStatus</code> list; <code>[]</code> disables status retries), <code>retryAfterMaxDelay</code> (cap on a server Retry-After wait). Both still require a <code>retryPolicy</code>.</p>
 <div class="outcomes"><span class="pill pm">Match (2xx)</span><span class="pill pn">NoMatch (404)</span><span class="pill pe">Error (other 4xx/5xx/timeout)</span></div>
 
 <h2 id="n-query">query</h2>
@@ -1258,7 +1262,7 @@ await engine.ResumeBackgroundAsync(instanceId, "payment.confirmed", order.Id,
 <h2 id="n-loop">loop · workflow · parallel</h2>
 <h4>loop</h4>
 <pre><span class="lang-tag">json</span><code>{ "type": "loop", "config": {
-  "over": "$.entity.LineItems", "subWorkflowId": "process-line-item",
+  "items": "$.entity.LineItems", "subWorkflowId": "process-line-item",
   "mode": "Parallel", "maxConcurrency": 10,
   "aggregate": { "totals": { "strategy": "collect" }, "subtotal": { "strategy": "sum", "sourcePath": "$.output.lineTotal" } }
 }}</code></pre>
@@ -1509,11 +1513,11 @@ await taskStore.SubmitResponseBackgroundAsync(taskId, responseToken, formValues,
 </div>
 
 <h2 id="idempotency">Idempotency Key</h2>
-<p><code>IdempotencyKey</code> is an optional string forwarded to external systems so they can deduplicate repeated calls. FlowEngine itself does not use it for deduplication — it is a hint carried through to clients and brokers.</p>
+<p><code>IdempotencyKey</code> is an optional string forwarded to external systems so they can deduplicate repeated calls. FlowEngine itself does not use it for deduplication — it is a hint carried through to clients and brokers. For <code>integration</code> nodes it is client metadata only and does not enable HTTP deduplication; use <code>idempotencyKeyHeader</code> (below).</p>
 
 <h3>Why it matters</h3>
 <p>When <code>ExecutionSweepService</code> recovers a crashed instance it re-executes the node from <code>CurrentNodeId</code>. If the external system was already called before the crash, the re-execution sends a second call. Without an idempotency key the external system has no way to detect the duplicate.</p>
-<div class="callout callout-amber"><strong>Validator warning.</strong> <code>WorkflowDefinitionValidator.GetWarnings</code> emits a warning for every <code>message</code>, <code>integration</code>, and <code>agent</code> node that does not set <code>IdempotencyKey</code>. Treat this warning as an error for any node that performs a write operation.</div>
+<div class="callout callout-amber"><strong>Validator warning.</strong> <code>WorkflowDefinitionValidator.GetWarnings(definition)</code> returns structured <code>WorkflowDefinitionWarning { Code, NodeId, Message }</code> entries; <code>GetWarnings</code> still returns the messages as strings. Codes: <code>MESSAGE_IDEMPOTENCY_KEY_MISSING</code>, <code>AGENT_IDEMPOTENCY_KEY_MISSING</code>, <code>INTEGRATION_IDEMPOTENCY_KEY_MISSING</code> (not raised when <code>idempotencyKeyHeader</code> is set), and <code>UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER</code> (unsafe method, <code>retryOnStatusCodes</code> containing 408/500/502/504, no <code>idempotencyKeyHeader</code>; the engine also logs it when a workflow loads). Config keys are read case-insensitively (<code>idempotencyKey</code> and <code>IdempotencyKey</code> are equivalent). Treat the idempotency warnings as errors for any node that performs a write operation.</div>
 
 <h3>Where to set it</h3>
 <div class="table-wrap"><table>
@@ -1522,6 +1526,8 @@ await taskStore.SubmitResponseBackgroundAsync(taskId, responseToken, formValues,
   <tr><td><code>integration</code></td><td><code>IntegrationNodeConfig.IdempotencyKey</code></td><td><code>ClientRequest.IdempotencyKey</code> → request-response client</td></tr>
   <tr><td><code>agent</code></td><td><code>AgentNodeConfig.IdempotencyKey</code></td><td><code>AgentRequest.IdempotencyKey</code> → agent client</td></tr>
 </table></div>
+<h3>idempotencyKeyHeader (integration)</h3>
+<p>When an <code>integration</code> config sets <code>idempotencyKeyHeader</code>, the engine generates one key per node execution and sends it in that header: the SHA-256 hex of <code>{InstanceId, NodeId, Step = History.Count}</code>. The key is the same across retry attempts and lease recovery; a later completed step gets a new key. The server must deduplicate on that header. Inside an inline loop body the key also includes the iteration identity (<code>"loopNodeId:index"</code>, nested <code>"outer:i/inner:j"</code>), so it is stable across retries and recovery of one iteration and differs across iterations; the loop collection must therefore be stable across recovery. Top-level keys are unchanged.</p>
 <p>When an <code>IOutboxStore</code> is enabled the key is also persisted on <code>OutboxEntry.IdempotencyKey</code> and forwarded by the drain service at dispatch time.</p>
 
 <h3>Value format</h3>
@@ -1886,7 +1892,11 @@ var errors = WorkflowDefinitionValidator.Validate(definition);
 if (errors.Count > 0) foreach (var e in errors) Console.WriteLine(e);
 
 // Or throw directly
-WorkflowDefinitionValidator.ValidateAndThrow(definition);</code></pre>
+WorkflowDefinitionValidator.ValidateAndThrow(definition);
+
+// Structure plus clientRefs, as registry SaveAsync does
+WorkflowDefinitionValidator.ValidateAndThrow(definition, clientRegistry);
+var clientErrors = WorkflowDefinitionValidator.ValidateClients(definition, clientRegistry);</code></pre>
 <p><strong>What is validated:</strong></p>
 <ul style="margin:8px 0 16px;padding-left:22px;line-height:2.2;color:var(--text2);">
   <li><code>Id</code> and <code>Version</code> are non-empty</li>
@@ -1896,8 +1906,12 @@ WorkflowDefinitionValidator.ValidateAndThrow(definition);</code></pre>
   <li>All node types are non-empty</li>
   <li><code>MaxVisits</code> is greater than zero on every node</li>
   <li>Self-loops with default <code>MaxVisits</code> (100) are flagged</li>
+  <li>Every node's non-blank <code>clientRef</code> (key matched case-insensitively) is provided by <code>IClientRegistry</code>, including nodes on branches an instance may never take (save-time only; see below)</li>
 </ul>
-<p><code>WorkflowDefinitionValidationException</code> exposes <code>WorkflowId</code>, <code>Version</code>, and <code>Errors: IReadOnlyList&lt;string&gt;</code> with all messages.</p>
+<p><code>WorkflowDefinitionValidationException</code> exposes <code>WorkflowId</code>, <code>Version</code>, <code>Errors: IReadOnlyList&lt;string&gt;</code> with all messages, and <code>Details: IReadOnlyList&lt;WorkflowDefinitionError&gt;</code> with <code>{ Code, NodeId, Message }</code> per error. Codes: <code>CLIENT_NOT_REGISTERED</code> (the message names the workflow id@version, node id and clientRef) and <code>DEFINITION_INVALID</code> for structural errors. Assert on <code>Code</code>; <code>Message</code> may change.</p>
+<p><strong>Client references.</strong> Every registry registered through <code>FlowEngineBuilder</code> (the default in-memory registry, <code>UseWorkflowRegistry&lt;T&gt;</code>, the JSON-file, File, Sql, Cosmos, Redis and AzureTable registries, and the cache decorator) is wrapped so <code>SaveAsync</code> rejects a definition whose <code>clientRef</code> is not registered. <code>IClientRegistry</code> holds every registered <code>IFlowClient</code>, not only HTTP clients. <code>GetAsync</code>/<code>ListAsync</code> are not validated, so an invalid stored definition can still be viewed and repaired. <code>AddWorkflowJsonSeeding</code> saves through the same registry, so an invalid seeded definition fails host startup. <code>StartAsync</code> keeps a guard for definitions that bypassed this check (written by another host, or a registry registered outside <code>FlowEngineBuilder</code>) and throws the same exception.</p>
+<p>412 in any retry list (integration <code>retryOnStatusCodes</code>, node or workflow <code>retryOnHttpStatus</code>) is a validation error. Node config keys are read case-insensitively, matching the definition deserializer (<code>idempotencyKey</code> and <code>IdempotencyKey</code> are equivalent; human <code>onTimeoutNodeId</code> is validated in either case).</p>
+<p><strong>Warnings</strong> do not block registration. <code>GetWarnings(definition)</code> returns structured <code>WorkflowDefinitionWarning { Code, NodeId, Message }</code>; <code>GetWarnings(definition)</code> returns the messages. See <a href="#idempotency">Idempotency Key</a> for the codes.</p>
 
 <h2 id="compat">CompatibilityAnalyzer</h2>
 <p>When you deploy a new workflow version while instances are still in-flight on the old version, some changes will strand or break those instances. <code>CompatibilityAnalyzer.Analyze(from, to)</code> compares two <code>WorkflowDefinition</code> objects and returns a <code>WorkflowCompatibilityReport</code> listing <strong>Breaking</strong> and <strong>Warning</strong> findings before you promote the new version.</p>
@@ -2069,9 +2083,13 @@ bool safe = report.Findings.All(f => f.Severity != CompatibilityFindingSeverity.
     .AddNode("charge-payment", "integration", new IntegrationNodeConfig
     {
         ClientRef      = "payment-api",
-        Operation      = "ChargeOrder",
+        Path           = "/payments/charge",
         IdempotencyKey = "$.entity.OrderId",
-        InputMapping   = new() { ["orderId"] = "$.entity.OrderId", ["amount"] = "$.entity.Total" }
+        Body           = new()
+        {
+            ["orderId"] = JsonSerializer.SerializeToElement("$.entity.OrderId"),
+            ["amount"]  = JsonSerializer.SerializeToElement("$.entity.Total")
+        }
     })
         .WithStoreAs("paymentResult")
         .ThenOn("fulfil-order",     DecisionOutcome.Match)
@@ -2403,7 +2421,7 @@ faultable.FaultOnLoad = true;</code></pre>
     ]
   },
   { "id": "n-check-score", "type": "decision",
-    "config": { "valuePath": "$.context.creditScore" },
+    "config": { "target": "$.context.creditScore" },
     "edges": [
       { "on": ["Match"], "when": "(int)((System.Text.Json.JsonElement)Context[\"creditScore\"]).GetProperty(\"score\").GetInt32() >= 700", "nextNodeId": "n-approve" },
       { "on": ["Match"], "when": "(int)((System.Text.Json.JsonElement)Context[\"creditScore\"]).GetProperty(\"score\").GetInt32() >= 500", "nextNodeId": "n-review"  },
@@ -2587,7 +2605,7 @@ faultable.FaultOnLoad = true;</code></pre>
     <tr><td><code>initialDelay</code></td><td><code>00:00:01</code></td><td>Base delay for the first retry. Subsequent delays scale per the backoff algorithm.</td></tr>
     <tr><td><code>maxDelay</code></td><td><code>00:05:00</code></td><td>Upper cap on calculated delay. Prevents excessive waits on exponential curves.</td></tr>
     <tr><td><code>retryOn</code></td><td><code>["Error"]</code></td><td>Which <code>DecisionOutcome</code> values trigger a retry. Can include <code>NoMatch</code> or <code>Unknown</code> for stricter policies.</td></tr>
-    <tr><td><code>retryOnHttpStatus</code></td><td><code>[429,500,502,503,504]</code></td><td>HTTP status codes from <code>integration</code>/<code>query</code> nodes that additionally trigger a retry regardless of outcome.</td></tr>
+    <tr><td><code>retryOnHttpStatus</code></td><td><code>[408,409,429,500,502,503,504]</code></td><td>HTTP status codes from <code>fetch</code>/<code>integration</code> nodes that trigger a retry. Integration nodes retry by this list, not by every <code>Error</code> (see below). 412 is a validation error; 2xx is never retried.</td></tr>
   </tbody>
 </table></div>
 
@@ -2601,6 +2619,15 @@ faultable.FaultOnLoad = true;</code></pre>
     <tr><td><code>ExponentialWithJitter</code></td><td>Exponential + 0–1000 ms random jitter</td><td>Distributed systems: prevents thundering-herd when many instances retry simultaneously</td></tr>
   </tbody>
 </table></div>
+<h4>Integration retry classification</h4>
+<ul>
+  <li>Safe methods (GET/HEAD/OPTIONS) retry the full status list plus transport errors (<code>INTEGRATION_TRANSPORT_ERROR</code>) and <code>NODE_EXECUTION_TIMEOUT</code>.</li>
+  <li>Unsafe methods (POST/PUT/PATCH/DELETE) retry only 409/429/503 unless the integration config sets <code>idempotencyKeyHeader</code>, which enables the full list and transport retries.</li>
+  <li>Integration config <code>retryOnStatusCodes</code> replaces the inherited list; null inherits; <code>[]</code> disables status retries. A <code>RetryPolicy</code> is still required. 412 in any retry list (config, node, workflow) is a validation error. 404 keeps its <code>NoMatch</code> route.</li>
+  <li>Retry-After on 429/503 (seconds or HTTP date) is honored: wait = max(backoff, Retry-After), capped by <code>retryAfterMaxDelay</code> (default: the effective <code>maxDelay</code>, or 60 s without a policy). A larger Retry-After fails with <code>RETRY_AFTER_LIMIT_EXCEEDED</code> and the request is not resent. Retry waits use the registered <code>TimeProvider</code>, else <code>TimeProvider.System</code>.</li>
+  <li>HTTP adapters (<code>EF.FlowEngine.Clients.Http</code>) never retry; the node policy owns all retries.</li>
+</ul>
+<p><strong>Inline loop bodies.</strong> A loop body node (<code>bodyEntryNodeId</code>) runs under its effective policy with the same status classification, Retry-After handling and <code>executionTimeout</code> as a top-level node. The effective policy is the body node's own <code>retryPolicy</code>, else the nearest enclosing loop node's <code>retryPolicy</code> (inner loop first, then outer loops), else <code>defaultRetryPolicy</code>. When a body fails after its retries (<code>StopOnError</code>), the loop fails and the loop node is not retried again for it, so attempts never multiply. If the loop node is retried for its own failure (its <code>executionTimeout</code> expires, or its executor throws), it resumes at the iteration that was running; completed iterations are not rerun. Progress is held in memory for that execution and is never persisted; crash recovery starts the loop again and resends the same keys. Crash recovery (lease expiry, new process) reloads the persisted instance and reruns the loop from its persisted point; iterations already sent resend their same idempotency keys. <code>executionTimeout</code> runs on the registered <code>TimeProvider</code> (default <code>TimeProvider.System</code>), like retry waits. Circuit breaker and <code>maxConcurrentNodeExecutions</code> do not apply to loop bodies.</p>
 <div class="callout callout-amber"><strong>Retries are in-process and fast.</strong> <code>RetryPolicy</code> is for transient network or rate-limit errors (milliseconds to seconds). For durable waits across server restarts — e.g. retrying after a 10-minute cool-down — model the retry explicitly with a <code>timer</code> node and an error edge looping back. See <a href="#patterns">Common Patterns → Retry with timer delay</a>.</div>
 
 <h3 id="circuit-breaker">Circuit Breaker</h3>

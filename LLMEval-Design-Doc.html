@@ -494,8 +494,7 @@ tool calling as a whole.</td>
 <td>The efforts the model accepts. A requested effort outside the list
 is removed. An empty published list means no effort is known to be
 accepted, so a requested one is removed too - stricter than
-<code>Supports</code>, which skips an empty list because it used to
-refuse the model rather than edit the request.</td>
+<code>Supports</code>, which skips an empty list.</td>
 </tr>
 <tr class="odd">
 <td><code>ReasoningMandatory</code></td>
@@ -566,13 +565,11 @@ request is sent, runs the cell normally, and lists what went on
 and a <code>N cells ran with a request setting dropped</code> line
 counts. The removal is decided from catalog data before the call; a
 provider that refuses a parameter at call time is a failed cell with no
-re-send and no after-the-fact strip.
-<code>EvalOutcome.Unsupported</code> is no longer produced by anything
-and is kept only so an older results file still reads back. For an
-episode the same check runs once per role, and each role's request is
-trimmed on its own capabilities: one role refusing a member never
-invalidates the cell or stops the other roles being called, and every
-removal is listed on the cell's record.</p>
+re-send and no after-the-fact strip. For an episode the same check runs
+once per role, and each role's request is trimmed on its own
+capabilities: one role refusing a member never invalidates the cell or
+stops the other roles being called, and every removal is listed on the
+cell's record.</p>
 <h4 id="per-role-requirements-reported-and-never-enforced">Per-role
 requirements, reported and never enforced</h4>
 <p>A role may state what any model assigned to it must be able to do,
@@ -845,9 +842,8 @@ incumbent</h3>
 against, and the most common first run does not have one: the model an
 application calls today is often initial plumbing, and ranking a field
 against it measures how well each candidate imitates a placeholder.
-Refusing to select from such a run - which is what the package used to
-do - left exactly that run with a leaderboard, no recommendation, and no
-line anywhere saying why.</p>
+Refusing to select from such a run would leave exactly that run with a
+leaderboard, no recommendation, and no line anywhere saying why.</p>
 <p>With no <code>Baseline</code> and no <code>BaselineAssignment</code>,
 the runner attaches <code>RubricScoreEvaluator</code> itself and every
 generation is scored 1 to 5 against <code>SweepOptions.Rubric</code>,
@@ -992,18 +988,17 @@ the report.</p>
 does not run it. Both are said out loud - a warning naming the episode,
 a recorded reason on the report - rather than being an option that
 silently bought nothing.</p>
-<h4 id="the-boundary-that-moved-and-the-one-that-did-not">The boundary
-that moved, and the one that did not</h4>
-<p>Earlier versions refused this outright: a loop in which a model edits
-the prompt, runs the edit and scores its own output is not an
-experiment. That objection is still true, and the package no longer
-answers it by refusing to run - it answers it by being explicit. The
-proposer and the judge are the same drainer, so an admitted variant
-winning its comparisons is the proposer agreeing with itself, and the
-report says exactly that above the table rather than presenting the win
-as evidence. The whole loop is off by default, is gated on a confidence
-the proposer has to state, is bounded by the same ceiling as everything
-else, and records what it refused as carefully as what it ran.</p>
+<h4 id="the-boundary-and-how-it-is-held">The boundary, and how it is
+held</h4>
+<p>A loop in which a model edits the prompt, runs the edit and scores
+its own output is not an experiment. The package answers that objection
+by being explicit rather than by refusing to run. The proposer and the
+judge are the same drainer, so an admitted variant winning its
+comparisons is the proposer agreeing with itself, and the report says
+exactly that above the table rather than presenting the win as evidence.
+The whole loop is off by default, is gated on a confidence the proposer
+has to state, is bounded by the same ceiling as everything else, and
+records what it refused as carefully as what it ran.</p>
 <p>What has not moved: nothing edits the shipped prompt. A variant is a
 measurement beside the control, never a replacement for it;
 <code>PromptAdvisor</code> still writes to a file and runs nothing; and
@@ -1603,21 +1598,17 @@ would vanish from in front of the judge - the very failure the
 two-exchange form was built to prevent. The tool note stays conditional
 on an annotation being in the prompt, which in the single-task form it
 never is.</p>
-<p><strong>Changed in this version, and it invalidates earlier
-numbers.</strong> Before this, an episode's comparison built one task
-section from the <em>candidate</em> cell's messages and showed both
-closing answers under it. The incumbent's answer was therefore judged
-against a conversation it never had, which reads as a model recalling
-things nobody said; and because swapping the orderings reuses the same
-candidate transcript, the bias was applied twice rather than cancelled.
-Measured on a real multi-turn sweep, casts whose compared role was
-identical to the incumbent won 0.89 over n=55 where 0.5 is the only
-honest answer, and 56 of 179 judge reasons said the losing side recalled
-facts that appeared nowhere in front of the judge. <strong>Episode
-pairwise win rates from 1.0.189 and earlier are biased toward the
-candidate and must not be used for a decision.</strong> Single-shot win
-rates are unaffected: that form is unchanged and is covered by its own
-tests.</p>
+<p><strong>Why each side gets its own conversation.</strong> Building
+one task section from the <em>candidate</em> cell's messages and showing
+both closing answers under it would judge the incumbent's answer against
+a conversation it never had, which reads as a model recalling things
+nobody said; and because swapping the orderings reuses the same
+candidate transcript, the bias would be applied twice rather than
+cancelled. Measured on a real multi-turn sweep judged that way, casts
+whose compared role was identical to the incumbent won 0.89 over n=55
+where 0.5 is the only honest answer, and 56 of 179 judge reasons said
+the losing side recalled facts that appeared nowhere in front of the
+judge.</p>
 <h4 id="54-judge-accounting">5.4 Judge accounting</h4>
 <p>The volume is two judge calls per non-incumbent cell, plus one per
 cell carrying a rubric score (the incumbent's cells included, since they
@@ -1740,17 +1731,17 @@ and hints are neither salted nor repeated: they shape the answers or
 come after them, and are not verdicts.</p>
 <p><strong>Neither option moves an id at its default.</strong> With k at
 1 and no salt the first judgment sends no options and the exchange has
-no salt, so every request is the one the previous version asked. That is
-pinned by a test that runs a fixed input - a single-shot comparison, a
-rubric run and a two-exchange episode - and compares the request ids
-with those version 1.0.192 produced for it. A request's text depends on
-the build as well as the input (the templates carry the checkout's line
-endings and the rendered task the runtime's newline), so the expected
-ids were observed three times: on Windows from CRLF and LF checkouts,
-and on Linux from an LF checkout, which is what CI runs. The evaluation
-library's response-cache keys for the same input, with caching on, are
-pinned the same way, since that cache answers before the exchange is
-reached.</p>
+no salt, so every request is the unsalted single judgment of its
+question. That is pinned by a test that runs a fixed input - a
+single-shot comparison, a rubric run and a two-exchange episode - and
+compares the request ids with pinned expected values. A request's text
+depends on the build as well as the input (the templates carry the
+checkout's line endings and the rendered task the runtime's newline), so
+the expected ids were observed three times: on Windows from CRLF and LF
+checkouts, and on Linux from an LF checkout, which is what CI runs. The
+evaluation library's response-cache keys for the same input, with
+caching on, are pinned the same way, since that cache answers before the
+exchange is reached.</p>
 <hr />
 <h3 id="6-the-selection-rule">6. The selection rule</h3>
 <p>Win rates and a cost-per-pass column are inputs, not an answer. The
@@ -2125,13 +2116,13 @@ every request to that model; a pin is checked against it and refused
 when the two differ. The run settles it once, before its first request,
 so one run's answers are never split across two judges, and a drainer on
 a new model re-judges rather than replaying another model's verdicts
-under its own name. A heartbeat that names no model, from a drainer on
-an older brief, is refused rather than guessed at: the older brief
-handed every drainer the same model name, whatever it really was. A run
-the runner itself will judge is refused before any cell runs, so a judge
-it cannot settle costs nothing; and a live drainer naming a model other
-than the settled one stops the run at once, naming both, since it will
-not answer requests addressed to another model.</p>
+under its own name. A heartbeat that names no model, from a drainer not
+following the current brief, is refused rather than guessed at: such a
+drainer may write any model name into its replies, whatever it really
+is. A run the runner itself will judge is refused before any cell runs,
+so a judge it cannot settle costs nothing; and a live drainer naming a
+model other than the settled one stops the run at once, naming both,
+since it will not answer requests addressed to another model.</p>
 <h4 id="83-heartbeat-and-fail-fast">8.3 Heartbeat and fail-fast</h4>
 <p>The agent writes a heartbeat before its first pass and refreshes it
 on <strong>every</strong> pass, empty ones included. Without a heartbeat
@@ -2361,10 +2352,10 @@ and an idea is paid for only when it names declared editable keys,
 states a confidence at or above <code>ProposalMinConfidence</code>, and
 fits inside <code>MaxSpend</code>, with every refusal recorded and a
 ceiling refusal naming the number of cells that would exceed it. The
-objection this used to be refused over is still true and is answered in
-the report rather than in the code: the proposer and the judge are the
-same agent, so an admitted variant's win is the proposer agreeing with
-itself, and the section says so.</p>
+objection to a self-editing loop is answered in the report rather than
+in the code: the proposer and the judge are the same agent, so an
+admitted variant's win is the proposer agreeing with itself, and the
+section says so.</p>
 <p>The loop in practice: run a sweep with the baseline variant as
 control, read the suggested adjustments for whatever failed and whatever
 the run proposed for itself, turn the ones that make sense into named
@@ -2465,7 +2456,7 @@ generation, ties broken by model id. The model column carries the
 upstream that actually answered where the endpoint reported one.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 2026-09-11T0930</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>120 cells: 119 succeeded, 1 failed, 0 unsupported.</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>120 cells: 119 succeeded, 1 failed.</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 0.812400, actual 0.374512.</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (outside the eval&#39;s spend, charged to the harness subscription).</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>Judge answers: 24 through the Claude Code exchange, outside the spend above, charged to the harness subscription.</span>

@@ -175,9 +175,8 @@ class="sourceCode xml"><code class="sourceCode xml"><span id="cb1-1"><a href="#c
 <span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Http&quot;</span><span class="ot">              Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
 <span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.ServiceBus&quot;</span><span class="ot">        Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
 <span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.AI&quot;</span><span class="ot">               Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.OpenAI&quot;</span><span class="ot">            Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Sql&quot;</span><span class="ot">               Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine.Clients.Sql&quot;</span><span class="ot">               Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
 <p>Then in each consuming csproj:</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode xml"><code class="sourceCode xml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageReference</span><span class="ot"> Include=</span><span class="st">&quot;EF.FlowEngine&quot;</span> /&gt;</span>
@@ -402,25 +401,29 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="
 <span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    sp <span class="op">=&gt;</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IAzureClientFactory<span class="op">&lt;</span>ServiceBusClient<span class="op">&gt;&gt;().</span><span class="fu">CreateClient</span><span class="op">(</span><span class="st">&quot;my-bus&quot;</span><span class="op">),</span></span>
 <span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    queueOrTopic<span class="op">:</span> <span class="st">&quot;orders&quot;</span><span class="op">);</span></span>
 <span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure OpenAI — factory variant that bridges AzureOpenAIClient to IChatClient</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure OpenAI (EF.FlowEngine.Clients.AI) - factory variant that bridges AzureOpenAIClient to IChatClient</span></span>
 <span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddAzureOpenAIAgentClient</span><span class="op">(</span></span>
 <span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;gpt4o&quot;</span><span class="op">,</span></span>
 <span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    sp <span class="op">=&gt;</span> sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>AzureOpenAIClient<span class="op">&gt;(),</span></span>
 <span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    deploymentName<span class="op">:</span> <span class="st">&quot;gpt-4o-prod&quot;</span><span class="op">,</span></span>
 <span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    modelName<span class="op">:</span> <span class="st">&quot;gpt-4o&quot;</span><span class="op">);</span></span>
 <span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="co">// Resilient HTTP (retry + circuit breaker + timeout) — EF.FlowEngine.Clients.Http</span></span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddResilientHttpClient</span><span class="op">(</span>clientRef<span class="op">:</span> <span class="st">&quot;payment-api&quot;</span><span class="op">,</span> namedClient<span class="op">:</span> <span class="st">&quot;payment-api&quot;</span><span class="op">);</span></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="co">// ...or a plain, non-resilient HTTP client:</span></span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="co">// flowEngineBuilder.AddDirectHttpClient(clientRef: &quot;payment-api&quot;);</span></span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="co">// Any Microsoft.Extensions.AI IChatClient (Foundry Local, Ollama, OpenAI, …) — EF.FlowEngine.Clients.AI</span></span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddChatClientAgentClient</span><span class="op">(</span>clientRef<span class="op">:</span> <span class="st">&quot;assistant&quot;</span><span class="op">);</span></span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="co">// Provider-neutral EF Core query client — EF.FlowEngine.Clients.Sql</span></span>
-<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddEfQueryClient</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span><span class="st">&quot;orders-query&quot;</span><span class="op">,</span> typeMap<span class="op">,</span> setResolver<span class="op">);</span></span>
-<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a><span class="co">// Dynamic SQL Server queries by connection string — EF.FlowEngine.Clients.SqlServer</span></span>
-<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a><span class="co">// flowEngineBuilder.AddAdHocSqlQueryClient(&quot;adhoc&quot;, connectionString, entityTableMap);</span></span></code></pre></div>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="co">// Resilient HTTP (rate limiter + timeouts + circuit breaker, no retry) - EF.FlowEngine.Clients.Http.</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="co">// Node RetryPolicy owns retries. Handlers inherited from ConfigureHttpClientDefaults (for example</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="co">// Aspire ServiceDefaults&#39; AddStandardResilienceHandler) are replaced on this named client.</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="co">// Do not customize options.Retry: replacing it or its ShouldHandle fails startup validation.</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddResilientHttpClient</span><span class="op">(</span>clientRef<span class="op">:</span> <span class="st">&quot;payment-api&quot;</span><span class="op">,</span> namedClient<span class="op">:</span> <span class="st">&quot;payment-api&quot;</span><span class="op">);</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="co">// ...or a plain, non-resilient HTTP client (named client created per request, so self-calls to</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="co">// the host&#39;s own API work):</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="co">// flowEngineBuilder.AddDirectHttpClient(clientRef: &quot;payment-api&quot;);</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a><span class="co">// Any Microsoft.Extensions.AI IChatClient (Foundry Local, Ollama, OpenAI, …) — EF.FlowEngine.Clients.AI</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddChatClientAgentClient</span><span class="op">(</span>clientRef<span class="op">:</span> <span class="st">&quot;assistant&quot;</span><span class="op">);</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a><span class="co">// Provider-neutral EF Core query client — EF.FlowEngine.Clients.Sql</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">AddEfQueryClient</span><span class="op">&lt;</span>AppDbContext<span class="op">&gt;(</span><span class="st">&quot;orders-query&quot;</span><span class="op">,</span> typeMap<span class="op">,</span> setResolver<span class="op">);</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a><span class="co">// Dynamic SQL Server queries by connection string — EF.FlowEngine.Clients.SqlServer</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a><span class="co">// flowEngineBuilder.AddAdHocSqlQueryClient(&quot;adhoc&quot;, connectionString, entityTableMap);</span></span></code></pre></div>
 <p>If your app already has an <code>IIntegrationEventPublisher</code>
 (or MassTransit, or a custom bus) and you want FlowEngine
 <code>message</code> nodes to delegate to it (preserving tenant headers,
@@ -450,10 +453,21 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href=
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">ActivateOnSeed</span>           <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>   <span class="co">// saves as Draft, then transitions → Active</span></span>
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    opts<span class="op">.</span><span class="fu">OverwriteExistingVersion</span> <span class="op">=</span> <span class="kw">false</span><span class="op">;</span>  <span class="co">// skip on duplicates</span></span>
 <span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
+<p>Each file is saved through the workflow registry, so it gets the same
+validation as any <code>SaveAsync</code>, including the check that every
+node's <code>clientRef</code> is a registered <code>IFlowClient</code>.
+A seeded definition that fails validation fails host startup with
+<code>WorkflowDefinitionValidationException</code> (inspect
+<code>Details</code> for codes such as
+<code>CLIENT_NOT_REGISTERED</code> or <code>DEFINITION_INVALID</code>);
+it is not logged and skipped. A file that cannot be read or deserialized
+is still logged and skipped.</p>
 <p>The seeder reads each file with
 <code>WorkflowDefinitionJsonOptions.Default</code> (camelCase,
-string-named enums with integer fallback). If you build your own seeder,
-use that same options instance — never raw
+string-named enums with integer fallback). Node <code>config</code> keys
+are read case-insensitively by every built-in executor, so camelCase
+keys such as <code>assignedTo</code> or <code>workflowId</code> bind. If
+you build your own seeder, use that same options instance — never raw
 <code>JsonSerializerOptions()</code>:</p>
 <div class="sourceCode" id="cb12"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> def <span class="op">=</span> JsonSerializer<span class="op">.</span><span class="fu">Deserialize</span><span class="op">&lt;</span>WorkflowDefinition<span class="op">&gt;(</span></span>
@@ -719,7 +733,9 @@ circuit-breaker mixins).</li>
 them.</li>
 <li>Register all workflow clients that the solution uses.</li>
 <li>Add <code>AddWorkflowJsonSeeding</code> if you ship JSON workflow
-files.</li>
+files. Every <code>clientRef</code> they use must be registered: a
+seeded definition that fails validation (including an unregistered
+<code>clientRef</code>) fails host startup.</li>
 <li>(Optional) Add an intake queue provider
 (<code>UseInMemoryIntakeQueue</code>, <code>UseIntakeQueueSql</code>,
 <code>UseIntakeQueueRedis</code>, or

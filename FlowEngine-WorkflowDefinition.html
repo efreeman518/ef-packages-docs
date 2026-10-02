@@ -187,7 +187,9 @@ public sealed class NodeDefinition
     /// &lt;summary&gt;
     /// Type-specific configuration. Deserialized by the node executor
     /// into its strongly-typed config class (e.g. FilterNodeConfig,
-    /// IntegrationNodeConfig). Validated at workflow registration time.
+    /// IntegrationNodeConfig). Keys are read case-insensitively by every
+    /// built-in executor, so camelCase JSON binds. Validated at workflow
+    /// registration time.
     /// &lt;/summary&gt;
     public JsonElement Config { get; init; }
 
@@ -238,6 +240,7 @@ public sealed class NodeDefinition
 
     /// &lt;summary&gt;
     /// Node-level retry policy. Overrides the workflow's DefaultRetryPolicy.
+    /// On an inline loop node it is also inherited by body nodes that have none.
     /// Set to an explicit RetryPolicy with MaxAttempts=0 to disable retries
     /// for this node even if the workflow default enables them.
     /// &lt;/summary&gt;
@@ -270,6 +273,7 @@ public sealed class NodeDefinition
     /// If the node executor does not complete within this duration,
     /// the engine cancels it and evaluates the Error edge.
     /// Null = no per-node timeout (workflow deadline still applies).
+    /// Runs on the registered TimeProvider (default TimeProvider.System).
     /// &lt;/summary&gt;
     public TimeSpan? ExecutionTimeout { get; init; }
 
@@ -350,7 +354,9 @@ public sealed class EdgeDefinition
 <p>Each node type defines its own config class. The engine deserializes<br />
 <code>NodeDefinition.Config</code> (a <code>JsonElement</code>) into the appropriate type<br />
 when the executor runs. Config is validated at workflow registration time,<br />
-not at execution time, so misconfigured workflows fail immediately on deploy.</p>
+not at execution time, so misconfigured workflows fail immediately on deploy.<br />
+Config keys are case-insensitive: every built-in executor uses the same options as the<br />
+definition deserializer, so <code>assignedTo</code>, <code>eventName</code> and <code>workflowId</code> bind like their PascalCase forms.</p>
 <h3>FilterNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class FilterNodeConfig
 {
@@ -384,7 +390,7 @@ not at execution time, so misconfigured workflows fail immediately on deploy.</p
     /// JSONPath expression whose resolved value drives case selection.
     /// Example: &quot;$.context.riskTier&quot;, &quot;$.entity.Status&quot;
     /// &lt;/summary&gt;
-    public string ValuePath { get; init; }
+    public string Target { get; init; } = string.Empty;
 
     // Branching is entirely in EdgeDefinition.When — no cases here.
     // The decision node simply resolves the value and emits Match.
@@ -467,7 +473,8 @@ not at execution time, so misconfigured workflows fail immediately on deploy.</p
 /// Typed external API call. References a named IRequestResponseClient registered
 /// in the IClientRegistry. IntegrationDefinition provides optional schema
 /// validation and named field mapping — but the client owns all connection
-/// config, auth, and retry policy.
+/// config and auth. Retries are owned by the node RetryPolicy (or the workflow
+/// DefaultRetryPolicy); HTTP adapters never retry.
 /// &lt;/summary&gt;
 public sealed class IntegrationNodeConfig
 {
@@ -477,18 +484,18 @@ public sealed class IntegrationNodeConfig
     /// &lt;/summary&gt;
     public string ClientRef   { get; init; }
 
-    /// &lt;summary&gt;
-    /// Optional. Name of an IntegrationDefinition that provides request/response
-    /// schema validation and named field vocabulary. If omitted, the request
-    /// mapping is passed directly to the client with no schema validation.
-    /// &lt;/summary&gt;
-    public string? Integration { get; init; }
+    /// &lt;summary&gt;HTTP method. Defaults to &quot;POST&quot; when not set.&lt;/summary&gt;
+    public string? Method { get; init; }
+
+    /// &lt;summary&gt;URL path for the request. Supports {{$.path}} template interpolation.&lt;/summary&gt;
+    public string? Path { get; init; }
 
     /// &lt;summary&gt;
-    /// Maps context values → client request fields.
-    /// Key = request field name. Value = JSONPath or literal.
+    /// Request body mapping. Key = request body field name. A string value is a
+    /// JSONPath resolved from the workflow context; a nested object/array is
+    /// recursed (string leaves resolved, literals copied through).
     /// &lt;/summary&gt;
-    public Dictionary&lt;string, string&gt; Request { get; init; } = new();
+    public Dictionary&lt;string, JsonElement&gt; Body { get; init; } = new();
 
     /// &lt;summary&gt;
     /// Maps response fields → context keys (JSONPath into response body).
@@ -497,11 +504,41 @@ public sealed class IntegrationNodeConfig
     public Dictionary&lt;string, string&gt;? ResponseMapping { get; init; }
 
     /// &lt;summary&gt;
-    /// C# expression producing an idempotency key. Required for any
-    /// write operation (POST/PUT/DELETE) to prevent duplicate side effects on retry.
+    /// Optional HTTP headers merged with the client's default headers. Values
+    /// support {{$.path}} template interpolation.
+    /// &lt;/summary&gt;
+    public Dictionary&lt;string, string&gt;? Headers { get; init; }
+
+    /// &lt;summary&gt;
+    /// Idempotency key forwarded to the client as metadata only; it does
+    /// not enable HTTP deduplication. Use IdempotencyKeyHeader for writes.
     /// Example: &quot;$.entity.OrderId + '-payment'&quot;
     /// &lt;/summary&gt;
     public string? IdempotencyKey { get; init; }
+
+    /// &lt;summary&gt;
+    /// Header that receives an engine-generated key: SHA-256 hex of
+    /// {InstanceId, NodeId, Step = History.Count} (plus the iteration identity
+    /// inside an inline loop body). Same across retry attempts and lease recovery;
+    /// a later completed step gets a new key. The server must deduplicate on it.
+    /// Also enables the full status list and transport retries for unsafe methods
+    /// (POST/PUT/PATCH/DELETE), which otherwise retry only 409/429/503.
+    /// &lt;/summary&gt;
+    public string? IdempotencyKeyHeader { get; init; }
+
+    /// &lt;summary&gt;
+    /// Replaces the inherited RetryPolicy.RetryOnHttpStatus list. null inherits;
+    /// [] disables status retries. A RetryPolicy is still required. 412 is a
+    /// validation error.
+    /// &lt;/summary&gt;
+    public List&lt;int&gt;? RetryOnStatusCodes { get; init; }
+
+    /// &lt;summary&gt;
+    /// Cap on a Retry-After wait (429/503). Default: the effective RetryPolicy.MaxDelay,
+    /// or 60 s without a policy. A larger Retry-After fails with
+    /// RETRY_AFTER_LIMIT_EXCEEDED and the request is not resent.
+    /// &lt;/summary&gt;
+    public TimeSpan? RetryAfterMaxDelay { get; init; }
 }
 </code></pre>
 <p>Outcomes: mapped from HTTP status via <code>IntegrationDefinition.Outcomes</code> if defined,<br />
@@ -516,7 +553,8 @@ otherwise <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</cod
     /// auth, base URL, retry, and connection pooling).
     /// When null, the executor constructs a raw HttpClient from the URL directly.
     /// Prefer setting clientRef for production use — raw HttpClient bypasses the
-    /// client registry and ValidateWorkflowDependenciesAsync.
+    /// client registry and the clientRef check run when the definition is saved
+    /// to the workflow registry (CLIENT_NOT_REGISTERED).
     /// &lt;/summary&gt;
     public string? ClientRef { get; init; }
 
@@ -548,7 +586,7 @@ otherwise <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</cod
     /// JSONPath to the collection to iterate over.
     /// Example: &quot;$.entity.LineItems&quot;, &quot;$.context.searchResults&quot;
     /// &lt;/summary&gt;
-    public string Over { get; init; }
+    public string Items { get; init; } = string.Empty;
 
     /// &lt;summary&gt;
     /// Context key under which the current item is available to
@@ -558,6 +596,26 @@ otherwise <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</cod
 
     /// &lt;summary&gt;Context key for the current 0-based index.&lt;/summary&gt;
     public string IndexAs { get; init; } = &quot;currentIndex&quot;;
+
+    /// &lt;summary&gt;
+    /// Context key for a stable per-iteration id: UUIDv5 over
+    /// &quot;{instanceId}/{loopNodeId}/{index}&quot;; in a nested inline loop the enclosing
+    /// iterations are included: &quot;{instanceId}/{enclosing}/{loopNodeId}/{index}&quot;.
+    /// &lt;/summary&gt;
+    public string IdAs { get; init; } = &quot;currentItemId&quot;;
+
+    /// &lt;summary&gt;
+    /// When set, runs this node inline (same definition) for each item instead of
+    /// spawning child workflows via SubWorkflowId. Each iteration has its own execution
+    /// context. The body node runs under its effective RetryPolicy (its own, else the
+    /// nearest enclosing loop node's RetryPolicy, inner loop first, else
+    /// DefaultRetryPolicy) with the same status classification, Retry-After handling
+    /// and ExecutionTimeout as a top-level node. A loop node retried for its own
+    /// failure resumes at the running iteration (progress is held in memory for
+    /// that execution and never persisted). Circuit breaker and
+    /// MaxConcurrentNodeExecutions apply to top-level nodes only.
+    /// &lt;/summary&gt;
+    public string? BodyEntryNodeId { get; init; }
 
     /// &lt;summary&gt;
     /// ID of the workflow to execute for each item.
@@ -584,7 +642,13 @@ otherwise <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</cod
     /// &lt;summary&gt;
     /// What to do if a child instance faults.
     /// ContinueOnError: log and continue remaining iterations.
-    /// StopOnError: abort loop, take Error edge on parent.
+    /// StopOnError: abort loop, take Error edge on parent. An inline body node
+    /// without its own retryPolicy inherits the nearest enclosing loop node's
+    /// (inner loop first), else the workflow default. When a body fails after its
+    /// retries, the loop fails and the loop node is not retried again for it.
+    /// If the loop node is retried for its own failure (executionTimeout, executor
+    /// exception), it resumes at the running iteration; completed iterations are
+    /// not rerun.
     /// &lt;/summary&gt;
     public LoopErrorBehavior ErrorBehavior { get; init; } = LoopErrorBehavior.StopOnError;
 }
@@ -1244,7 +1308,7 @@ await using var stream = await ctx.GetDocumentAsync(docRef, ct);
 /// and outcome mapping for workflow nodes — but does NOT own connection
 /// config, auth, or retry policy (those belong to the registered client).
 ///
-/// When an IntegrationNodeConfig references both a ClientRef and an Integration,
+/// When an IntegrationDefinition is registered for an IntegrationNodeConfig.ClientRef,
 /// the engine validates the assembled request against RequestSchema before calling
 /// the client, and maps outcomes from HTTP status via the Outcomes list.
 ///

@@ -29,7 +29,7 @@
   <li><a href="#client-concurrency">Client Concurrency Limits</a></li>
   <li><a href="#clients-http">HTTP Client (<code>EF.FlowEngine.Clients.Http</code>)</a></li>
   <li><a href="#clients-servicebus">Service Bus Client (<code>EF.FlowEngine.Clients.ServiceBus</code>)</a></li>
-  <li><a href="#clients-openai">OpenAI / Azure AI Client (<code>EF.FlowEngine.Clients.OpenAI</code>)</a></li>
+  <li><a href="#clients-ai">AI Agent Client (<code>EF.FlowEngine.Clients.AI</code>)</a></li>
   <li><a href="#clients-sql">SQL Query Clients (<code>EF.FlowEngine.Clients.Sql</code>)</a></li>
   <li><a href="#custom-clients">Custom Client Patterns</a></li>
   <li><a href="#agent-governance">Agent Governance</a>
@@ -110,42 +110,40 @@ builder.UseThrottleProviderSql&lt;AppDbContext&gt;();
 
 <h2 id="clients-http">HTTP Client</h2>
 <p>Package: <code>EF.FlowEngine.Clients.Http</code></p>
-<p><code>ResilientHttpFlowClient</code> wraps an <code>HttpClient</code> with the <code>Microsoft.Extensions.Http.Resilience</code> standard pipeline (retry + circuit breaker + hedging). Implements <code>IFlowClient</code> / <code>IRequestResponseClient</code>.</p>
+<p><code>ResilientHttpFlowClient</code> wraps a named <code>HttpClient</code> from <code>IHttpClientFactory</code> with a <code>Microsoft.Extensions.Http.Resilience</code> pipeline: rate limiter, total timeout, circuit breaker, attempt timeout. The pipeline never retries; the node <code>retryPolicy</code> owns all retries. Implements <code>IFlowClient</code> / <code>IRequestResponseClient</code>.</p>
 
 <h3>Registration</h3>
-<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddHttpClient("payments", http =&gt; http.BaseAddress = new Uri("https://payments.internal/"));
+
+builder.Services.AddFlowEngine()
     .AddResilientHttpClient(
         clientRef:   "payment-api",
-        baseAddress: new Uri("https://payments.internal/"),
-        configure:   pipeline =>
+        namedClient: "payments",
+        configureResilience: options =&gt;
         {
-            // Customize the resilience pipeline (optional)
-            pipeline.AddRetry(new HttpRetryStrategyOptions
-            {
-                MaxRetryAttempts = 3,
-                Delay = TimeSpan.FromMilliseconds(500),
-                BackoffType = DelayBackoffType.Exponential
-            });
+            // Optional: rate limiter, timeouts and circuit breaker only.
+            options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(5);
+            // Do not customize options.Retry (see below).
         });
 </code></pre>
 
 <p>Uses the same <code>clientRef</code> naming convention as all other FlowEngine clients — reference it in workflow nodes as <code>"clientRef": "payment-api"</code>.</p>
 
-<p>For a plain client without the resilience pipeline (e.g. the caller owns retries), register <code>DirectHttpFlowClient</code> instead:</p>
+<p>For a plain client without the resilience pipeline, register <code>DirectHttpFlowClient</code> instead. It creates the named client from <code>IHttpClientFactory</code> on each request, never at registration or container build, so a workflow can call the API of the host that runs it (self-call). <code>new DirectHttpFlowClient(clientRef, httpClient)</code> remains for a caller-owned <code>HttpClient</code>; <code>new DirectHttpFlowClient(clientRef, factory, namedClient)</code> resolves per request.</p>
 <pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
     .AddDirectHttpClient(clientRef: "payment-api");   // optional namedClient parameter
 </code></pre>
 
-<h3>Default resilience pipeline</h3>
-<p>When no <code>configure</code> delegate is provided, the standard <code>Microsoft.Extensions.Http.Resilience</code> pipeline applies:</p>
+<h3>Resilience pipeline</h3>
 <ul>
-  <li>Retry: up to 3 attempts, exponential backoff, jitter</li>
-  <li>Circuit breaker: opens after 10 failures in 30 s, stays open for 30 s</li>
-  <li>Timeout: 30 s per attempt</li>
+  <li>Rate limiter, total request timeout, circuit breaker, attempt timeout, taken from the <code>HttpStandardResilienceOptions</code> named after <code>namedClient</code></li>
+  <li>No retry strategy. <code>options.Retry</code> is present in the callback but unused; replacing it or its <code>ShouldHandle</code> fails startup validation ("HTTP pipeline retries are prohibited; configure node RetryPolicy instead")</li>
+  <li><code>HttpClient.Timeout</code> is infinite; the pipeline timeouts cover the send through response headers. Set node <code>executionTimeout</code> to bound the whole call when response bodies may stall</li>
+  <li>Resilience handlers inherited from <code>ConfigureHttpClientDefaults</code> (for example <code>b.AddStandardResilienceHandler()</code> in the .NET Aspire ServiceDefaults template) are removed from this named client and replaced by the package pipeline, so the host starts and sends once per node attempt</li>
 </ul>
 
 <div class="callout callout-blue">
-  <strong>Tip:</strong> The HTTP-level resilience pipeline and FlowEngine's workflow-level <code>circuitBreakerPolicy</code> / <code>retryPolicy</code> are independent layers. The HTTP pipeline guards individual HTTP calls; the workflow policy guards node execution attempts. Both can coexist — size timeouts and thresholds accordingly.
+  <strong>Retry ownership:</strong> the HTTP pipeline sends once per node attempt; the node or workflow <code>retryPolicy</code> owns retry counts, backoff, status classification and Retry-After handling. This prevents pipeline retries multiplying node attempts. The pipeline circuit breaker and FlowEngine's workflow-level <code>circuitBreakerPolicy</code> are independent layers; size timeouts and thresholds accordingly.
 </div>
 
 <hr>
@@ -202,54 +200,50 @@ builder.UseThrottleProviderSql&lt;AppDbContext&gt;();
 
 <hr>
 
-<h2 id="clients-openai">OpenAI / Azure AI Client</h2>
-<p>Package: <code>EF.FlowEngine.Clients.OpenAI</code></p>
-<p><code>OpenAIAgentClient</code> implements <code>IAgentClient</code> backed by <code>Microsoft.Extensions.AI</code> <code>IChatClient</code>. Works with any ME.AI-compatible provider: OpenAI, Azure OpenAI, Microsoft Foundry, Ollama, and more. Emits token usage telemetry via <code>IFlowEngineTelemetry</code>.</p>
+<h2 id="clients-ai">AI Agent Client</h2>
+<p>Package: <code>EF.FlowEngine.Clients.AI</code></p>
+<p><code>ChatClientAgentClient</code> implements <code>IAgentClient</code> backed by <code>Microsoft.Extensions.AI</code> <code>IChatClient</code>. Works with any ME.AI-compatible provider: OpenAI, Azure OpenAI, Microsoft Foundry, Ollama, and more. Emits token usage telemetry via <code>IFlowEngineTelemetry</code>.</p>
 
 <h3>Registration</h3>
-<pre><span class="lang-tag">csharp</span><code>// OpenAI
-var openAIClient = new OpenAIClient(builder.Configuration["OpenAI:ApiKey"]!);
-builder.Services.AddFlowEngine()
-    .AddOpenAIAgentClient(
-        clientRef:  "gpt4o",
-        chatClient: openAIClient.AsChatClient("gpt-4o"),
-        modelName:  "gpt-4o");   // stored in telemetry; not used for routing
-
-// Azure OpenAI
-var azureClient = new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential());
-builder.Services.AddFlowEngine()
-    .AddOpenAIAgentClient(
-        clientRef:  "azure-gpt4",
-        chatClient: azureClient.AsChatClient("gpt-4o-deployment"),
-        modelName:  "gpt-4o");
-
-// Any IChatClient — Ollama, Semantic Kernel, Microsoft Agent Framework, etc.
-builder.Services.AddFlowEngine()
-    .AddOpenAIAgentClient(
-        clientRef:  "local-llm",
-        chatClient: new OllamaChatClient(new Uri("http://localhost:11434"), "llama3"),
-        modelName:  "llama3");
-</code></pre>
-
-<p>A no-Azure-SDK variant ships as <code>EF.FlowEngine.Clients.AI</code> (<code>ChatClientAgentClient</code>). Register any DI-resolved <code>IChatClient</code> and bind it to an agent-node <code>clientRef</code>:</p>
-<pre><span class="lang-tag">csharp</span><code>builder.Services.AddChatClient(/* your IChatClient */);
+<pre><span class="lang-tag">csharp</span><code>// Any DI-resolved IChatClient (default registration)
+builder.Services.AddChatClient(/* your IChatClient */);
 builder.Services.AddFlowEngine()
     .AddChatClientAgentClient(clientRef: "assistant");
+
+// Explicit IChatClient factory - OpenAI, Ollama, Microsoft Agent Framework, etc.
+builder.Services.AddFlowEngine()
+    .AddChatClientAgentClient(
+        clientRef: "local-llm",
+        sp => new OllamaChatClient(new Uri("http://localhost:11434"), "llama3"),
+        modelName: "llama3");   // telemetry label; not used for routing
+
+// Keyed IChatClient
+builder.Services.AddFlowEngine()
+    .AddChatClientAgentClient(clientRef: "gpt4o", serviceKey: "chat", modelName: "gpt-4o");
+
+// Azure OpenAI deployment
+builder.Services.AddSingleton(new AzureOpenAIClient(new Uri(endpoint), new DefaultAzureCredential()));
+builder.Services.AddFlowEngine()
+    .AddAzureOpenAIAgentClient(
+        clientRef:      "azure-gpt4",
+        sp => sp.GetRequiredService&lt;AzureOpenAIClient&gt;(),
+        deploymentName: "gpt-4o-deployment",
+        modelName:      "gpt-4o");   // defaults to deploymentName
 </code></pre>
 
 <h3>How prompts are built</h3>
 <p>The executor renders <code>AgentNodeConfig.promptTemplate</code> by resolving <code>{{key}}</code> tokens against the node's <code>input</code> mapping (JSONPath → value), then constructs a <code>UserChatMessage</code>. The <code>IChatClient</code> receives:</p>
 <ul>
   <li>A <code>UserChatMessage</code> with the rendered prompt text</li>
-  <li><code>ChatOptions.ResponseFormat = ChatResponseFormat.Json</code> when <code>outputSchema</code> is set</li>
+  <li><code>ChatOptions.ResponseFormat = ChatResponseFormat.ForJsonSchema(...)</code> when <code>outputSchema</code> is set (<code>ChatResponseFormat.Json</code> if the schema cannot be parsed)</li>
   <li>A cancellation token governed by <code>AgentNodeConfig.timeoutMs</code></li>
 </ul>
 
 <h3>Token usage</h3>
-<p>After each call, <code>OpenAIAgentClient</code> reads <code>ChatResponse.Usage</code> and emits input/output/total token counts via <code>IFlowEngineTelemetry</code>. These appear as tags on the <code>flow.agent.completed</code> event. Configure per-model rates in <code>FlowEngineOptions.AgentModelRates</code> to get <code>estimatedCostUsd</code> in telemetry.</p>
+<p>After each call, <code>ChatClientAgentClient</code> reads <code>ChatResponse.Usage</code> and emits input/output/total token counts via <code>IFlowEngineTelemetry</code>. These appear as tags on the <code>flow.agent.completed</code> event. Configure per-model rates in <code>FlowEngineOptions.AgentModelRates</code> to get <code>estimatedCostUsd</code> in telemetry.</p>
 
 <div class="callout callout-teal">
-  <strong>ME.AI 10.0 API notes:</strong> Uses <code>IChatClient.GetResponseAsync</code> (not the preview-era <code>CompleteAsync</code>). Token counts are typed as <code>long?</code> from <code>ChatResponse.Usage</code>. Model name is passed at construction time rather than read from <code>IChatClient.Metadata</code> (removed in 10.0).
+  <strong>ME.AI 10.0 API notes:</strong> Uses <code>IChatClient.GetResponseAsync</code>. Token counts are typed as <code>long?</code> from <code>ChatResponse.Usage</code>. Model name is passed at registration time.
 </div>
 
 <hr>
@@ -597,7 +591,7 @@ builder.Services.AddSingleton&lt;IContentFilter, AzureContentSafetyFilter&gt;();
 });
 </code></pre>
 
-<p>The model name is set at client registration time via <code>modelName</code> parameter on <code>AddOpenAIAgentClient</code>. If a model name has no entry in <code>AgentModelRates</code>, <code>estimatedCostUsd</code> is emitted as <code>null</code>.</p>
+<p>The model name is set at client registration time via <code>modelName</code> parameter on <code>AddChatClientAgentClient</code> / <code>AddAzureOpenAIAgentClient</code>. If a model name has no entry in <code>AgentModelRates</code>, <code>estimatedCostUsd</code> is emitted as <code>null</code>.</p>
 
 <h3>Custom IFlowEngineTelemetry</h3>
 <pre><span class="lang-tag">csharp</span><code>public class MyTelemetry : IFlowEngineTelemetry
