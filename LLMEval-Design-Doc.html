@@ -1026,6 +1026,20 @@ included), named as a joint verification names them. Two planners that
 ordered or named the same casts differently would produce a round whose
 assignment names did not line up with the joint selection report built
 from it.</p>
+<p><code>SweepOptions.SeedContenders</code> is the one way into a seeded
+field the seed did not choose: roster entries it never judged, typically
+contenders added since. They are added on top of the shortlist, never in
+place of it, and named in the shortlist rule as admitted unmeasured, so
+the field's origin stays readable. An episode entry runs as the one cast
+a per-role search would have built for it, outside
+<code>MaxJointAssignments</code>: the joint planner has no evidence to
+predict a combination holding it, would price every such combination as
+unknown and cut it first, and a cap the admitted casts shared would cut
+the measured leaders' casts instead. An entry the seed judged is refused
+rather than admitted, because it made or missed the cut on evidence and
+calling it unmeasured would overrule the rule silently; so is any entry
+on an unseeded run, which runs the whole roster anyway and has most
+likely lost its seed path.</p>
 <p><code>RoundProvenance</code> records the number, the execution that
 seeded it, the rule that cut the field and where each variant came from,
 and chains to the previous round through <code>Previous</code>, so the

@@ -556,6 +556,15 @@ not a shortlist and must not be reported as one.</li>
 anything is sent</strong>: a missing or unparseable file, a run in which
 nothing was judged, a seed that narrows to no model, or one measured in
 the other shape. Each says which in the message.</li>
+<li><strong>A contender added since the seed enters only through
+<code>SweepOptions.SeedContenders</code></strong> (the harness
+template's <code>__PREFIX___EVAL_SEED_CONTENDERS</code>, model ids or
+<code>role=model</code> for episodes). It is added on top of the
+shortlist, counted in the dry run, and named in the shortlist rule as
+admitted unmeasured; an episode entry runs as one cast outside
+<code>MaxJointAssignments</code>. An entry not in the roster, already in
+the field, judged by the seed, or set without <code>SeedFrom</code>
+stops the sweep.</li>
 </ul>
 <p>Keep both rounds' findings entries. Read together they are the record
 of how the field narrowed, and an edited earlier entry destroys exactly
@@ -576,7 +585,9 @@ for every workload and role.</label></li>
 <li><label><input type="checkbox" />A dry run succeeded, and its
 estimate is one you are willing to spend.</label></li>
 <li><label><input type="checkbox" />For a seeded round, the seed path
-resolves and the shortlist size and repeat count are set.</label></li>
+resolves, the shortlist size and repeat count are set, and any
+contenders added since are named in
+<code>SeedContenders</code>.</label></li>
 <li><label><input type="checkbox" />The drainer is running, and the
 sweep will run in the background.</label></li>
 </ul>

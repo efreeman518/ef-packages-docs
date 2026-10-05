@@ -983,6 +983,18 @@ cannot use - missing, unparseable, nothing judged, narrowing to no
 model, or measured in the other shape - stops the sweep before anything
 is sent rather than running the whole roster and calling it a
 shortlist.</p>
+<p>A contender added to the roster since the seed ran is not in that
+field, because the seed never measured it. <code>SeedContenders</code>
+admits it anyway, on top of the shortlist and never in place of it:</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>SeedContenders <span class="op">=</span> <span class="op">[</span><span class="kw">new</span> <span class="fu">SeedContender</span><span class="op">(</span><span class="st">&quot;&lt;model id&gt;&quot;</span><span class="op">)],</span>          <span class="co">// single-shot</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>SeedContenders <span class="op">=</span> <span class="op">[</span><span class="kw">new</span> <span class="fu">SeedContender</span><span class="op">(</span><span class="st">&quot;&lt;model id&gt;&quot;</span><span class="op">,</span> <span class="st">&quot;main&quot;</span><span class="op">)],</span>  <span class="co">// episodes: one cast, main varied</span></span></code></pre></div>
+<p>Its cells are planned and priced with the rest, an episode entry runs
+outside <code>MaxJointAssignments</code> as one cast with every other
+role on the incumbent's model, and the shortlist rule names it as
+<code>Admitted unmeasured: ...</code>. An entry the roster lacks,
+already in the field, judged by the seed in that role, or set without
+<code>SeedFrom</code>, is refused before anything is sent.</p>
 <p>Raise the repeats as the field narrows. That is the point of
 narrowing: three candidates at six repeats over three fixtures pool
 eighteen comparisons each, where twelve candidates on the same budget
@@ -995,21 +1007,21 @@ arrived.</p>
 finished run looks like</h3>
 <p><code>summary.md</code> opens with the run's own facts, and those six
 lines are what a findings entry quotes:</p>
-<div class="sourceCode" id="cb16"><pre
-class="sourceCode md"><code class="sourceCode markdown"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 20260917-101500</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>48 cells: 46 succeeded, 2 failed.</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 3.884000, actual 1.902144.</span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (outside the eval&#39;s spend, charged to the harness subscription).</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>Judge answers: 24 through the Claude Code exchange, outside the spend above, charged to the harness subscription.</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>6 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
-<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
-<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
-<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
-<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode md"><code class="sourceCode markdown"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu"># Model sweep 20260917-101500</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>48 cells: 46 succeeded, 2 failed.</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>Estimated spend 3.884000, actual 1.902144.</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>Judge: Claude Code harness subagent (outside the eval&#39;s spend, charged to the harness subscription).</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>Judge answers: 24 through the Claude Code exchange, outside the spend above, charged to the harness subscription.</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>6 cells ran with a request setting dropped, because the model&#39;s published capabilities refuse it. See the Notes column.</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
 <p>Then <code>## Selection</code>, which is the answer the run exists
 for: the parity pick, the upgrade pick, any dominators, and a table
 carrying each candidate's pooled sample count, win rate, per-comparison
