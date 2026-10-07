@@ -1073,17 +1073,20 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href=
 <span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co">// Redis (requires IConnectionMultiplexer in DI)</span></span>
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreRedis</span><span class="op">();</span></span>
 <span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos — resolve CosmosClient from DI</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos — provide CosmosClient directly</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>cosmosClient<span class="op">,</span> databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos - resolve CosmosClient from DI. The Cosmos stores need a client that serializes with</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="co">// System.Text.Json, e.g. new CosmosClient(connectionString, new CosmosClientOptions</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co">// { UseSystemTextJsonSerializerWithOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web) });</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co">// the state and outbox stores throw ArgumentException for any other client.</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
 <span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table — resolve TableServiceClient from DI</span></span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreAzureTable</span><span class="op">();</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos — provide CosmosClient directly</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>cosmosClient<span class="op">,</span> databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
 <span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table — provide TableServiceClient directly</span></span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreAzureTable</span><span class="op">(</span>tableServiceClient<span class="op">);</span></span></code></pre></div>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table — resolve TableServiceClient from DI</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreAzureTable</span><span class="op">();</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table — provide TableServiceClient directly</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreAzureTable</span><span class="op">(</span>tableServiceClient<span class="op">);</span></span></code></pre></div>
 <h4 id="lock-providers">Lock Providers</h4>
 <div class="sourceCode" id="cb13"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">// In-memory (single process only)</span></span>

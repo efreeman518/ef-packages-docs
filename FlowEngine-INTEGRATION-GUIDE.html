@@ -533,7 +533,10 @@ expires and the entry is re-picked. Best for moderate throughput; for
 high volume prefer Redis or Service Bus.</p>
 <div class="sourceCode" id="cb17"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>flowEngineBuilder<span class="op">.</span><span class="fu">UseIntakeQueueCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span></code></pre></div>
-<p>Requires <code>CosmosClient</code> in DI.</p>
+<p>Requires <code>CosmosClient</code> in DI, configured with
+System.Text.Json
+(<code>CosmosClientOptions.UseSystemTextJsonSerializerWithOptions</code>)
+like every FlowEngine Cosmos store.</p>
 <blockquote>
 <p><strong>StartAsync behavior with intake queue registered:</strong>
 <code>StartAsync</code> and <code>StartBackgroundAsync</code> both
