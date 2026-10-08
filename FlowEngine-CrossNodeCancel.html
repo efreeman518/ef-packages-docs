@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cross-node cancel: design note</title>
+  <link rel="stylesheet" href="docs-common.css">
+</head>
+<body>
+<div class="doc-header">
+  <div class="header-top">
+    <div class="header-badge">Documentation</div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">🌙</button>
+  </div>
+  <h1>Cross-node cancel: design note</h1>
+</div>
+
+<div class="content">
+<h2 id="cross-node-cancel-design-note">Cross-node cancel: design
+note</h2>
+<p>Status: proposal, not implemented. Decide before coding.</p>
+<h3 id="problem">Problem</h3>
+<p><code>CancelAsync</code> stops an execution of the instance only when
+it runs in the calling process. There it flags the execution, which then
+discards its own outcome. The cancel then adopts the execution's lease
+and writes <code>Cancelled</code>.</p>
+<p>An execution on another node is not reached:</p>
+<ol type="1">
+<li>The cancel cannot take the lease that node holds. It writes
+<code>Cancelled</code> without the lease, through
+<code>SaveWithRetryAsync</code>.</li>
+<li>The other node keeps running nodes, with their side effects, until
+its next save.</li>
+<li>Its final save can overwrite <code>Cancelled</code>. Optimistic
+concurrency makes that save fail and reload. Whether the reload keeps
+<code>Cancelled</code> depends on the terminal-status guard in the retry
+path, not on any cancel protocol.</li>
+</ol>
+<h3 id="options">Options</h3>
+<ol type="1">
+<li><strong>Cancel marker checked before each save.</strong>
+<code>CancelAsync</code> sets <code>CancelRequestedAt</code> on the
+record (a new field) when it cannot take the lease. The loop reloads, or
+reads the marker from the concurrency-failure reload, before each node
+and each save. On seeing it, the loop stops and writes
+<code>Cancelled</code> itself.
+<ul>
+<li>Cost: one field per store schema, and one read per node (or
+piggyback on existing saves).</li>
+<li>The holder stays the only writer of the outcome.</li>
+<li>Latency is bounded by the longest node.</li>
+</ul></li>
+<li><strong>The lease holder is the only writer.</strong> Without the
+lease, <code>CancelAsync</code> writes only the marker and returns a
+"cancel requested" result. The holder, or the sweep after the lease
+expires, finishes the cancel.
+<ul>
+<li>This is option 1 with a stricter contract.</li>
+<li><code>CancelAsync</code> can no longer promise a
+<code>Cancelled</code> snapshot on return, which is a breaking API
+change.</li>
+</ul></li>
+<li><strong>Broadcast to nodes</strong> (pub/sub per instance, for
+example over the existing intake queue or Redis).
+<ul>
+<li>Fastest stop.</li>
+<li>Adds a transport dependency to every deployment.</li>
+<li>Still needs option 1 for a node that misses the message.</li>
+</ul></li>
+</ol>
+<h3 id="recommendation">Recommendation</h3>
+<p>Option 1. Add <code>CancelRequestedAt</code>. Check it:</p>
+<ul>
+<li>in the loop before each node, using the record the loop already
+holds plus a cheap re-read when the lease is renewed;</li>
+<li>in <code>SaveWithRetryAsync</code>'s reload: never overwrite a
+record whose marker is set or whose status is terminal.</li>
+</ul>
+<p><code>CancelAsync</code> keeps writing <code>Cancelled</code> itself
+when it holds the lease, as it does locally today.</p>
+<h3 id="tests-to-write-with-it">Tests to write with it</h3>
+<ul>
+<li>Two engines sharing one store and lock provider. Cancel on engine A
+while engine B runs a gated node. B must not run its next node, and the
+record must end <code>Cancelled</code>.</li>
+<li>B's final save after the cancel must not overwrite
+<code>Cancelled</code>.</li>
+<li>The sweep resuming an instance whose marker is set finishes the
+cancel and does not run it.</li>
+</ul>
+</div>
+
+<script>
+(function() {
+  const toggle = document.getElementById('themeToggle');
+  const html   = document.documentElement;
+  const stored = localStorage.getItem('fe-theme') || 'dark';
+  const setTheme = (t) => {
+    html.setAttribute('data-theme', t);
+    toggle.textContent = t === 'dark' ? '🌙' : '☀️';
+    localStorage.setItem('fe-theme', t);
+  };
+  setTheme(stored);
+  toggle.addEventListener('click', () =>
+    setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+})();
+</script>
+</body>
+</html>
