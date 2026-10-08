@@ -672,6 +672,23 @@ while execution continues on the thread pool. Use
 services, and any context where the caller should not wait for workflow
 progress.</p>
 </blockquote>
+<p><strong>Inside a node:</strong> code a node calls without the
+instance (a <code>DelegatingHandler</code> on a named client, a client
+wrapper, a DI service) reads <code>FlowExecution.Current</code>: an
+immutable <code>FlowExecutionInfo(InstanceId, TenantId)</code> for the
+innermost executing instance (the child inside an inline child workflow,
+the parent again afterwards), or <code>null</code> outside any
+execution. A <code>Task.Run</code> a node starts sees the instance only
+until that execution exits.</p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> TenantHeaderHandler <span class="op">:</span> DelegatingHandler</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">protected</span> <span class="kw">override</span> Task<span class="op">&lt;</span>HttpResponseMessage<span class="op">&gt;</span> <span class="fu">SendAsync</span><span class="op">(</span>HttpRequestMessage request<span class="op">,</span> CancellationToken ct<span class="op">)</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span>FlowExecution<span class="op">.</span><span class="fu">Current</span><span class="op">?.</span><span class="fu">TenantId</span> <span class="kw">is</span> <span class="op">{</span> <span class="op">}</span> tenant<span class="op">)</span> request<span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">Add</span><span class="op">(</span><span class="st">&quot;X-Tenant&quot;</span><span class="op">,</span> tenant<span class="op">);</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> <span class="kw">base</span><span class="op">.</span><span class="fu">SendAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p><strong>Dashboard:</strong> the Dashboard does not currently filter
 by tenant — host one Dashboard per tenant, or wrap the Admin API call
 inside a <code>DelegatingHandler</code> that forces the caller's tenant
@@ -679,9 +696,9 @@ claim onto the upstream request.</p>
 <h3 id="add-the-dashboard-ui">Add the Dashboard UI</h3>
 <p>If you want the UI inside the same ASP.NET Core app, register the
 dashboard.</p>
-<div class="sourceCode" id="cb23"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    adminApiBaseUrl<span class="op">:</span> builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">[</span><span class="st">&quot;FlowEngine:AdminApiBaseUrl&quot;</span><span class="op">]!);</span></span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    adminApiBaseUrl<span class="op">:</span> builder<span class="op">.</span><span class="fu">Configuration</span><span class="op">[</span><span class="st">&quot;FlowEngine:AdminApiBaseUrl&quot;</span><span class="op">]!);</span></span></code></pre></div>
 <p><code>AddFlowEngineDashboard</code> registers a startup-time
 validator (<code>DashboardStartupValidator</code>) that throws a clear
 exception if MudBlazor services (<code>IDialogService</code>,
@@ -721,25 +738,25 @@ authentication to the Admin API</h4>
 a remote API behind the same identity provider), forward the inbound
 user's bearer token to the Admin API call so per-tenant / per-scope
 authorization is enforced upstream:</p>
-<div class="sourceCode" id="cb27"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">BearerForwardingHandler</span><span class="op">(</span>IHttpContextAccessor accessor<span class="op">)</span> <span class="op">:</span> DelegatingHandler</span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">protected</span> <span class="kw">override</span> Task<span class="op">&lt;</span>HttpResponseMessage<span class="op">&gt;</span> <span class="fu">SendAsync</span><span class="op">(</span></span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>        HttpRequestMessage request<span class="op">,</span> CancellationToken ct<span class="op">)</span></span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> token <span class="op">=</span> accessor<span class="op">.</span><span class="fu">HttpContext</span><span class="op">?.</span><span class="fu">Request</span><span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">Authorization</span><span class="op">.</span><span class="fu">ToString</span><span class="op">();</span></span>
-<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(!</span><span class="dt">string</span><span class="op">.</span><span class="fu">IsNullOrEmpty</span><span class="op">(</span>token<span class="op">))</span></span>
-<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>            request<span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">TryAddWithoutValidation</span><span class="op">(</span><span class="st">&quot;Authorization&quot;</span><span class="op">,</span> token<span class="op">);</span></span>
-<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> <span class="kw">base</span><span class="op">.</span><span class="fu">SendAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
-<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHttpContextAccessor</span><span class="op">();</span></span>
-<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddTransient</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;();</span></span>
-<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span></span>
-<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">)</span></span>
-<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddHttpMessageHandler</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;();</span></span></code></pre></div>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">BearerForwardingHandler</span><span class="op">(</span>IHttpContextAccessor accessor<span class="op">)</span> <span class="op">:</span> DelegatingHandler</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">protected</span> <span class="kw">override</span> Task<span class="op">&lt;</span>HttpResponseMessage<span class="op">&gt;</span> <span class="fu">SendAsync</span><span class="op">(</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>        HttpRequestMessage request<span class="op">,</span> CancellationToken ct<span class="op">)</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> token <span class="op">=</span> accessor<span class="op">.</span><span class="fu">HttpContext</span><span class="op">?.</span><span class="fu">Request</span><span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">Authorization</span><span class="op">.</span><span class="fu">ToString</span><span class="op">();</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(!</span><span class="dt">string</span><span class="op">.</span><span class="fu">IsNullOrEmpty</span><span class="op">(</span>token<span class="op">))</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>            request<span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">TryAddWithoutValidation</span><span class="op">(</span><span class="st">&quot;Authorization&quot;</span><span class="op">,</span> token<span class="op">);</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> <span class="kw">base</span><span class="op">.</span><span class="fu">SendAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHttpContextAccessor</span><span class="op">();</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddTransient</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;();</span></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span></span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">)</span></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddHttpMessageHandler</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;();</span></span></code></pre></div>
 <h4 id="dashboard-package-dependencies">Dashboard package
 dependencies</h4>
 <p><code>EF.FlowEngine.Dashboard</code> transitively pulls
@@ -782,73 +799,73 @@ multi-tenant.</li>
 <p>Unit tests validate individual node execution logic without database
 setup. Use <code>EF.FlowEngine.Testing</code> to build test
 contexts:</p>
-<div class="sourceCode" id="cb28"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> testContext <span class="op">=</span> TestExecutionContext<span class="op">.</span><span class="fu">Create</span><span class="op">()</span></span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithEntity</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> OrderId <span class="op">=</span> <span class="st">&quot;ORD-001&quot;</span><span class="op">,</span> Amount <span class="op">=</span> <span class="dv">5000</span> <span class="op">})</span></span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithContext</span><span class="op">(</span><span class="st">&quot;approvalThreshold&quot;</span><span class="op">,</span> <span class="dv">3000</span><span class="op">)</span></span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> executor <span class="op">=</span> <span class="kw">new</span> <span class="fu">FilterNodeExecutor</span><span class="op">(</span><span class="co">/* ... */</span><span class="op">);</span></span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> result <span class="op">=</span> await executor<span class="op">.</span><span class="fu">ExecuteAsync</span><span class="op">(</span>nodeConfig<span class="op">,</span> testContext<span class="op">);</span></span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>DecisionOutcome<span class="op">.</span><span class="fu">Match</span><span class="op">,</span> result<span class="op">.</span><span class="fu">Outcome</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> testContext <span class="op">=</span> TestExecutionContext<span class="op">.</span><span class="fu">Create</span><span class="op">()</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithEntity</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> OrderId <span class="op">=</span> <span class="st">&quot;ORD-001&quot;</span><span class="op">,</span> Amount <span class="op">=</span> <span class="dv">5000</span> <span class="op">})</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">WithContext</span><span class="op">(</span><span class="st">&quot;approvalThreshold&quot;</span><span class="op">,</span> <span class="dv">3000</span><span class="op">)</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">Build</span><span class="op">();</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> executor <span class="op">=</span> <span class="kw">new</span> <span class="fu">FilterNodeExecutor</span><span class="op">(</span><span class="co">/* ... */</span><span class="op">);</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> result <span class="op">=</span> await executor<span class="op">.</span><span class="fu">ExecuteAsync</span><span class="op">(</span>nodeConfig<span class="op">,</span> testContext<span class="op">);</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>DecisionOutcome<span class="op">.</span><span class="fu">Match</span><span class="op">,</span> result<span class="op">.</span><span class="fu">Outcome</span><span class="op">);</span></span></code></pre></div>
 <p>For transient failures or store resilience, wrap the state store with
 <code>FaultableExecutionStateStore</code> to inject single-fault
 scenarios:</p>
-<div class="sourceCode" id="cb29"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> faultable <span class="op">=</span> <span class="kw">new</span> <span class="fu">FaultableExecutionStateStore</span><span class="op">(</span>realStateStore<span class="op">);</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>faultable<span class="op">.</span><span class="fu">FaultOnNextSave</span> <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>  <span class="co">// Next save throws; auto-clears</span></span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> faultable <span class="op">=</span> <span class="kw">new</span> <span class="fu">FaultableExecutionStateStore</span><span class="op">(</span>realStateStore<span class="op">);</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>faultable<span class="op">.</span><span class="fu">FaultOnNextSave</span> <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>  <span class="co">// Next save throws; auto-clears</span></span></code></pre></div>
 <h4 id="integration-tests">Integration Tests</h4>
 <p>Integration tests run complete workflows against real infrastructure
 (SQL, Redis, Cosmos). Use <strong>TestContainers</strong> to manage
 ephemeral databases per test assembly:</p>
-<div class="sourceCode" id="cb30"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestClass<span class="op">]</span></span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>ClassInitialize<span class="op">]</span></span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">static</span> async Task <span class="fu">AssemblyInit</span><span class="op">(</span>TestContext _<span class="op">)</span></span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> sqlContainer <span class="op">=</span> <span class="kw">new</span> <span class="fu">MsSqlBuilder</span><span class="op">(</span><span class="st">&quot;mcr.microsoft.com/mssql/server:2025-latest&quot;</span><span class="op">).</span><span class="fu">Build</span><span class="op">();</span></span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    await sqlContainer<span class="op">.</span><span class="fu">StartAsync</span><span class="op">();</span></span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    _connectionString <span class="op">=</span> sqlContainer<span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">();</span></span>
-<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>Build a fresh DI container per test with SQL providers:</p>
 <div class="sourceCode" id="cb31"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestInitialize<span class="op">]</span></span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">TestInit</span><span class="op">()</span></span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> services <span class="op">=</span> <span class="kw">new</span> <span class="fu">ServiceCollection</span><span class="op">();</span></span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    services<span class="op">.</span><span class="fu">AddDbContextFactory</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">UseSqlServer</span><span class="op">(</span>_connectionString<span class="op">));</span></span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseLockProviderSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
-<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseWorkflowRegistrySql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
-<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">AddHttpClient</span><span class="op">(</span><span class="st">&quot;api&quot;</span><span class="op">);</span></span>
-<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    _provider <span class="op">=</span> services<span class="op">.</span><span class="fu">BuildServiceProvider</span><span class="op">();</span></span>
-<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>    _engine <span class="op">=</span> _provider<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IFlowEngine<span class="op">&gt;();</span></span>
-<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestClass<span class="op">]</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>ClassInitialize<span class="op">]</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">static</span> async Task <span class="fu">AssemblyInit</span><span class="op">(</span>TestContext _<span class="op">)</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> sqlContainer <span class="op">=</span> <span class="kw">new</span> <span class="fu">MsSqlBuilder</span><span class="op">(</span><span class="st">&quot;mcr.microsoft.com/mssql/server:2025-latest&quot;</span><span class="op">).</span><span class="fu">Build</span><span class="op">();</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    await sqlContainer<span class="op">.</span><span class="fu">StartAsync</span><span class="op">();</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    _connectionString <span class="op">=</span> sqlContainer<span class="op">.</span><span class="fu">GetConnectionString</span><span class="op">();</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Build a fresh DI container per test with SQL providers:</p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="op">[</span>TestInitialize<span class="op">]</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="dt">void</span> <span class="fu">TestInit</span><span class="op">()</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> services <span class="op">=</span> <span class="kw">new</span> <span class="fu">ServiceCollection</span><span class="op">();</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    services<span class="op">.</span><span class="fu">AddDbContextFactory</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;(</span>o <span class="op">=&gt;</span> o<span class="op">.</span><span class="fu">UseSqlServer</span><span class="op">(</span>_connectionString<span class="op">));</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">()</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseStateStoreSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseLockProviderSql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">UseWorkflowRegistrySql</span><span class="op">&lt;</span>MyDbContext<span class="op">&gt;()</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">AddHttpClient</span><span class="op">(</span><span class="st">&quot;api&quot;</span><span class="op">);</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    _provider <span class="op">=</span> services<span class="op">.</span><span class="fu">BuildServiceProvider</span><span class="op">();</span></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>    _engine <span class="op">=</span> _provider<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>IFlowEngine<span class="op">&gt;();</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>All 19 built-in node executors are registered by
 <code>AddFlowEngine()</code> — you do not need to enumerate them.</p>
 <h4 id="testing-human-workflows">Testing human workflows</h4>
-<div class="sourceCode" id="cb32"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest <span class="op">{</span> WorkflowId <span class="op">=</span> <span class="st">&quot;approval-flow&quot;</span><span class="op">,</span> Entity <span class="op">=</span> order <span class="op">});</span></span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Suspended</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span>
-<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>await _humanTasks<span class="op">.</span><span class="fu">RespondAsync</span><span class="op">(</span>humanTaskId<span class="op">,</span> <span class="kw">new</span> HumanTaskResponse</span>
-<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    FormValues  <span class="op">=</span> <span class="kw">new</span> <span class="op">{</span> decision <span class="op">=</span> <span class="st">&quot;approved&quot;</span> <span class="op">},</span></span>
-<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    RespondedBy <span class="op">=</span> <span class="st">&quot;manager@company.com&quot;</span></span>
-<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
-<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span>instance<span class="op">.</span><span class="fu">InstanceId</span><span class="op">,</span> eventName<span class="op">:</span> <span class="st">&quot;human.response&quot;</span><span class="op">,</span> correlationKey<span class="op">:</span> humanTaskId<span class="op">);</span></span>
-<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Completed</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest <span class="op">{</span> WorkflowId <span class="op">=</span> <span class="st">&quot;approval-flow&quot;</span><span class="op">,</span> Entity <span class="op">=</span> order <span class="op">});</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Suspended</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>await _humanTasks<span class="op">.</span><span class="fu">RespondAsync</span><span class="op">(</span>humanTaskId<span class="op">,</span> <span class="kw">new</span> HumanTaskResponse</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    FormValues  <span class="op">=</span> <span class="kw">new</span> <span class="op">{</span> decision <span class="op">=</span> <span class="st">&quot;approved&quot;</span> <span class="op">},</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>    RespondedBy <span class="op">=</span> <span class="st">&quot;manager@company.com&quot;</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>instance <span class="op">=</span> await _engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span>instance<span class="op">.</span><span class="fu">InstanceId</span><span class="op">,</span> eventName<span class="op">:</span> <span class="st">&quot;human.response&quot;</span><span class="op">,</span> correlationKey<span class="op">:</span> humanTaskId<span class="op">);</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Completed</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span></code></pre></div>
 <p><strong>Reference implementation:</strong> the source repository
 includes 9 realistic end-to-end use cases covering healthcare, loans,
 e-commerce, AI, compliance, scheduling, and orchestration patterns.</p>
 <h4 id="in-memory-testing-for-local-development">In-Memory Testing for
 Local Development</h4>
 <p>For fast local unit/integration tests without containers:</p>
-<div class="sourceCode" id="cb33"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">().</span><span class="fu">UseAllInMemoryProviders</span><span class="op">();</span></span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">AddFlowEngine</span><span class="op">().</span><span class="fu">UseAllInMemoryProviders</span><span class="op">();</span></span></code></pre></div>
 <p><strong>Important:</strong> in-memory providers are not distributed —
 use only for single-instance local development and unit tests. For
 multi-instance or production, use SQL / Redis / Cosmos providers.</p>
@@ -866,23 +883,23 @@ environment lacks the required infrastructure.</p>
 <p>Use <code>AddFlowEngineTesting()</code> from
 <code>EF.FlowEngine.Testing</code> inside <code>ConfigureServices</code>
 to replace the engine with a no-op stub:</p>
-<div class="sourceCode" id="cb34"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co">// In your WebApplicationFactory subclass:</span></span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">protected</span> <span class="kw">override</span> <span class="dt">void</span> <span class="fu">ConfigureWebHost</span><span class="op">(</span>IWebHostBuilder builder<span class="op">)</span></span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>    builder<span class="op">.</span><span class="fu">ConfigureServices</span><span class="op">(</span>services <span class="op">=&gt;</span></span>
-<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Replaces IFlowEngine with NullFlowEngine (all methods return</span></span>
-<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ExecStatus.Completed immediately) and removes the four background</span></span>
-<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">// hosted services: FlowEngineInitializationService, ExecutionSweepService,</span></span>
-<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">// LeaseRenewalService, FlowEngineShutdownService.</span></span>
-<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddFlowEngineTesting</span><span class="op">();</span></span>
-<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">});</span></span>
-<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co">// In your WebApplicationFactory subclass:</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">protected</span> <span class="kw">override</span> <span class="dt">void</span> <span class="fu">ConfigureWebHost</span><span class="op">(</span>IWebHostBuilder builder<span class="op">)</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    builder<span class="op">.</span><span class="fu">ConfigureServices</span><span class="op">(</span>services <span class="op">=&gt;</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Replaces IFlowEngine with NullFlowEngine (all methods return</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">// ExecStatus.Completed immediately) and removes the four background</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">// hosted services: FlowEngineInitializationService, ExecutionSweepService,</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">// LeaseRenewalService, FlowEngineShutdownService.</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>        services<span class="op">.</span><span class="fu">AddFlowEngineTesting</span><span class="op">();</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">});</span></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
 <p>To suppress only the background services while keeping the real
 engine (e.g. you control init and sweep explicitly):</p>
-<div class="sourceCode" id="cb35"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">RemoveFlowEngineHostedServices</span><span class="op">();</span></span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>services<span class="op">.</span><span class="fu">RemoveFlowEngineHostedServices</span><span class="op">();</span></span></code></pre></div>
 <h3 id="known-issues">Known issues</h3>
 <h4
 id="roslyn-version-conflict-with-microsoftentityframeworkcoredesign">Roslyn
@@ -897,11 +914,11 @@ older <code>Microsoft.CodeAnalysis.Workspaces 5.0.0</code>. Pinning only
 <code>dotnet ef migrations add</code> then crashes with
 <code>TypeLoadException: Method 'ReduceExtensionMember' ... not have an implementation</code>.
 Pin <strong>all four</strong> Roslyn packages to 5.3.0:</p>
-<div class="sourceCode" id="cb36"><pre
-class="sourceCode xml"><code class="sourceCode xml"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Common&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Workspaces.Common&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp.Workspaces&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span></code></pre></div>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Common&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Workspaces.Common&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp.Workspaces&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.3.0&quot;</span> /&gt;</span></code></pre></div>
 <p>Plus an explicit <code>&lt;PackageReference&gt;</code> to all four in
 the project that runs <code>dotnet ef</code>. The error is misleading
 because <code>dotnet restore</code> succeeds with only two pins.</p>
