@@ -1176,6 +1176,18 @@ should have multiple output nodes (approved, rejected, cancelled,
 expired, etc.) — one per distinct terminal outcome.
 <code>outputMapping</code> is optional — if absent, the entire
 <code>$.context</code> is written as output.</p>
+<p>Any node without edges ends the workflow this way, unless its outcome
+is <code>Error</code> or <code>CircuitOpen</code>. If it fails (an
+<code>Error</code> outcome after its retries), the instance takes the
+failure path: compensation when enabled, then
+<code>globalOnFailureNodeId</code> when set (unless the failing node is
+that handler), otherwise it faults with the node's own error. An open
+circuit suspends it until the circuit's open duration has passed, then
+the sweep re-runs the node. That retry is time-based, and each re-run
+counts toward the node's <code>maxVisits</code>, so keep
+<code>maxVisits</code> above the cool-downs a node may wait out. The
+workflow's <code>defaultCircuitBreakerPolicy</code> does not apply to
+<code>output</code> nodes.</p>
 <p><strong>Outcomes:</strong> none — this is a terminal node.</p>
 <hr />
 <h4 id="timer--pure-time-delay"><code>timer</code> — pure time

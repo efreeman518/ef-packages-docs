@@ -2073,11 +2073,18 @@ and burning through retries. Once the failure threshold is reached the
 circuit opens: subsequent instances skip the executor entirely and
 either follow a <code>CircuitOpen</code> edge (graceful degradation) or
 auto-suspend at the failing node until the cool-down period expires, at
-which point the sweep service resumes them transparently.</p>
+which point the sweep service resumes them transparently. The sweep
+re-runs the node, which probes the circuit again; each re-run counts
+toward the node's <code>maxVisits</code>. A resume signal sent to such
+an instance is ignored (logged) and its payload is not added to the
+context; after the cool-down, a signal that can claim the instance
+re-runs the node, otherwise the sweep does.</p>
 <p><strong>Policy inheritance</strong> mirrors <code>RetryPolicy</code>:
 set <code>defaultCircuitBreakerPolicy</code> on the workflow definition
 as a workflow-wide default; override with
-<code>circuitBreakerPolicy</code> on individual nodes.</p>
+<code>circuitBreakerPolicy</code> on individual nodes. The workflow
+default does not apply to <code>output</code> nodes, which call no
+dependency.</p>
 <div class="sourceCode" id="cb48"><pre
 class="sourceCode json"><code class="sourceCode json"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;order-processing&quot;</span><span class="fu">,</span></span>

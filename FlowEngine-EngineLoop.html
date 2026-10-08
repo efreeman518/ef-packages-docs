@@ -542,8 +542,9 @@ from the sequence.</p>
             // ── 3i. Handle no matching edge ───────────────────────────────────
             if (nextNodeId == null)
             {
-                // No edges at all = terminal output node
-                if (node.Edges.Count == 0)
+                // No edges = the workflow ends here, unless the node failed or its circuit is open
+                if (node.Edges.Count == 0
+                    &amp;&amp; result.Outcome is not (DecisionOutcome.Error or DecisionOutcome.CircuitOpen))
                 {
                     instance.Status      = ExecStatus.Completed;
                     instance.CompletedAt = DateTimeOffset.UtcNow;
