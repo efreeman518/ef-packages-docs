@@ -617,9 +617,34 @@ ways:</p>
 <ul>
 <li><code>GET /instances</code> injects <code>tenant.TenantId</code>
 into <code>ExecutionQuery.TenantId</code>.</li>
-<li><code>GET /instances/{id}</code> returns 404 if the instance's
-<code>TenantId</code> doesn't match the caller's tenant.</li>
+<li><code>GET /instances/{id}</code> and
+<code>POST /instances/{id}/retry|terminate|resume</code> return 404
+unless the instance's <code>TenantId</code> equals the caller's
+tenant.</li>
+<li><code>POST /instances/start</code> starts in the caller's tenant.
+<code>StartWorkflowRequest.TenantId</code> may repeat it; a different
+value is refused (403). Only a caller without a tenant (single-tenant
+mode, or <code>RequireTenant = false</code>) can choose a tenant through
+the body.</li>
+<li>The <code>/human-tasks</code> endpoints run the same filter. Tasks
+are scoped through their instance: listings drop other tenants' tasks,
+and by-instance lookups and responses return 404 for them. A response
+from a caller with a tenant also returns 404 when no
+<code>IHumanTaskStore</code> is registered, since the task's owner
+cannot be checked.</li>
 </ul>
+<p>Matching is exact and case-sensitive. An instance started without a
+<code>TenantId</code> is invisible to every caller that has a tenant:
+start instances with a tenant in multi-tenant hosts, including from
+background handlers.</p>
+<p><code>FallbackHeader</code> lets a caller without the claim choose
+its tenant. Set it only when a trusted gateway sets or strips that
+header; otherwise any caller with the admin scope can name any
+tenant.</p>
+<p>Workflow definitions, compatibility analysis and circuit breakers are
+engine-global, not per tenant: any caller with
+<code>FlowEngine.Admin</code> can publish, delete or reset them. Grant
+that scope only to operators of the whole engine.</p>
 <p>For asynchronous trigger handlers (Service Bus consumers, hosted
 services) that call <code>IFlowEngine</code> outside an HTTP request,
 capture the tenant on the inbound message and pass it explicitly. Use
