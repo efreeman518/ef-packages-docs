@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cross-node cancel: design note</title>
+  <title>Cross-node cancel</title>
   <link rel="stylesheet" href="docs-common.css">
 </head>
 <body>
@@ -12,82 +12,78 @@
     <div class="header-badge">Documentation</div>
     <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">🌙</button>
   </div>
-  <h1>Cross-node cancel: design note</h1>
+  <h1>Cross-node cancel</h1>
 </div>
 
 <div class="content">
-<h2 id="cross-node-cancel-design-note">Cross-node cancel: design
-note</h2>
-<p>Status: proposal, not implemented. Decide before coding.</p>
+<h2 id="cross-node-cancel">Cross-node cancel</h2>
+<p>Status: implemented (the <code>Cancelled</code> record is the stop
+signal, read by the lease renewal service).</p>
 <h3 id="problem">Problem</h3>
-<p><code>CancelAsync</code> stops an execution of the instance only when
-it runs in the calling process. There it flags the execution, which then
-discards its own outcome. The cancel then adopts the execution's lease
-and writes <code>Cancelled</code>.</p>
-<p>An execution on another node is not reached:</p>
-<ol type="1">
-<li>The cancel cannot take the lease that node holds. It writes
-<code>Cancelled</code> without the lease, through
-<code>SaveWithRetryAsync</code>.</li>
-<li>The other node keeps running nodes, with their side effects, until
-its next save.</li>
-<li>Its final save can overwrite <code>Cancelled</code>. Optimistic
-concurrency makes that save fail and reload. Whether the reload keeps
-<code>Cancelled</code> depends on the terminal-status guard in the retry
-path, not on any cancel protocol.</li>
-</ol>
-<h3 id="options">Options</h3>
-<ol type="1">
-<li><strong>Cancel marker checked before each save.</strong>
-<code>CancelAsync</code> sets <code>CancelRequestedAt</code> on the
-record (a new field) when it cannot take the lease. The loop reloads, or
-reads the marker from the concurrency-failure reload, before each node
-and each save. On seeing it, the loop stops and writes
-<code>Cancelled</code> itself.
+<p><code>CancelAsync</code> stops an execution of the instance directly
+only when it runs in the calling process. There it flags the execution,
+which then discards its own outcome. The cancel then adopts the
+execution's lease and writes <code>Cancelled</code>.</p>
+<p>An execution on another node holds the lease, so the cancel cannot
+take it. The cancel writes <code>Cancelled</code> without the lease,
+through <code>SaveWithRetryAsync</code>. The other node's later saves
+cannot overwrite it: a save that conflicts reloads the record and adopts
+a terminal status instead of writing over it. But the other node does
+not save after every node unless <code>PersistAfterEveryNode</code> is
+set, so it could keep running nodes, with their side effects, until it
+suspended or finished.</p>
+<h3 id="design">Design</h3>
+<p>The <code>Cancelled</code> status written by the cancel is the stop
+signal; there is no separate marker field.</p>
 <ul>
-<li>Cost: one field per store schema, and one read per node (or
-piggyback on existing saves).</li>
-<li>The holder stays the only writer of the outcome.</li>
-<li>Latency is bounded by the longest node.</li>
-</ul></li>
-<li><strong>The lease holder is the only writer.</strong> Without the
-lease, <code>CancelAsync</code> writes only the marker and returns a
-"cancel requested" result. The holder, or the sweep after the lease
-expires, finishes the cancel.
-<ul>
-<li>This is option 1 with a stricter contract.</li>
-<li><code>CancelAsync</code> can no longer promise a
-<code>Cancelled</code> snapshot on return, which is a breaking API
-change.</li>
-</ul></li>
-<li><strong>Broadcast to nodes</strong> (pub/sub per instance, for
-example over the existing intake queue or Redis).
-<ul>
-<li>Fastest stop.</li>
-<li>Adds a transport dependency to every deployment.</li>
-<li>Still needs option 1 for a node that misses the message.</li>
-</ul></li>
-</ol>
-<h3 id="recommendation">Recommendation</h3>
-<p>Option 1. Add <code>CancelRequestedAt</code>. Check it:</p>
-<ul>
-<li>in the loop before each node, using the record the loop already
-holds plus a cheap re-read when the lease is renewed;</li>
-<li>in <code>SaveWithRetryAsync</code>'s reload: never overwrite a
-record whose marker is set or whose status is terminal.</li>
+<li>After each successful renewal, <code>LeaseRenewalService</code>
+reads the record of each execution it renews. When the status is
+terminal, it records the stored instance on the execution
+(<code>LocalExecution.FinalizedRecord</code>) and cancels the
+execution's token, as it does when the lease is lost.</li>
+<li>The engine loop, stopped that way, saves nothing. It reports the
+stored outcome to its caller and releases its lease.</li>
+<li>Child instances are cancelled by the cancel's cascade, each through
+its own record, so each running child stops the same way on whichever
+node runs it.</li>
 </ul>
-<p><code>CancelAsync</code> keeps writing <code>Cancelled</code> itself
-when it holds the lease, as it does locally today.</p>
-<h3 id="tests-to-write-with-it">Tests to write with it</h3>
-<ul>
-<li>Two engines sharing one store and lock provider. Cancel on engine A
-while engine B runs a gated node. B must not run its next node, and the
-record must end <code>Cancelled</code>.</li>
-<li>B's final save after the cancel must not overwrite
-<code>Cancelled</code>.</li>
-<li>The sweep resuming an instance whose marker is set finishes the
-cancel and does not run it.</li>
-</ul>
+<p>Stop latency: one <code>LeaseRenewalInterval</code> (13 s by default)
+plus the time the renewal pass takes, sooner when the running node
+observes its cancellation token. The pass renews and reads each running
+execution in turn, so with many executions on a slow store it lengthens,
+delaying both the stop and later renewals. A node that ignores the token
+finishes its own work, but the loop does not start another node.</p>
+<p>Only a final record at a version other than the one the execution
+last loaded or saved counts: the in-memory store hands the execution its
+own working object, whose status the loop sets before saving it. For the
+same reason <code>CancelAsync</code> writes into a copy of the record it
+loads, so a cancel never lands in an execution's working object (where
+that execution's next save would persist it as its own, at a version the
+check then treats as its own).</p>
+<p>Cost: one record read per running execution per renewal interval. The
+read loads the full record; a status-only store query would make it
+cheaper (a new <code>IExecutionStateStore</code> member, if the read
+cost matters on a store such as Cosmos with many concurrent executions
+per node).</p>
+<h3 id="options-considered">Options considered</h3>
+<ol type="1">
+<li><strong>A <code>CancelRequestedAt</code> field checked before each
+node.</strong> A schema change in every store and a read per node, to
+stop marginally sooner than the renewal check, which also interrupts the
+running node.</li>
+<li><strong>The lease holder is the only writer.</strong>
+<code>CancelAsync</code> would return "cancel requested" instead of a
+<code>Cancelled</code> snapshot: a breaking API change.</li>
+<li><strong>Broadcast to nodes (pub/sub).</strong> A transport
+dependency for every deployment, and still needs a record check for a
+node that misses the message.</li>
+</ol>
+<h3 id="tests">Tests</h3>
+<p><code>CrossNodeCancelTests</code>: two engines share one store, lock
+provider and registry. A cancel on engine A while engine B runs a gated
+node; with the node observing its token and with it ignoring the token,
+B does not run the next node, the record stays <code>Cancelled</code>,
+and B releases its lease.</p>
 </div>
 
 <script>
