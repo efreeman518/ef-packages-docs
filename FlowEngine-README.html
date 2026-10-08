@@ -1212,14 +1212,19 @@ lock ownership</td>
 <tr class="even">
 <td><code>DefaultLeaseDuration</code></td>
 <td>30 s</td>
-<td>How long a distributed lock lease lasts before it can be
-reclaimed</td>
+<td>How long a distributed lock lease lasts before it can be reclaimed.
+A workflow's <code>DefaultLeaseDuration</code> overrides it for that
+workflow's executions (provider lease, record stamp and renewals); the
+override must exceed <code>LeaseRenewalInterval</code> or the start is
+rejected</td>
 </tr>
 <tr class="odd">
 <td><code>LeaseRenewalInterval</code></td>
 <td>13 s</td>
 <td>How often the lease renewal service extends active locks (~43% of
-lease duration)</td>
+lease duration). If a renewal throws, the execution keeps running only
+while its lease outlasts the next renewal attempt; otherwise it is
+cancelled</td>
 </tr>
 <tr class="even">
 <td><code>SweepInterval</code></td>
