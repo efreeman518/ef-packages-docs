@@ -36,9 +36,11 @@ suspended or finished.</p>
 <p>The <code>Cancelled</code> status written by the cancel is the stop
 signal; there is no separate marker field.</p>
 <ul>
-<li>After each successful renewal, <code>LeaseRenewalService</code>
-reads the record of each execution it renews. When the status is
-terminal, it records the stored instance on the execution
+<li>Each pass, <code>LeaseRenewalService</code> renews the leases in
+parallel, then reads the status and version of every execution whose
+lease held in one call
+(<code>IExecutionStateStore.GetStatusesAsync</code>). When a status is
+terminal, it loads that record, records it on the execution
 (<code>LocalExecution.FinalizedRecord</code>) and cancels the
 execution's token, as it does when the lease is lost.</li>
 <li>The engine loop, stopped that way, saves nothing. It reports the
@@ -47,12 +49,12 @@ stored outcome to its caller and releases its lease.</li>
 its own record, so each running child stops the same way on whichever
 node runs it.</li>
 </ul>
-<p>Stop latency: one <code>LeaseRenewalInterval</code> (13 s by default)
-plus the time the renewal pass takes, sooner when the running node
-observes its cancellation token. The pass renews and reads each running
-execution in turn, so with many executions on a slow store it lengthens,
-delaying both the stop and later renewals. A node that ignores the token
-finishes its own work, but the loop does not start another node.</p>
+<p>Stop latency: about one <code>LeaseRenewalInterval</code> (13 s by
+default), sooner when the running node observes its cancellation token.
+The pass renews up to 16 leases at a time and reads all statuses in one
+call, so it stays short with many executions. A node that ignores the
+token finishes its own work, but the loop does not start another
+node.</p>
 <p>Only a final record at a version other than the one the execution
 last loaded or saved counts: the in-memory store hands the execution its
 own working object, whose status the loop sets before saving it. For the
@@ -60,11 +62,12 @@ same reason <code>CancelAsync</code> writes into a copy of the record it
 loads, so a cancel never lands in an execution's working object (where
 that execution's next save would persist it as its own, at a version the
 check then treats as its own).</p>
-<p>Cost: one record read per running execution per renewal interval. The
-read loads the full record; a status-only store query would make it
-cheaper (a new <code>IExecutionStateStore</code> member, if the read
-cost matters on a store such as Cosmos with many concurrent executions
-per node).</p>
+<p>Cost: one batched status read per renewal interval. SQL, Cosmos,
+Redis and Azure Table read only status and version (one query, one
+projected query per 256 ids, one <code>MGET</code>, and two-column point
+reads); the File store and custom stores without their own
+implementation load each record. A full record is loaded only for a
+finalized instance.</p>
 <h3 id="options-considered">Options considered</h3>
 <ol type="1">
 <li><strong>A <code>CancelRequestedAt</code> field checked before each

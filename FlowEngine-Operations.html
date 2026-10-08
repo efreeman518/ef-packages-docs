@@ -263,7 +263,7 @@ builder.Services.AddFlowEngine()
 {
     Task&lt;bool&gt; IsOpenAsync(string key, CancellationToken ct = default);
     Task        RecordFailureAsync(string key, CircuitBreakerPolicy policy, CancellationToken ct = default);
-    Task        RecordSuccessAsync(string key, CancellationToken ct = default);
+    Task&lt;bool&gt;  RecordSuccessAsync(string key, CancellationToken ct = default); // true: this success closed a tripped circuit
 }
 </code></pre>
 
@@ -273,7 +273,7 @@ builder.Services.AddFlowEngine()
   <tr><td>Failures reach <code>FailureThreshold</code> within <code>SamplingWindow</code></td><td>Circuit opens — subsequent nodes skip execution</td></tr>
   <tr><td>Node has a <code>CircuitOpen</code> edge</td><td>Engine takes that edge — workflow continues via degraded path</td></tr>
   <tr><td>No <code>CircuitOpen</code> edge</td><td>Instance suspends with a timed wait equal to <code>OpenDuration</code>; sweep service resumes it after cool-down</td></tr>
-  <tr><td><code>RecordSuccessAsync</code> called</td><td>Circuit closes immediately — failures counter reset</td></tr>
+  <tr><td><code>RecordSuccessAsync</code> called</td><td>Circuit closes immediately - failures counter reset; if it had tripped, the engine resumes the instances waiting for it</td></tr>
   <tr><td><code>OpenDuration</code> elapses</td><td>Circuit transitions to <strong>HalfOpen</strong> — exactly one probe attempt is let through; all other callers are blocked during the probe window. Probe success → Closed (failures counter reset). Probe failure → re-Open with timer reset.</td></tr>
 </table></div>
 

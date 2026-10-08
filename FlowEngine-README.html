@@ -2073,12 +2073,22 @@ and burning through retries. Once the failure threshold is reached the
 circuit opens: subsequent instances skip the executor entirely and
 either follow a <code>CircuitOpen</code> edge (graceful degradation) or
 auto-suspend at the failing node until the cool-down period expires, at
-which point the sweep service resumes them transparently. The sweep
-re-runs the node, which probes the circuit again; each re-run counts
-toward the node's <code>maxVisits</code>. A resume signal sent to such
-an instance is ignored (logged) and its payload is not added to the
-context; after the cool-down, a signal that can claim the instance
-re-runs the node, otherwise the sweep does.</p>
+which point the sweep service resumes them transparently. When the
+circuit closes earlier (a probe succeeds, or an operator resets it
+through the admin API), the engine resumes the instances waiting for it
+right away, paged by id and at most 8 at a time
+(<code>IExecutionStateStore.FindSuspendedOnEventAsync</code>); the
+timeout remains the backstop for an instance another worker holds or one
+that suspends during the pass. The sweep re-runs the node, which probes
+the circuit again; each re-run counts toward the node's
+<code>maxVisits</code>, which bounds how long an instance waits for a
+dependency that stays down (exceeding it ends the instance as
+<code>CycleDetected</code> without compensation or the global failure
+node). An executor that reports <code>CircuitOpen</code> itself counts
+as a circuit failure. A resume signal sent to such an instance is
+ignored (logged) and its payload is not added to the context; after the
+cool-down, a signal that can claim the instance re-runs the node,
+otherwise the sweep does.</p>
 <p><strong>Policy inheritance</strong> mirrors <code>RetryPolicy</code>:
 set <code>defaultCircuitBreakerPolicy</code> on the workflow definition
 as a workflow-wide default; override with
@@ -2165,18 +2175,20 @@ path</td>
 <td>No <code>CircuitOpen</code> edge</td>
 <td>Instance suspends at the failing node with a timed wait equal to
 <code>openDuration</code>; the sweep service resumes it automatically
-after cool-down</td>
+after cool-down, or the engine resumes it as soon as the circuit
+closes</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Half-open recovery:</strong> After <code>openDuration</code>
 elapses, the circuit enters a HalfOpen state and allows exactly one
-probe request through. If the probe succeeds, the circuit closes. If it
-fails, the circuit re-opens for another full <code>openDuration</code>.
-All other concurrent callers remain blocked during the probe window.
-This behavior is built into <code>InMemoryCircuitBreakerStore</code> and
-should be implemented by custom <code>ICircuitBreakerStore</code>
-implementations for consistency.</p>
+probe request through. If the probe succeeds, the circuit closes and the
+instances suspended on it resume. If it fails, the circuit re-opens for
+another full <code>openDuration</code>. All other concurrent callers
+remain blocked during the probe window. This behavior is built into
+<code>InMemoryCircuitBreakerStore</code> and should be implemented by
+custom <code>ICircuitBreakerStore</code> implementations for
+consistency.</p>
 <p><strong>Circuit state scope:</strong>
 <code>InMemoryCircuitBreakerStore</code> (the default) is a singleton —
 circuit state is shared across all workflow instances on the same

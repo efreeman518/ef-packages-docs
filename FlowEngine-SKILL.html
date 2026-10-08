@@ -1183,10 +1183,13 @@ failure path: compensation when enabled, then
 <code>globalOnFailureNodeId</code> when set (unless the failing node is
 that handler), otherwise it faults with the node's own error. An open
 circuit suspends it until the circuit's open duration has passed, then
-the sweep re-runs the node. That retry is time-based, and each re-run
-counts toward the node's <code>maxVisits</code>, so keep
-<code>maxVisits</code> above the cool-downs a node may wait out. The
-workflow's <code>defaultCircuitBreakerPolicy</code> does not apply to
+the sweep re-runs the node, or the engine re-runs it as soon as the
+circuit closes. Each re-run counts toward the node's
+<code>maxVisits</code>, so keep <code>maxVisits</code> above the
+cool-downs a node may wait out: exceeding it ends the instance as
+<code>CycleDetected</code> (<code>MAX_VISITS_EXCEEDED</code>) without
+compensation or the global failure node. The workflow's
+<code>defaultCircuitBreakerPolicy</code> does not apply to
 <code>output</code> nodes.</p>
 <p><strong>Outcomes:</strong> none — this is a terminal node.</p>
 <hr />

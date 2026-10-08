@@ -2674,7 +2674,7 @@ faultable.FaultOnLoad = true;</code></pre>
 </ol>
 
 <h4>Failure and success recording</h4>
-<p>After all retries are exhausted (not per attempt): an <code>Error</code> outcome calls <code>RecordFailureAsync</code>; any non-error outcome calls <code>RecordSuccessAsync</code> which resets the circuit to closed.</p>
+<p>After all retries are exhausted (not per attempt): an <code>Error</code> outcome calls <code>RecordFailureAsync</code>; any non-error outcome calls <code>RecordSuccessAsync</code> which resets the circuit to closed. When that success closed a tripped circuit, the engine resumes every instance suspended waiting for it.</p>
 
 <h4>Circuit state scope and crash recovery</h4>
 <p>The default <code>InMemoryCircuitBreakerStore</code> is a process-local singleton — one store is shared across all workflow instances on a replica, so one instance discovering a failure protects the others on that replica. Circuit state is <strong>not</strong> preserved across process restarts, but workflow instance state is always durable. After a restart, suspended instances are found by the sweep service and resumed; if the service is still down they will re-trip the circuit on the new replica.</p>
