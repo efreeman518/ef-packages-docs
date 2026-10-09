@@ -264,7 +264,9 @@ public sealed class NodeDefinition
     /// &lt;summary&gt;
     /// Maximum times this node may be visited in a single instance execution.
     /// Prevents infinite cycles. Default: 100.
-    /// When exceeded, the instance transitions to CycleDetected.
+    /// When exceeded, the instance transitions to CycleDetected, except on a re-run after
+    /// waiting for the node's open circuit: the node then fails with
+    /// CIRCUIT_OPEN_RETRIES_EXHAUSTED if the circuit is still open.
     /// &lt;/summary&gt;
     public int MaxVisits { get; init; } = 100;
 

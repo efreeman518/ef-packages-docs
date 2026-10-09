@@ -528,6 +528,7 @@ public enum DecisionOutcome
 <tbody>
 <tr><td><code>NODE_EXECUTION_TIMEOUT</code></td><td>Node exceeded its per-node <code>executionTimeout</code></td></tr>
 <tr><td><code>MAX_VISITS_EXCEEDED</code></td><td>Node exceeded its <code>maxVisits</code> limit &rarr; instance transitions to <code>CycleDetected</code></td></tr>
+<tr><td><code>CIRCUIT_OPEN_RETRIES_EXHAUSTED</code></td><td>A node re-run after waiting for its open circuit would exceed <code>maxVisits</code> &rarr; the node fails (its <code>Error</code> edge, else compensation and the global failure node, else <code>Faulted</code>)</td></tr>
 <tr><td><code>NO_MATCHING_EDGE</code></td><td>Node completed but no edge matched the outcome (and no <code>GlobalOnFailureNodeId</code>)</td></tr>
 <tr><td><code>MISSING_CLIENT</code></td><td>A node referenced a <code>clientRef</code> that was not registered</td></tr>
 <tr><td><code>WORKFLOW_NOT_FOUND</code></td><td>A <code>workflow</code> or <code>loop</code> node referenced a definition that doesn&apos;t exist</td></tr>
@@ -979,6 +980,24 @@ public interface IExecutionStateStore
     /// &lt;/summary&gt;
     Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; DequeueChildSignalsAsync(
         string parentInstanceId,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// The pending child signals, left queued (the engine reads them to decide whether a suspended
+    /// parent should run; the run drains them). The default implementation dequeues and re-enqueues;
+    /// override it with a non-destructive read.
+    /// &lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; PeekChildSignalsAsync(
+        string parentInstanceId,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Ids of instances with queued child signals, in ascending id order after the cursor
+    /// (null for the first page). The sweep pages through them across passes.
+    /// &lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;string&gt;&gt; FindInstancesWithChildSignalsAsync(
+        string? afterInstanceId,
+        int batchSize,
         CancellationToken ct = default);
 }
 
@@ -2161,6 +2180,8 @@ public sealed class LocalFileDocumentStore : IDocumentStore
 ///   flow.node.faulted          flow.node.retrying
 ///   flow.task.created          flow.task.completed
 ///   flow.checkpoint.saved
+///   flow.compensation.incomplete  (a saga step left uncompensated; nodeId is the forward step;
+///                                  outcome is the compensation's, absent when its node is missing)
 /// &lt;/summary&gt;
 public interface IFlowEngineTelemetry
 {

@@ -650,14 +650,12 @@ from the sequence.</p>
         // could suspend). Without this, those signals would be stuck until the sweep fires.
         if (instance.Status == ExecStatus.Suspended)
         {
-            var pendingSignals = await _stateStore.DequeueChildSignalsAsync(
-                instance.InstanceId, hostCt);
+            // Read, not drained: the run they start drains them on entry.
+            var pendingSignals = await _stateStore.PeekChildSignalsAsync(
+                instance.InstanceId, CancellationToken.None);
 
             if (pendingSignals.Count &gt; 0)
             {
-                foreach (var sig in pendingSignals)
-                    await _stateStore.EnqueueChildSignalAsync(instance.InstanceId, sig, hostCt);
-
                 var reloaded = await _stateStore.LoadAsync(instance.InstanceId, hostCt);
                 if (reloaded?.Status == ExecStatus.Suspended)
                 {
@@ -2006,7 +2004,7 @@ public sealed class CheckpointNodeExecutor : INodeExecutor
 <li>[ ] Loop advances through multiple sequential synchronous nodes with NO intermediate saves</li>
 <li>[ ] Loop suspends correctly when a node returns <code>PendingWait != null</code></li>
 <li>[ ] Loop terminates correctly when an <code>output</code> node (no edges) is reached</li>
-<li>[ ] <code>MaxVisits</code> guard transitions to <code>CycleDetected</code> on breach</li>
+<li>[ ] <code>MaxVisits</code> guard transitions to <code>CycleDetected</code> on breach (a re-run after an open-circuit wait instead probes once more, then fails the node with <code>CIRCUIT_OPEN_RETRIES_EXHAUSTED</code>)</li>
 <li>[ ] Instance-level deadline transitions to <code>TimedOut</code> when breached</li>
 <li>[ ] <code>GlobalOnFailureNodeId</code> is taken when no edge matches an Error outcome</li>
 <li>[ ] Backward edges (nextNodeId referencing a previously visited node) work correctly</li>

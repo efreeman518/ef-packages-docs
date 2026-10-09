@@ -423,10 +423,14 @@ return new NodeResult { Outcome = DecisionOutcome.Error, Error = ... };
 // Note: Default is emitted by the EDGE EVALUATOR, not the node executor,
 // when no other edge matches. Your executor never returns Default.
 
-// Note: CircuitOpen is emitted by the ENGINE when a CircuitBreakerPolicy is configured
-// and its failure threshold has been reached. Your executor is never called when this
-// happens. Add an edge with On: ["CircuitOpen"] to route to a fallback node;
-// if no such edge exists, the engine suspends the instance until the circuit cools down.
+// CircuitOpen is emitted by the ENGINE when a CircuitBreakerPolicy is configured and the
+// circuit is open: your executor is not called. Add an edge with On: ["CircuitOpen"] to route
+// to a fallback node; if no such edge exists, the engine suspends the instance until the
+// circuit cools down (or closes).
+// Your executor may also return CircuitOpen itself (its dependency's own breaker is open).
+// It then counts as a circuit failure (not for compensation steps or the global failure
+// and deadline handler nodes, which never record on circuits), and it asserts NO side
+// effects happened: such a visit is never compensated. Return Error after partial work.
 </code></pre>
 <hr />
 <h2>Accessing external clients</h2>

@@ -1185,10 +1185,12 @@ that handler), otherwise it faults with the node's own error. An open
 circuit suspends it until the circuit's open duration has passed, then
 the sweep re-runs the node, or the engine re-runs it as soon as the
 circuit closes. Each re-run counts toward the node's
-<code>maxVisits</code>, so keep <code>maxVisits</code> above the
-cool-downs a node may wait out: exceeding it ends the instance as
-<code>CycleDetected</code> (<code>MAX_VISITS_EXCEEDED</code>) without
-compensation or the global failure node. The workflow's
+<code>maxVisits</code>, which bounds how many cool-downs it waits out:
+the re-run that would exceed it probes the circuit and, if it is still
+open, fails the node with <code>CIRCUIT_OPEN_RETRIES_EXHAUSTED</code>,
+handled like any node failure (its <code>Error</code> edge, otherwise
+compensation and <code>globalOnFailureNodeId</code>, otherwise a fault).
+Visits that met an open circuit are not compensated. The workflow's
 <code>defaultCircuitBreakerPolicy</code> does not apply to
 <code>output</code> nodes.</p>
 <p><strong>Outcomes:</strong> none — this is a terminal node.</p>
@@ -1498,6 +1500,25 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb37-1"><a href=
 with no notification node</li>
 <li>Compensation nodes should be idempotent — the engine may execute
 them more than once on crash recovery</li>
+<li>Each forward node gets one compensation attempt per run, with the
+current context, even when it was visited more than once or the run
+unwound twice, and is not compensated again once its compensation is in
+the history (except one that reported <code>CircuitOpen</code>, which a
+later run that unwinds again retries); visits that met an open circuit,
+and migration markers, are not compensated. <code>migration</code> is a
+reserved node type. A compensation whose executor fails or reports
+<code>CircuitOpen</code>, or whose node is missing, emits
+<code>flow.compensation.incomplete</code> (tag <code>nodeId</code> is
+the forward step)</li>
+<li>Compensation steps and the <code>globalOnFailureNodeId</code> /
+<code>globalOnDeadlineNodeId</code> nodes (however reached) run past an
+open circuit (keys default to the node type, so it may be another
+dependency's) and do not record their outcomes on it</li>
+<li>An executor that returns <code>CircuitOpen</code> must not have
+caused side effects: such a visit is not compensated</li>
+<li>A per-iteration unwind (one release per item reserved in a loop)
+needs a compensating loop node, not <code>compensationNodeId</code> on
+the loop body</li>
 <li>Compensation nodes themselves do not have
 <code>compensationNodeId</code> — avoid compensation-of-compensation
 chains</li>

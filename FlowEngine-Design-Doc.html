@@ -2337,8 +2337,10 @@ Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; FindTimedOutInstancesAsync(Da
 Task&lt;ExecutionQueryResult&gt; QueryAsync(ExecutionQuery query, CancellationToken ct);
 Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; GetChildrenAsync(string parentInstanceId, CancellationToken ct);
 Task EnqueueChildSignalAsync(string parentInstanceId, ChildSignal signal, CancellationToken ct);
-Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; DequeueChildSignalsAsync(string parentInstanceId, CancellationToken ct);</code></pre>
-<p><strong>Child signal delivery path.</strong> When a child workflow completes, <code>ChildSignalHandler</code> first attempts to acquire the parent's distributed lock and resume it immediately (fast path). If the parent is already locked by another server — e.g. it is mid-execution — the signal is durably enqueued via <code>EnqueueChildSignalAsync</code>. On the parent's next sweep cycle the sweep service calls <code>DequeueChildSignalsAsync</code>, finds the pending signal, and resumes the parent. Custom state store implementations must implement both methods to ensure signals are never lost under lock contention.</p>
+Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; DequeueChildSignalsAsync(string parentInstanceId, CancellationToken ct);
+Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; PeekChildSignalsAsync(string parentInstanceId, CancellationToken ct); // default: dequeue + re-enqueue
+Task&lt;IReadOnlyList&lt;string&gt;&gt; FindInstancesWithChildSignalsAsync(string? afterInstanceId, int batchSize, CancellationToken ct);</code></pre>
+<p><strong>Child signal delivery path.</strong> When a child workflow completes, <code>ChildSignalHandler</code> first attempts to acquire the parent's distributed lock and resume it immediately (fast path). If the parent is already locked by another server - e.g. it is mid-execution - the signal is durably enqueued via <code>EnqueueChildSignalAsync</code>. The sweep service pages through parents with queued signals (<code>FindInstancesWithChildSignalsAsync</code>, with a cursor kept across passes), reads each one's signals without removing them (<code>PeekChildSignalsAsync</code>), and resumes a parent whose signal is for the node it waits at; the run drains the signals on entry. Custom state store implementations must implement both methods to ensure signals are never lost under lock contention.</p>
 
 <h2 id="testing">Testing</h2>
 <p>The <code>EF.FlowEngine.Testing</code> NuGet package provides three tools for testing workflows and node executors without infrastructure dependencies.</p>
@@ -2531,8 +2533,8 @@ faultable.FaultOnLoad = true;</code></pre>
 <h4>How rollback works</h4>
 <ol>
   <li>The engine walks <code>ExecutionInstance.History</code> in <strong>reverse</strong> order.</li>
-  <li>Entries that already faulted or are already compensation records (<code>compensatingFor != null</code>) are skipped.</li>
-  <li>Each completed forward step with a <code>compensationNodeId</code> is executed via the normal <code>ExecuteWithRetryAsync</code> path.</li>
+  <li>Entries that already faulted, met an open circuit (the node never ran), are migration markers (node type <code>migration</code>, reserved), or are already compensation records (<code>compensatingFor != null</code>) are skipped. A compensation whose executor fails or reports <code>CircuitOpen</code>, or whose node is missing, emits <code>flow.compensation.incomplete</code>.</li>
+  <li>Each completed forward step with a <code>compensationNodeId</code> is executed via <code>ExecuteWithRetryAsync</code>, once per run even when the step was visited more than once or the run unwound twice (and not again once its compensation is in the instance history), and past an open circuit: an open circuit (keys default to the node type) does not skip the unwind, and the step neither reads nor changes the circuit's state. A compensation step whose executor reports <code>CircuitOpen</code> is logged and not marked compensated. An executor returning <code>CircuitOpen</code> asserts it caused no side effects, so such a forward visit is not compensated.</li>
   <li>A history record is appended with <code>compensatingFor: "&lt;originalNodeId&gt;"</code> — prevents double-compensation on engine retry.</li>
   <li>After all compensation runs, the engine routes to <code>GlobalOnFailureNodeId</code> (if defined) or transitions to <code>Faulted</code>.</li>
 </ol>
@@ -2570,7 +2572,7 @@ faultable.FaultOnLoad = true;</code></pre>
     <tr><td><code>compensatingFor</code></td><td>History record</td><td>Set on compensation entries to prevent double-compensation on retry.</td></tr>
   </tbody>
 </table>
-<p>Compensation nodes are ordinary workflow nodes with the same retry behaviour as forward steps. <code>GlobalOnFailureNodeId</code> and <code>enableCompensation</code> compose cleanly: compensation always runs first, then the failure handler records the outcome.</p>
+<p>Compensation nodes are ordinary workflow nodes with the same retry behaviour as forward steps, except that an open circuit does not hold them back (above). <code>GlobalOnFailureNodeId</code> and <code>enableCompensation</code> compose cleanly: compensation always runs first, then the failure handler records the outcome.</p>
 
 <h3 id="retry-policy">Retry Policy</h3>
 <p><code>RetryPolicy</code> controls how the engine handles a failing node before giving up and routing to the error edge. Set it at workflow level as a default, then override per node; nodes with neither policy have no automatic retry.</p>
@@ -2667,7 +2669,7 @@ faultable.FaultOnLoad = true;</code></pre>
 
 <h4>Engine behaviour when circuit is open</h4>
 <ol>
-  <li><code>ExecuteWithRetryAsync</code> checks the circuit before invoking the executor. If open, it immediately returns <code>Outcome = CircuitOpen</code> (no execution, no retry).</li>
+  <li><code>ExecuteWithRetryAsync</code> checks the circuit before invoking the executor. If open, it immediately returns <code>Outcome = CircuitOpen</code> (no execution, no retry). Compensation steps and the global failure and deadline handler nodes skip this check, and their outcomes are not recorded on the circuit.</li>
   <li>The engine evaluates edges for <code>CircuitOpen</code> as normal.</li>
   <li>If a <code>CircuitOpen</code> edge exists → workflow advances to the alternate node.</li>
   <li>If no <code>CircuitOpen</code> edge → the instance suspends at the current node with <code>PendingWait.TimeoutAt = now + openDuration</code>. The circuit-open event is recorded in <code>ExecutionInstance.History</code> (<code>BranchTaken = "circuit-open"</code>). After cool-down, the sweep service resumes the instance; the node is retried and the circuit is checked again.</li>

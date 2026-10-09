@@ -2082,13 +2082,22 @@ timeout remains the backstop for an instance another worker holds or one
 that suspends during the pass. The sweep re-runs the node, which probes
 the circuit again; each re-run counts toward the node's
 <code>maxVisits</code>, which bounds how long an instance waits for a
-dependency that stays down (exceeding it ends the instance as
-<code>CycleDetected</code> without compensation or the global failure
-node). An executor that reports <code>CircuitOpen</code> itself counts
-as a circuit failure. A resume signal sent to such an instance is
-ignored (logged) and its payload is not added to the context; after the
-cool-down, a signal that can claim the instance re-runs the node,
-otherwise the sweep does.</p>
+dependency that stays down (the re-run that would exceed it still probes
+the circuit; if it is still open the node fails with
+<code>CIRCUIT_OPEN_RETRIES_EXHAUSTED</code>: it takes the node's
+<code>Error</code> edge, otherwise runs saga compensation for the steps
+that ran and routes to <code>globalOnFailureNodeId</code>, otherwise
+faults the instance with that code; compensation steps and the global
+failure and deadline handler nodes always call their executors, even
+when they share the open circuit, and do not record their outcomes on
+it; so the engine never emits <code>CircuitOpen</code> for a node that
+is also the failure or deadline handler (a <code>CircuitOpen</code> edge
+there is taken only when its executor reports it), and a circuit key
+used only by compensation nodes never opens). An executor that reports
+<code>CircuitOpen</code> itself counts as a circuit failure. A resume
+signal sent to such an instance is ignored (logged) and its payload is
+not added to the context; after the cool-down, a signal that can claim
+the instance re-runs the node, otherwise the sweep does.</p>
 <p><strong>Policy inheritance</strong> mirrors <code>RetryPolicy</code>:
 set <code>defaultCircuitBreakerPolicy</code> on the workflow definition
 as a workflow-wide default; override with
