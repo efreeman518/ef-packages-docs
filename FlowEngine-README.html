@@ -2259,6 +2259,14 @@ evaluator used for edge <code>when</code> predicates — the same globals
 precedence over the static <code>workflowId</code> field.</p>
 <hr />
 <h3 id="saga-compensation">Saga Compensation</h3>
+<p>Before a failure unwind starts, the engine saves <code>Running</code>
+with <code>Error.Code</code> <code>FAILURE_UNWIND_PENDING</code> and the
+original failure in history. Recovery finishes compensation before
+executing forward nodes, then faults with the original failure or routes
+to the global failure handler. Compensation nodes must be idempotent: a
+crash before their results are saved can repeat an undo. Host shutdown
+saves completed undo history and leaves the remaining unwind
+pending.</p>
 <p>Enable the saga pattern by setting
 <code>enableCompensation: true</code> on the workflow definition and
 declaring a <code>compensationNodeId</code> on each forward step that
@@ -2290,6 +2298,26 @@ set)</li>
 <li>Routes to <code>globalOnFailureNodeId</code> or transitions to
 <code>Faulted</code></li>
 </ol>
+<p>An instance <code>Deadline</code> that passes with no
+<code>globalOnDeadlineNodeId</code>, and a wait that times out with no
+<code>onTimeoutNodeId</code> or <code>globalOnDeadlineNodeId</code>,
+unwind the same way before ending <code>TimedOut</code>
+(<code>INSTANCE_DEADLINE_EXCEEDED</code> / <code>WAIT_TIMEOUT</code>).
+The wait-timeout unwind runs in the execution loop under its claim, not
+inside the sweep. A migration that moves an instance waiting on an open
+circuit to a node behind another circuit key re-keys the wait, so it
+resumes when the new circuit closes.</p>
+<p>The instance <code>Deadline</code> also applies while the instance is
+suspended: on suspend, a wait's timeout is capped at the deadline (a
+wait without a timeout gets it), so when the deadline passes the sweep
+hands the instance to the execution loop, which routes to
+<code>globalOnDeadlineNodeId</code> or unwinds and ends
+<code>TimedOut</code> (<code>INSTANCE_DEADLINE_EXCEEDED</code>). The
+deadline wins over a later wait timeout and its
+<code>onTimeoutNodeId</code>, and over a signal that arrives after the
+deadline. <code>PendingWait.TimeoutAt</code> therefore shows the capped
+time. Waits suspended by the deadline handler itself (after the
+deadline) keep their own timeouts.</p>
 <hr />
 <h3 id="dead-letter-store">Dead-Letter Store</h3>
 <p>When a workflow instance faults and has no remaining recovery path —

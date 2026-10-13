@@ -1516,6 +1516,20 @@ open circuit (keys default to the node type, so it may be another
 dependency's) and do not record their outcomes on it</li>
 <li>An executor that returns <code>CircuitOpen</code> must not have
 caused side effects: such a visit is not compensated</li>
+<li>An unhandled instance deadline (no
+<code>globalOnDeadlineNodeId</code>) or wait timeout (no
+<code>onTimeoutNodeId</code> or <code>globalOnDeadlineNodeId</code>)
+also unwinds, then ends <code>TimedOut</code>
+(<code>INSTANCE_DEADLINE_EXCEEDED</code> /
+<code>WAIT_TIMEOUT</code>)</li>
+<li>The instance deadline also fires while suspended: a wait's
+<code>TimeoutAt</code> is capped at the deadline on suspend, and the
+deadline wins over a later wait timeout, its
+<code>onTimeoutNodeId</code>, and a signal arriving after the
+deadline</li>
+<li>Migrating an instance waiting on an open circuit to a node behind
+another circuit key re-keys the wait: closing the new circuit resumes
+it</li>
 <li>A per-iteration unwind (one release per item reserved in a loop)
 needs a compensating loop node, not <code>compensationNodeId</code> on
 the loop body</li>

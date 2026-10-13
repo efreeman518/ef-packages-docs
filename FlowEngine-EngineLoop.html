@@ -407,23 +407,35 @@ from the sequence.</p>
     // The only exception is the checkpoint node, which sets ForceCheckpoint=true
     // in its NodeResult, triggering an immediate mid-loop SaveAsync (see step 3k).
     //
-    var deadlineHandled = false;
+    var compensationAttempted = new HashSet&lt;string&gt;(StringComparer.Ordinal);
     while (true)
     {
             ct.ThrowIfCancellationRequested();
 
             // ── 3a. Check instance-level deadline ─────────────────────────────
-            if (!deadlineHandled &amp;&amp; instance.Deadline.HasValue
+            // Handled is durable (ExecutionInstance.DeadlineHandledAt, saved with the instance), so a
+            // deadline handler that suspended and is resumed in a later run continues instead of
+            // restarting; a failure route that happens to reach the same node does not set it.
+            // The handler runs at most once: entered earlier by a wait-timeout fallback
+            // (DeadlineHandlerEnteredAt set), it is not re-entered; the instance times out instead.
+            if (instance.DeadlineHandledAt == null &amp;&amp; instance.Deadline.HasValue
                 &amp;&amp; instance.Deadline.Value &lt;= DateTimeOffset.UtcNow)
             {
-                if (definition.GlobalOnDeadlineNodeId != null)
+                instance.DeadlineHandledAt = DateTimeOffset.UtcNow;
+                if (definition.GlobalOnDeadlineNodeId != null &amp;&amp; instance.DeadlineHandlerEnteredAt == null)
                 {
+                    instance.DeadlineHandlerEnteredAt = instance.DeadlineHandledAt;
                     instance.CurrentNodeId = definition.GlobalOnDeadlineNodeId;
-                    deadlineHandled = true; // prevent re-triggering on subsequent iterations
+                    // A WAIT_TIMEOUT handed over meanwhile (3a-wait) is superseded: the deadline wins.
+                    if (instance.Error?.Code == &quot;WAIT_TIMEOUT&quot;) instance.Error = null;
                     continue;
                 }
                 else
                 {
+                    // No deadline handler (or it already ran): a saga unwinds first
+                    if (definition.EnableCompensation)
+                        await RunCompensationAsync(instance, definition, compensationAttempted, ct);
+
                     instance.Status      = ExecStatus.TimedOut;
                     instance.CompletedAt = DateTimeOffset.UtcNow;
                     instance.Error = new ExecutionError
@@ -435,6 +447,18 @@ from the sequence.</p>
                     };
                     break;
                 }
+            }
+
+            // ── 3a-wait. Wait timeout handed over by the sweep (saga) ─────────
+            // After 3a, so a deadline that passed meanwhile wins. A version migrated to since the
+            // handover may have disabled compensation: then no unwind.
+            if (instance.Error?.Code == &quot;WAIT_TIMEOUT&quot;)
+            {
+                if (definition.EnableCompensation)
+                    await RunCompensationAsync(instance, definition, compensationAttempted, ct);
+                instance.Status      = ExecStatus.TimedOut;
+                instance.CompletedAt = DateTimeOffset.UtcNow;
+                break;
             }
 
             // ── 3b. Load current node ─────────────────────────────────────────
@@ -499,7 +523,8 @@ from the sequence.</p>
             // ── 3g. Handle suspension (wait / human nodes) ────────────────────
             if (result.PendingWait != null)
             {
-                instance.PendingWait       = result.PendingWait;
+                // A wait outlasting the instance Deadline times out at it, so the sweep finds the instance then
+                instance.PendingWait       = CapAtDeadline(result.PendingWait, instance);
                 instance.PendingHumanTaskId= result.HumanTaskId;
                 instance.Status            = ExecStatus.Suspended;
                 instance.UpdatedAt         = DateTimeOffset.UtcNow;
@@ -2408,6 +2433,17 @@ internal async Task ResumeFromSweepAsync(string instanceId, CancellationToken ct
     // Case 2: Accumulated enough signals (push path missed it)
     if (instance.PendingWait.ReceivedSignals.Count &gt;= instance.PendingWait.MinSignalCount)
     {
+        // Deadline first: past an unhandled deadline the signals do not advance the node;
+        // the loop's deadline check decides (handler or unwind + TimedOut).
+        if (instance.Deadline &lt;= now &amp;&amp; !DeadlineHandled(instance))
+        {
+            instance.PendingWait = null;
+            instance.PendingHumanTaskId = null; // that task is cancelled before the run
+            instance.Status = ExecStatus.Running;
+            await _stateStore.SaveAsync(instance, ct);
+            await ExecuteLoopAsync(instance, ct);
+            return;
+        }
         await AdvancePastCurrentNodeAsync(instance, DecisionOutcome.Match, ct);
         await _stateStore.SaveAsync(instance, ct);
         await ExecuteLoopAsync(instance, ct);
@@ -2415,53 +2451,99 @@ internal async Task ResumeFromSweepAsync(string instanceId, CancellationToken ct
     }
 
     // Case 3: Wait timeout
+    // Sketch: each branch below runs as the transition of TryTransitionClaimedAsync, which takes
+    // the lease and persists the changed instance (SaveTransitionAsync) before anything else: a
+    // Running result is then run by ExecuteLoopAsync under that lease, a terminal one gets its
+    // follow-ups from FinishTransitionTerminalAsync. With the lease held elsewhere nothing is saved
+    // and the instance stays Suspended for a later pass.
     if (instance.PendingWait.TimeoutAt.HasValue &amp;&amp; instance.PendingWait.TimeoutAt.Value &lt;= now)
     {
         var definition = await _workflowRegistry.GetAsync(
             instance.WorkflowId, instance.WorkflowVersion, ct);
+
+        // The instance Deadline passed while suspended (the wait's timeout was capped at it on
+        // suspend) and is not yet handled: run the loop, whose 3a routes to GlobalOnDeadlineNodeId,
+        // else unwinds a saga and ends TimedOut (INSTANCE_DEADLINE_EXCEEDED). Checked before the
+        // circuit, timer and OnTimeoutNodeId branches, so the deadline wins. Not matched on
+        // TimeoutAt == Deadline (store precision); a running deadline handler's own waits keep
+        // their timeout routing.
+        // A branch that routes away from a human wait (the deadline handoff, a timeout handler)
+        // cancels that task by id after the transition save and before the run (best effort,
+        // logged), so a route back to the same human node opens a fresh task. Children are left
+        // to the route.
+        var abandonedTaskId = instance.PendingHumanTaskId;
+        if (instance.Deadline is { } deadline &amp;&amp; deadline &lt;= now
+            &amp;&amp; instance.DeadlineHandledAt == null)
+        {
+            instance.PendingWait        = null;
+            instance.PendingHumanTaskId = null;
+            instance.Status             = ExecStatus.Running;
+            // Cancels the task, or reports a response already accepted (flow.humantask.response_discarded).
+            if (abandonedTaskId != null) await CancelAbandonedTaskAsync(instance, abandonedTaskId);
+            await ExecuteLoopAsync(instance, ct);
+            return;
+        }
 
         string? nodeType = null;
         if (definition != null
             &amp;&amp; definition.Nodes.TryGetValue(instance.CurrentNodeId, out var node))
             nodeType = node.Type;
 
-        // Timer node: delay expiry is the intended path → Match (not an error)
+        // Timer node: delay expiry is the intended path -&gt; Match (not an error)
         if (nodeType == &quot;timer&quot;)
         {
             await AdvancePastCurrentNodeAsync(instance, DecisionOutcome.Match, ct);
-            await _stateStore.SaveAsync(instance, ct);
             await ExecuteLoopAsync(instance, ct);
             return;
         }
 
-        // Wait/human node timeout — jump to OnTimeoutNodeId or transition to TimedOut
+        // Wait/human node timeout: OnTimeoutNodeId, else GlobalOnDeadlineNodeId while the deadline
+        // is unhandled, else WAIT_TIMEOUT (a deadline handler's own wait never restarts the handler).
+        // The deadline handler runs at most once (DeadlineHandlerEnteredAt): this fallback is taken
+        // only until it is first entered. Entering it here does not handle the Deadline, which 3a
+        // still enforces.
         var onTimeoutNodeId = instance.PendingWait.OnTimeoutNodeId;
-        instance.PendingWait = null;
+        var routeToNode = onTimeoutNodeId
+            ?? (instance.DeadlineHandlerEnteredAt == null ? definition?.GlobalOnDeadlineNodeId : null);
+        instance.PendingWait        = null;
+        instance.PendingHumanTaskId = null;
 
-        if (onTimeoutNodeId != null)
+        if (routeToNode != null)
         {
+            if (onTimeoutNodeId == null) instance.DeadlineHandlerEnteredAt = now;
             instance.Status        = ExecStatus.Running;
-            instance.CurrentNodeId = onTimeoutNodeId;
-            instance.UpdatedAt     = DateTimeOffset.UtcNow;
-            await _stateStore.SaveAsync(instance, ct);
+            instance.CurrentNodeId = routeToNode;
+            // Cancels the task, or reports a response already accepted (flow.humantask.response_discarded).
+            if (abandonedTaskId != null) await CancelAbandonedTaskAsync(instance, abandonedTaskId);
             await ExecuteLoopAsync(instance, ct);
+            return;
         }
-        else
+
+        instance.Error = new ExecutionError
         {
-            instance.Status      = ExecStatus.TimedOut;
-            instance.CompletedAt = DateTimeOffset.UtcNow;
-            instance.UpdatedAt   = DateTimeOffset.UtcNow;
-            instance.Error       = new ExecutionError
-            {
-                Code       = &quot;WAIT_TIMEOUT&quot;,
-                Message    = $&quot;Wait node timed out at {now}&quot;,
-                NodeId     = instance.CurrentNodeId,
-                OccurredAt = now
-            };
-            await _stateStore.SaveAsync(instance, ct);
-            EmitFinalEvent(instance);
+            Code       = &quot;WAIT_TIMEOUT&quot;,
+            Message    = $&quot;Wait node timed out at {now}&quot;,
+            NodeId     = instance.CurrentNodeId,
+            OccurredAt = now
+        };
+        if (definition?.EnableCompensation == true)
+        {
+            // A saga unwinds in the execution loop under the claim (3a-wait), not in the sweep;
+            // the instance shows WAIT_TIMEOUT while Running until the unwind ends it TimedOut.
+            instance.Status = ExecStatus.Running;
+            await ExecuteLoopAsync(instance, ct);
+            return;
         }
+        instance.Status      = ExecStatus.TimedOut;
+        instance.CompletedAt = now;
     }
+    // A terminal save gets its follow-ups: final event, then for TimedOut, Faulted and
+    // CycleDetected the open human tasks cancelled before the parent signal (which may resume the
+    // parent inline), then the parent signal, then for TimedOut and CycleDetected (not Faulted:
+    // a dead-letter replay adopts them) the non-terminal children cancelled in a finally, so they
+    // are cancelled even when the signal throws (each cancel logged, not thrown; the signal's own
+    // exception propagates).
+    if (IsTerminal(instance.Status)) await FinishTransitionTerminalAsync(instance);
 }
 
 // ── ResumeChildAsync ──────────────────────────────────────────────────────────

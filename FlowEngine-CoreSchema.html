@@ -397,7 +397,10 @@ public sealed class WaitDescriptor
     /// &lt;summary&gt;
     /// Optional. If set, the instance transitions to TimedOut if no
     /// signal arrives by this time. ISO 8601 duration resolved to
-    /// absolute DateTimeOffset at suspend time.
+    /// absolute DateTimeOffset at suspend time. When the instance has
+    /// a Deadline, the engine caps it at the Deadline on suspend (a wait
+    /// with no timeout gets the Deadline), so the sweep finds the
+    /// instance when its deadline passes; the deadline then wins.
     /// &lt;/summary&gt;
     public DateTimeOffset? TimeoutAt { get; init; }
 
@@ -532,8 +535,8 @@ public enum DecisionOutcome
 <tr><td><code>NO_MATCHING_EDGE</code></td><td>Node completed but no edge matched the outcome (and no <code>GlobalOnFailureNodeId</code>)</td></tr>
 <tr><td><code>MISSING_CLIENT</code></td><td>A node referenced a <code>clientRef</code> that was not registered</td></tr>
 <tr><td><code>WORKFLOW_NOT_FOUND</code></td><td>A <code>workflow</code> or <code>loop</code> node referenced a definition that doesn&apos;t exist</td></tr>
-<tr><td><code>INSTANCE_DEADLINE_EXCEEDED</code></td><td>The instance-level <code>Deadline</code> was reached</td></tr>
-<tr><td><code>WAIT_TIMEOUT</code></td><td>A <code>wait</code> node&apos;s timeout elapsed with no signal and no <code>onTimeoutNodeId</code></td></tr>
+<tr><td><code>INSTANCE_DEADLINE_EXCEEDED</code></td><td>The instance-level <code>Deadline</code> was reached with no <code>GlobalOnDeadlineNodeId</code>, while running or suspended (a saga unwinds first)</td></tr>
+<tr><td><code>WAIT_TIMEOUT</code></td><td>A <code>wait</code> node&apos;s timeout elapsed with no signal and no <code>onTimeoutNodeId</code>, and the fallback to <code>GlobalOnDeadlineNodeId</code> is unavailable (none defined, or the handler was already entered: <code>DeadlineHandlerEnteredAt</code> set) (a saga unwinds first, in the execution loop; the instance shows this error while <code>Running</code> until the unwind ends it <code>TimedOut</code>)</td></tr>
 <tr><td><code>CONCURRENCY_ERROR</code></td><td>Optimistic concurrency conflict on state store save &mdash; sweep service will retry</td></tr>
 <tr><td><code>EXECUTION_FAULT</code></td><td>Unhandled exception inside a node executor</td></tr>
 </tbody>
@@ -2179,6 +2182,8 @@ public sealed class LocalFileDocumentStore : IDocumentStore
 ///   flow.node.started          flow.node.completed
 ///   flow.node.faulted          flow.node.retrying
 ///   flow.task.created          flow.task.completed
+///   flow.humantask.response_discarded  (a response the store accepted after the instance left the wait, e.g.
+///                                       past its deadline; tags nodeId, taskId)
 ///   flow.checkpoint.saved
 ///   flow.compensation.incomplete  (a saga step left uncompensated; nodeId is the forward step;
 ///                                  outcome is the compensation's, absent when its node is missing)
