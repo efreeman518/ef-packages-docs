@@ -120,26 +120,26 @@ flowEngineBuilder
 <ul>
   <li>.NET 10 SDK</li>
   <li>Docker Desktop (running)</li>
-  <li>.NET Aspire workload: <code>dotnet workload install aspire</code></li>
+  <li>No Aspire workload: the AppHost uses the <code>Aspire.AppHost.Sdk</code> 13.6.0 MSBuild SDK with <code>AspireUseCliBundle</code>, which resolves DCP and the dashboard from an <code>aspire</code> CLI on PATH or from the matching <code>aspire.cli</code> package</li>
 </ul>
 
 <h3>Start the harness</h3>
 <pre><span class="lang-tag">shell</span><code>dotnet run --project EF.FlowEngine.Dashboard.AppHost
 </code></pre>
 
-<p>Aspire opens its dashboard at <code>http://localhost:15888</code>. From there you can watch all resources come up, view logs, and navigate to the Dashboard.UI.</p>
+<p>Aspire opens its dashboard at <code>https://localhost:17250</code> (<code>http://localhost:15250</code> with the <code>http</code> launch profile; see <code>EF.FlowEngine.Dashboard.AppHost/Properties/launchSettings.json</code>). From there you can watch all resources come up, view logs, and navigate to the Dashboard.UI.</p>
 
 <ol class="step-list">
   <li>Aspire starts a SQL Server container and a Redis container with persistent data volumes.</li>
   <li>Connection strings are injected into Dashboard.UI as environment variables (<code>ConnectionStrings__FlowEngineDb</code>, <code>ConnectionStrings__TaskFlowDb</code>, <code>ConnectionStrings__Redis</code>).</li>
   <li>Dashboard.UI detects the SQL connection string and runs EF Core migrations automatically on startup (<code>MigrationStartupTask</code>).</li>
-  <li>Sample workflows are seeded into the workflow registry (<code>SampleWorkflowSeeder</code>) if none exist.</li>
+  <li><code>SampleWorkflowSeeder</code> runs on every start: it registers the <code>default-http</code> client, then saves each sample workflow, skipping any whose id and version already exist as <code>Active</code>. A failed seed step is logged as a warning and skipped.</li>
   <li>A <code>taskflow-query</code> EF Core client is registered against the <code>TaskFlow</code> demo database, which is migrated and seeded with representative data.</li>
   <li>The Dashboard.UI is available at its Aspire-assigned port.</li>
 </ol>
 
 <div class="callout callout-teal">
-  Containers use <code>WithLifetime(ContainerLifetime.Persistent)</code> and named data volumes, so data survives across <code>dotnet run</code> restarts. On first run, migrations and seeders run; on subsequent runs they are idempotent.
+  Containers use <code>WithLifetime(ContainerLifetime.Persistent)</code> and named data volumes, so data survives across <code>dotnet run</code> restarts. Migrations and seeders run on every start and are idempotent.
 </div>
 
 <hr>
@@ -184,32 +184,38 @@ else if (!string.IsNullOrEmpty(redisCs))
 
 <div class="table-wrap"><table>
   <tr><th>clientRef</th><th>Type</th><th>Points to</th><th>Source</th></tr>
-  <tr><td><code>taskflow-query</code></td><td><code>EfQueryClient&lt;TaskFlowDemoDbContext&gt;</code></td><td>TaskFlow demo SQL database (Aspire container)</td><td>Startup (code)</td></tr>
+  <tr><td><code>taskflow-query</code></td><td><code>EfQueryClient&lt;TaskFlowDemoDbContext&gt;</code></td><td>TaskFlow demo SQL database (Aspire container); registered only when <code>TaskFlowDb</code> is configured</td><td>Startup (code)</td></tr>
+  <tr><td><code>default-http</code></td><td><code>DirectHttpFlowClient</code></td><td><code>https://jsonplaceholder.typicode.com</code> (the <code>BaseUrl</code> in its saved config entry)</td><td><code>SampleWorkflowSeeder</code>; config entry saved to <code>clientconfigs.json</code> if absent</td></tr>
 </table></div>
 
 <h3>TaskFlow demo entities</h3>
 <p>The TaskFlow schema contains representative healthcare and e-commerce tables seeded with fixture data:</p>
 
 <div class="table-wrap"><table>
-  <tr><th>entityType value</th><th>Table</th><th>Sample data</th></tr>
-  <tr><td><code>Patient</code></td><td><code>TfPatients</code></td><td>5 patients with ages and conditions</td></tr>
-  <tr><td><code>InsurancePlan</code></td><td><code>TfInsurancePlans</code></td><td>3 insurance plans</td></tr>
-  <tr><td><code>Medication</code></td><td><code>TfMedications</code></td><td>4 medications</td></tr>
-  <tr><td><code>Customer</code></td><td><code>TfCustomers</code></td><td>5 customers</td></tr>
-  <tr><td><code>CustomerAddress</code></td><td><code>TfCustomerAddresses</code></td><td>7 addresses</td></tr>
-  <tr><td><code>Product</code></td><td><code>TfProducts</code></td><td>5 products</td></tr>
-  <tr><td><code>Batch</code></td><td><code>TfBatches</code></td><td>3 batches</td></tr>
-  <tr><td><code>Vehicle</code></td><td><code>TfVehicles</code></td><td>4 vehicles</td></tr>
+  <tr><th>entityType value</th><th>Table</th><th>Seeded rows</th></tr>
+  <tr><td><code>Patient</code></td><td><code>Patients</code></td><td>5</td></tr>
+  <tr><td><code>InsurancePlan</code></td><td><code>InsurancePlans</code></td><td>4</td></tr>
+  <tr><td><code>Medication</code></td><td><code>Medications</code></td><td>5</td></tr>
+  <tr><td><code>Customer</code></td><td><code>Customers</code></td><td>5</td></tr>
+  <tr><td><code>CustomerAddress</code></td><td><code>CustomerAddresses</code></td><td>5</td></tr>
+  <tr><td><code>Product</code></td><td><code>Products</code></td><td>5</td></tr>
+  <tr><td><code>Batch</code></td><td><code>Batches</code></td><td>5</td></tr>
+  <tr><td><code>Vehicle</code></td><td><code>Vehicles</code></td><td>6</td></tr>
 </table></div>
+<p>Rows are EF Core <code>HasData</code> seed data in <code>TaskFlowDemoDbContext</code>, applied by <code>TaskFlowDemoMigrationStartupTask</code>.</p>
 
 <h3>Seeded sample workflows</h3>
-<p>Three workflow definitions are seeded on first startup so designers have working examples to explore:</p>
+<p>Seven workflow definitions (version <code>1.0</code>, saved <code>Active</code>) are seeded by <code>SampleWorkflowSeeder</code>. The query samples need the <code>taskflow-query</code> client, so without <code>TaskFlowDb</code> (Redis-only or in-memory mode) their seed steps fail and are skipped.</p>
 
 <div class="table-wrap"><table>
   <tr><th>Workflow ID</th><th>Pattern</th><th>Demonstrates</th></tr>
-  <tr><td><code>http-fetch-demo</code></td><td>fetch → decision → output</td><td>HTTP client node, conditional branching</td></tr>
-  <tr><td><code>query-demo</code></td><td>query → decision → output</td><td><code>taskflow-query</code> client, filter-based queries</td></tr>
-  <tr><td><code>human-approval-demo</code></td><td>human-task → decision → output</td><td>Human task inbox, approval/rejection flow</td></tr>
+  <tr><td><code>sample-fetch-output</code></td><td>fetch -&gt; output</td><td><code>default-http</code> fetch of a todo item</td></tr>
+  <tr><td><code>sample-query-output</code></td><td>query -&gt; output</td><td><code>taskflow-query</code> filter query (premium customers)</td></tr>
+  <tr><td><code>sample-human-approval</code></td><td>human -&gt; output</td><td>Human task inbox, approval response</td></tr>
+  <tr><td><code>sample-fleet-critical-routing</code></td><td>query -&gt; human or output</td><td>Query outcome routing (found / none) into an approval</td></tr>
+  <tr><td><code>sample-batch-qa-investigation</code></td><td>query -&gt; output</td><td>Manufacturing: batches under 95%</td></tr>
+  <tr><td><code>sample-patient-eligibility</code></td><td>query -&gt; output (found / none)</td><td>Healthcare: active preferred-tier insurance plans</td></tr>
+  <tr><td><code>sample-fetch-enrich</code></td><td>fetch -&gt; fetch -&gt; output</td><td>Chained <code>default-http</code> fetches (post, then author)</td></tr>
 </table></div>
 
 <hr>

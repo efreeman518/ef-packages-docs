@@ -23,8 +23,10 @@
 <p>This document uses nine business workflows to illustrate the FlowEngine<br />
 schema surface across multiple industries. Together they reference all 19<br />
 node types and the main engine behaviors: durable suspension, rework cycles,<br />
-parallel execution, child instances, cross-engine invocation, signal
-accumulation, crash recovery, and saga compensation.</p>
+parallel execution, child instances, signal
+accumulation, crash recovery, and saga compensation. The diagrams are illustrative: the integration tests in
+<code>EF.Test.Integration.FlowEngine.UseCases</code> (<code>UseCaseWorkflows.cs</code>, <code>UseCases/UC*_*Tests.cs</code>)
+implement a reduced form of each, and differences that matter are noted per use case.</p>
 <hr />
 <h2>Use-case map</h2>
 <div class="table-wrap"><table>
@@ -447,7 +449,8 @@ signature is then required before the document is marked approved.</p>
 <p><code>store</code> — records AI recommendation in context for human reviewer visibility</p>
 <p><code>human[Internal]</code> with <code>channel: Internal</code> and <code>assignedTo: "legal-team"</code></p>
 <p><code>wait</code> for digital signature — uses <code>instanceId</code> as correlation key;<br />
-   harness calls <code>engine.ResumeAsync("signature.received", instance.InstanceId)</code></p>
+   harness calls <code>engine.ResumeAsync(instance.InstanceId, "signature.received", instance.InstanceId)</code>
+   (signature <code>ResumeAsync(instanceId, eventName, correlationKey, signalPayload?)</code>)</p>
 <p>Multiple <code>output</code> nodes — APPROVED, AI_REVIEW_ERROR</p>
 <p><code>document</code> node (when <code>AzuriteContainerFixture</code> is available) — uploads/downloads<br />
    document content via <code>IDocumentStore</code> backed by Azure Blob Azurite</p>
@@ -613,6 +616,7 @@ batch-complete message is sent after the loop.</p>
 <p><code>parallel[All]</code> for Critical vehicles — <code>enqueue-team</code> (integration POST) and
    <code>email-manager</code> (message) run concurrently; both must complete before the
    sub-workflow's output node is reached.</p>
+<p><strong>Test implementation:</strong> <code>Uc8VehicleAnalysisSubWorkflow</code> has no <code>parallel</code> node; the critical branch runs <code>enqueue-critical</code> (integration) and then <code>email-manager</code> (message) in sequence.</p>
 <p><code>message</code> for manager email — subject <code>"Critical Vehicle Service Required"</code>;
    testable via <code>MessageSpy.SentMessages</code> in the test harness.</p>
 <p>Empty result-set branch — when the query returns 0 vehicles, <code>NoMatch</code> routes
@@ -620,9 +624,10 @@ batch-complete message is sent after the loop.</p>
    traffic is produced.</p>
 <p>NoAction branch — when the agent returns <code>severity: "NoAction"</code> the sub-workflow
    skips both integration and message nodes and falls through to the output directly.</p>
-<p><strong>Design note:</strong> Scheduling is out-of-scope for the engine. Production hosts
-   (Azure Functions timer trigger, Hangfire, Quartz) own the cron trigger and call
-   <code>StartAsync</code> directly. The <code>query</code> node performs the discovery that a scheduled
+<p><strong>Design note:</strong> The trigger can be the engine's own <code>UseScheduler()</code> cron service
+   (<code>WorkflowSchedule</code>, idempotent per occurrence; see the Operations reference) or an external host
+   (Azure Functions timer trigger, Hangfire, Quartz) calling <code>StartAsync</code>. The UC8 test starts the
+   workflow directly. The <code>query</code> node performs the discovery that a scheduled
    batch job would normally do in application code — keeping the working-set logic
    declarative and version-controlled alongside the rest of the workflow.</p>
 <h2>UC9 — Inventory-Payment-Shipping Saga</h2>
@@ -674,6 +679,9 @@ reverse order (refund-payment, then release-inventory) and routes to a
    skipped. The engine tracks completed nodes, not declared nodes.</p>
 <p>Compensation opt-out — <code>EnableCompensation: false</code> (default): no rollback,
    no <code>GlobalOnFailureNodeId</code>; a failing step leaves the instance <code>Faulted</code>.</p>
+<p>Deadlines and wait timeouts - with <code>EnableCompensation: true</code>, an instance deadline with no
+   deadline handler, or a wait timeout with no handler, also unwinds the saga (runs the compensators of
+   completed steps) before the instance ends <code>TimedOut</code>.</p>
 <hr />
 <h3>Summary — node types represented in these examples</h3>
 <p>All 19 node types appear in at least one concrete real-world scenario.<br />
@@ -693,10 +701,6 @@ workflows with rework, parallelism, long-running async steps, and saga compensat
 <td>UC1, UC3, UC4</td>
 </tr>
 <tr>
-<td>Suspend + resume via Service Bus signal</td>
-<td>UC6</td>
-</tr>
-<tr>
 <td>Crash recovery (checkpoint before write chain)</td>
 <td>UC3</td>
 </tr>
@@ -706,19 +710,15 @@ workflows with rework, parallelism, long-running async steps, and saga compensat
 </tr>
 <tr>
 <td>Parallel execution with join strategies</td>
-<td>UC2, UC6</td>
+<td>UC2, UC7, UC8</td>
 </tr>
 <tr>
-<td>Parallel output aggregation (<code>collect</code>, <code>first</code>, <code>sourcePath</code>)</td>
-<td>UC2, UC6</td>
+<td>Loop output aggregation (<code>collect</code>)</td>
+<td>UC3</td>
 </tr>
 <tr>
 <td>Child instance signalling (loop, parallel, workflow)</td>
-<td>UC3, UC6</td>
-</tr>
-<tr>
-<td>Cross-engine workflow invocation</td>
-<td>UC6</td>
+<td>UC2, UC3, UC5, UC6, UC7, UC8</td>
 </tr>
 <tr>
 <td>Quorum-based human tasks</td>

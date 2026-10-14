@@ -122,7 +122,7 @@ many times it is called.</p>
 </tr>
 <tr>
 <td>Write operations via <code>fetch</code> with <code>clientRef</code></td>
-<td>Same as integration — use <code>IdempotencyKey</code></td>
+<td><code>FetchNodeConfig</code> has no idempotency key: use an <code>integration</code> node with <code>idempotencyKeyHeader</code> for writes, or deduplicate on the server</td>
 </tr>
 <tr>
 <td>Write operations via <code>fetch</code> without <code>clientRef</code> (raw HttpClient)</td>
@@ -186,6 +186,9 @@ return new NodeResult
         MinSignalCount = 1
     }
 };
+// EventName and CorrelationKey are limited to 256 UTF-16 code units each; a custom executor's
+// outbox entries are limited to InstanceId/NodeId 64, ClientRef 127 and IdempotencyKey 512. A longer value fails the node with Error code
+// RUNTIME_KEY_TOO_LONG instead of failing the save.
 
 // Force mid-loop checkpoint save (only for checkpoint node type)
 return new NodeResult
@@ -203,7 +206,7 @@ return new NodeResult
 </code></pre>
 <h3>Rule 3 — Use IExecutionContext, not ExecutionInstance directly</h3>
 <p><code>IExecutionContext</code> is the safe API for nodes. It handles namespace routing,<br />
-null safety, and read-only enforcement on <code>$.engine.*</code>.</p>
+null safety, and synthesizes the read-only <code>$.engine.*</code> namespace at resolve time.</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">// Good — use ctx
 var orderId    = ctx.ResolveAs&lt;string&gt;(&quot;$.entity.OrderId&quot;);
 var riskScore  = ctx.ResolveAs&lt;int&gt;(&quot;$.context.riskScore&quot;);
@@ -213,13 +216,17 @@ ctx.Store(&quot;myResult&quot;, new JsonContextValue { Value = ... });
 // Bad — bypass ctx and touch instance directly
 var orderId = instance.Context.Entity; // bypasses type safety + null handling
 
-// Forbidden — write to $.engine.*
-ctx.Store(&quot;engine.visits.myNode&quot;, ...); // throws InvalidOperationException
+// Pointless: Store does not throw, but it writes $.context[&quot;engine.visits.myNode&quot;];
+// $.engine.* paths are computed by the engine and never read stored keys
+ctx.Store(&quot;engine.visits.myNode&quot;, ...);
 </code></pre>
-<h3>Rule 4 — Never throw unhandled exceptions</h3>
-<p>Wrap your executor body in try/catch. Unhandled exceptions fault the entire<br />
-instance — the engine has no way to distinguish a transient error from a<br />
-permanent one unless you signal it via <code>NodeResult</code>.</p>
+<h3>Rule 4 - Map expected failures to NodeResult</h3>
+<p>An exception thrown by your executor does not fault the instance: the engine converts it to an<br />
+<code>Error</code> result with code <code>NODE_EXECUTOR_EXCEPTION</code> (message and detail from the exception),<br />
+which goes through the retry policy and then <code>Error</code> edge and failure routing like any other error.<br />
+A node that exceeds its <code>executionTimeout</code> becomes <code>Error</code> code <code>NODE_EXECUTION_TIMEOUT</code>.<br />
+Only cancellation of the engine's own token propagates. Catch the failures you understand anyway, so<br />
+each gets a specific error code that edges and operators can tell apart.</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;NodeResult&gt; ExecuteAsync(...)
 {
     try
@@ -321,11 +328,11 @@ return new NodeResult
 </tbody>
 </table></div>
 <p><strong>Key distinction — what happens on sweep resume:</strong><br />
-- <code>wait</code> node + <code>TimeoutAt</code> elapsed → sweep resumes with <code>Error</code> outcome<br />
-- <code>timer</code> node + <code>TimeoutAt</code> elapsed → sweep resumes with <code>Match</code> outcome</p>
-<p>The sweep service checks <code>currentNode.Type</code> to determine which outcome to use.<br />
-Your custom suspension nodes should follow the <code>wait</code> convention (Error on timeout)<br />
-unless you explicitly need the timer convention (Match on elapsed).</p>
+- <code>timer</code> node + <code>TimeoutAt</code> elapsed -&gt; the node's <code>Match</code> edges are followed<br />
+- any other node (<code>wait</code>, <code>human</code>, your custom node) + <code>TimeoutAt</code> elapsed -&gt; no outcome edge is evaluated. The instance jumps to <code>OnTimeoutNodeId</code>; if that is null, to the definition's <code>globalOnDeadlineNodeId</code> (only if the deadline handler has not run yet); otherwise the instance ends <code>TimedOut</code> with error code <code>WAIT_TIMEOUT</code> (a saga with <code>enableCompensation</code> unwinds first).</p>
+<p>The sweep checks only whether the current node's type is <code>timer</code>. A custom suspension node gets<br />
+the timeout routing above; set <code>OnTimeoutNodeId</code> to route a timeout to a handler node. A wait that would<br />
+outlast an unhandled instance <code>Deadline</code> is capped at it, and then the deadline handling applies instead.</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;NodeResult&gt; ExecuteAsync(...)
 {
     var config = node.Config.Deserialize&lt;MyWaitNodeConfig&gt;()!;
@@ -335,8 +342,10 @@ unless you explicitly need the timer convention (Match on elapsed).</p>
 
     // 2. Build the wait descriptor — engine saves this and suspends
     var correlationKey = config.CorrelationKeyExpression != null
-        ? await WhenEvaluator.EvaluateAsStringAsync(config.CorrelationKeyExpression, ctx, ct)
+        ? await _when.EvaluateAsStringAsync(config.CorrelationKeyExpression, ctx, ct) ?? instance.InstanceId
         : ctx.ResolveAs&lt;string&gt;(config.CorrelationKeyPath!)!;
+    // _when is the WhenEvaluator instance (registered by AddFlowEngine) taken through the constructor.
+    // The resolved key must be at most 256 UTF-16 code units (RUNTIME_KEY_TOO_LONG otherwise).
 
     return new NodeResult
     {
@@ -434,7 +443,7 @@ return new NodeResult { Outcome = DecisionOutcome.Error, Error = ... };
 </code></pre>
 <hr />
 <h2>Accessing external clients</h2>
-<p>Use <code>IClientRegistry</code> (via <code>ctx.Services</code>) to resolve named clients. A non-blank <code>clientRef</code> key (any case) in a node's config is also checked when the definition is saved to the workflow registry: an unregistered one is rejected with <code>WorkflowDefinitionValidationException</code> code <code>CLIENT_NOT_REGISTERED</code>.</p>
+<p>Use <code>IClientRegistry</code> (via <code>ctx.Services</code>) to resolve named clients. A non-blank <code>clientRef</code> key (any case) in a node's config is also checked when the definition is saved to the workflow registry: an unregistered one is rejected with <code>WorkflowDefinitionValidationException</code> code <code>CLIENT_NOT_REGISTERED</code>. For the built-in client node types, a registered client of the wrong kind is rejected with code <code>CLIENT_TYPE_MISMATCH</code> (<code>integration</code>/<code>fetch</code> need <code>IRequestResponseClient</code>, <code>message</code> <code>IMessageClient</code>, <code>query</code> <code>IQueryClient</code>, <code>agent</code> <code>IAgentClient</code>, <code>workflow</code> <code>IFlowEngineClient</code>).</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">// In constructor — inject IClientRegistry
 private readonly IClientRegistry _clients;
 
@@ -463,8 +472,8 @@ var response = await client.ExecuteAsync(new ClientRequest
 <tr><td><code>Logger</code></td><td><code>ILogger</code></td><td>Logger scoped to the engine execution for node-level diagnostics</td></tr>
 <tr><td><code>TotalVisitCount</code></td><td><code>int</code></td><td>Total node visits across all nodes in this instance (cycle guard budget)</td></tr>
 <tr><td><code>Resolve(path)</code></td><td><code>ContextValue?</code></td><td>Resolve a JSONPath from workflow context; returns <code>null</code> if path unresolvable</td></tr>
-<tr><td><code>ResolveAs&lt;T&gt;(path)</code></td><td><code>T?</code></td><td>Resolve and deserialize to <code>T</code>; returns <code>null</code> on miss or type mismatch</td></tr>
-<tr><td><code>Store(key, value)</code></td><td><code>void</code></td><td>Write to <code>$.context.{key}</code> for downstream nodes; key must not start with <code>engine.</code></td></tr>
+<tr><td><code>ResolveAs&lt;T&gt;(path)</code></td><td><code>T?</code></td><td>Resolve and deserialize to <code>T</code>; returns <code>default</code> when the path is absent or null. Throws <code>InvalidCastException</code> when the value is not a <code>JsonContextValue</code>, and the <code>System.Text.Json</code> exception when the JSON does not deserialize to <code>T</code></td></tr>
+<tr><td><code>Store(key, value)</code></td><td><code>void</code></td><td>Write to <code>$.context.{key}</code> for downstream nodes; no key is rejected, but an <code>engine.</code> prefix is never visible under <code>$.engine.*</code></td></tr>
 <tr><td><code>GetVisitCount(nodeId)</code></td><td><code>int</code></td><td>Visit count for a specific node — useful for loop termination guards</td></tr>
 <tr><td><code>GetCredentialAsync(ref, ct)</code></td><td><code>Task&lt;Credential?&gt;</code></td><td>Retrieve a named credential from the configured <code>ICredentialStore</code></td></tr>
 <tr><td><code>GetDocumentAsync(doc, ct)</code></td><td><code>Task&lt;Stream&gt;</code></td><td>Open a stream for a <code>DocumentContextValue</code> via <code>IDocumentStore</code></td></tr>
@@ -491,7 +500,7 @@ var response = await client.ExecuteAsync(new ClientRequest
     // Always: clientRef + IClientRegistry lookup
 }
 </code></pre>
-<p><strong><code>fetch</code> node exception:</strong> <code>FetchNodeConfig.ClientRef</code> is optional. When set, the fetch executor routes through the registered <code>IRequestResponseClient</code>. When absent, it falls back to a raw <code>HttpClient</code> constructed directly from the <code>Url</code>. This is the only node config where a <code>clientRef</code> is not required — all other async node types (<code>integration</code>, <code>query</code>, <code>agent</code>, <code>message</code>, <code>workflow</code> cross-engine) require one. Use the <code>clientRef</code> form for production; the raw form is for one-off calls to legacy or non-registerable endpoints.</p>
+<p><strong><code>fetch</code> node exception:</strong> <code>FetchNodeConfig.ClientRef</code> is optional. When set, the fetch executor routes through the registered <code>IRequestResponseClient</code>. A <code>clientRef</code> that names no registered <code>IRequestResponseClient</code> fails the node; it never falls back. When absent, the executor sends on the <code>HttpClient</code> registered in DI if there is one, else on one shared <code>HttpClient</code> (never one per request), with the timeout applied per request. If that client has a <code>BaseAddress</code>, <code>BaseAddressBoundary.Resolve</code> holds the URL to it (same scheme, host, port and user info, under the base path prefix, no encoded <code>.</code> <code>/</code> <code>\</code> <code>;</code> <code>%</code> and no <code>..;</code> segment); a <code>credentialRef</code> on a client without one requires the scheme and host to be written literally in the URL template. Responses map 2xx to <code>Match</code>, any 4xx to <code>NoMatch</code>, and everything else (5xx, transport failure, refused URL) to <code>Error</code>. This is the only node config where a <code>clientRef</code> is not required; all other async node types (<code>integration</code>, <code>query</code>, <code>agent</code>, <code>message</code>, <code>workflow</code> cross-engine) require one. Use the <code>clientRef</code> form for production; the raw form is for one-off calls to legacy or non-registerable endpoints.</p>
 <hr />
 <h2>Testing a custom executor</h2>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">[Fact]
@@ -530,14 +539,19 @@ public async Task MyNode_IsIdempotent_OnReexecution()
     // Assert the second run produces the same output
     // and does not create duplicate records / side effects
 }</code></pre>
-<p>For suspend/resume testing, use <code>FileExecutionStateStore</code> + <code>InMemoryLockProvider</code><br />
-(the zero-infrastructure dev stack) and call <code>engine.ResumeAsync()</code> manually<br />
-to simulate signal arrival.</p>
+<p>For suspend/resume testing, use the in-memory stack (<code>AddFlowEngine()</code> registers in-memory<br />
+state store, lock provider and workflow registry by default; <code>UseAllInMemoryProviders()</code> from<br />
+<code>EF.FlowEngine.Testing</code> also adds the in-memory human task store) and call<br />
+<code>IFlowEngine.ResumeAsync(instanceId, eventName, correlationKey, payload)</code> to simulate signal arrival.</p>
 <hr />
 <h2>Registration and DI</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Simple stateless executor
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Simple stateless executor (all built-in executors are already registered by AddFlowEngine)
 services.AddFlowEngine()
     .AddNodeExecutor&lt;MyCustomNodeExecutor&gt;();
+
+// Pre-built instance
+services.AddFlowEngine()
+    .AddNodeExecutor(new MyCustomNodeExecutor());
 
 // Executor with dependencies
 services.AddFlowEngine()
@@ -551,9 +565,9 @@ services.AddFlowEngine()
     .AddNodeExecutor&lt;MyOtherNodeExecutor&gt;()
     .AddNodeExecutor&lt;MyThirdNodeExecutor&gt;();
 </code></pre>
-<p>All built-in executors (filter, compute, human, wait, etc.) are registered the<br />
-same way — there is no distinction between built-in and custom node types at<br />
-the engine level. The only requirement is that <code>NodeType</code> matches the <code>"type"</code><br />
+<p><code>AddFlowEngine()</code> registers every built-in executor (filter, compute, human, wait, etc.) as an<br />
+<code>INodeExecutor</code> singleton; do not add them again. There is no distinction between built-in and<br />
+custom node types at the engine level. The only requirement is that <code>NodeType</code> matches the <code>"type"</code><br />
 field in the workflow JSON.</p>
 <hr />
 <h2>Roslyn expression security</h2>
@@ -570,104 +584,119 @@ field in the workflow JSON.</p>
 <h3>Package</h3>
 <pre><code>dotnet add package EF.FlowEngine.Testing
 </code></pre>
-<h3>TestExecutionContext — unit-test a single node executor</h3>
+<h3>TestExecutionContext - unit-test a single node executor</h3>
 <p>Construct a context with arbitrary entity, params, and pre-seeded context values.<br />
-No state store or lock provider required.</p>
+No state store or lock provider required. Build the <code>NodeDefinition</code> directly.</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">var ctx = TestExecutionContext.Create()
-    .WithEntity(new JsonContextValue { Value = JsonSerializer.SerializeToElement(order) })
+    .WithEntity(order)                                   // any object; serialized to JSON
     .WithParam(&quot;approvalThreshold&quot;, 500)
     .WithContext(&quot;managerEmail&quot;, &quot;alice@example.com&quot;)
-    .Build();
+    .Build();                                            // returns IExecutionContext
 
-var executor = new FilterNodeExecutor();
-var node     = WorkflowTestBuilder.FilterNode(&quot;$.entity&quot;,
-    new FilterSet { /* ... */ });
+var node = new NodeDefinition
+{
+    Id     = &quot;n-filter&quot;,
+    Type   = &quot;filter&quot;,
+    Config = JsonSerializer.SerializeToElement(new FilterNodeConfig
+    {
+        Target    = &quot;$.entity&quot;,
+        FilterSet = new FilterSet { /* ... */ }
+    })
+};
 
-var result = await executor.ExecuteAsync(node, ctx.Instance, ctx, CancellationToken.None);
+var result = await new FilterNodeExecutor().ExecuteAsync(node, ctx.Instance, ctx, CancellationToken.None);
 
 Assert.Equal(DecisionOutcome.Match, result.Outcome);
 </code></pre>
-<p><strong><code>TestExecutionContext</code> API:</strong></p>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class TestExecutionContext
+<p><strong><code>TestExecutionContext</code> API</strong> (namespace <code>EF.FlowEngine.Testing</code>):</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">public static class TestExecutionContext
 {
     public static TestExecutionContextBuilder Create();
-
-    // The ExecutionInstance wired to this context.
-    // Pre-populated with a random InstanceId, workflowId = &quot;test&quot;, status = Running.
-    public ExecutionInstance Instance { get; }
-
-    // Read back context values written by the executor via storeAs.
-    public T? GetStored&lt;T&gt;(string key);
 }
 
 public sealed class TestExecutionContextBuilder
 {
     public TestExecutionContextBuilder WithEntity(ContextValue entity);
+    public TestExecutionContextBuilder WithEntity(object entity);
     public TestExecutionContextBuilder WithParam(string key, object value);
     public TestExecutionContextBuilder WithContext(string key, object value);
+    public TestExecutionContextBuilder WithContextValue(string key, ContextValue value);
     public TestExecutionContextBuilder WithVisitCount(string nodeId, int count);
-    public TestExecutionContext Build();
+    public TestExecutionContextBuilder WithInstanceId(string instanceId);
+    public TestExecutionContextBuilder WithWorkflowId(string workflowId);
+    public ExecutionInstance GetInstance();                  // the instance the context wraps
+    public IExecutionContext Build();                       // empty service provider
+    public IExecutionContext Build(IServiceProvider services);
 }
 </code></pre>
-<h3>WorkflowTestBuilder — build NodeDefinition fixtures inline</h3>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">// filter node
-var node = WorkflowTestBuilder.FilterNode(
-    target: &quot;$.entity&quot;,
-    filterSet: new FilterSet { ... });
-
-// human node
-var node = WorkflowTestBuilder.HumanNode(config: new HumanNodeConfig {
-    Title      = &quot;Approve {{$.entity.Id}}&quot;,
-    AssignedTo = &quot;role:managers&quot;,
-    DueIn      = &quot;P2D&quot;
-});
+<p>Read values the executor stored with <code>ctx.Resolve(&quot;$.context.key&quot;)</code> or <code>ctx.ResolveAs&lt;T&gt;(&quot;$.context.key&quot;)</code>.<br />
+Pass a service provider to <code>Build(services)</code> when the executor resolves services (for example <code>IClientRegistry</code>) from <code>ctx.Services</code>.</p>
+<h3>Building NodeDefinition fixtures</h3>
+<p>There is no fixture builder: construct <code>NodeDefinition</code> with its config serialized to a <code>JsonElement</code>,<br />
+either from a typed config class or from raw JSON.</p>
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// typed config
+var human = new NodeDefinition
+{
+    Id     = &quot;n-approve&quot;,
+    Type   = &quot;human&quot;,
+    Config = JsonSerializer.SerializeToElement(new HumanNodeConfig { /* Title, AssignedTo, ... */ })
+};
 
 // any node from raw JSON config
-var node = WorkflowTestBuilder.Node(&quot;integration&quot;, &quot;&quot;&quot;
-    { &quot;clientRef&quot;: &quot;payment-api&quot;, &quot;idempotencyKey&quot;: &quot;$.entity.OrderId&quot; }
-&quot;&quot;&quot;);
+var integration = new NodeDefinition
+{
+    Id     = &quot;n-charge&quot;,
+    Type   = &quot;integration&quot;,
+    Config = JsonDocument.Parse(&quot;&quot;&quot;
+        { &quot;clientRef&quot;: &quot;payment-api&quot;, &quot;method&quot;: &quot;POST&quot;, &quot;path&quot;: &quot;/charges&quot; }
+        &quot;&quot;&quot;).RootElement.Clone()
+};
 </code></pre>
-<h3>InMemoryExecutionStateStore — zero-infrastructure integration tests</h3>
-<p>Provides a fully functional <code>IExecutionStateStore</code> backed by a <code>ConcurrentDictionary</code>. Drop-in replacement for <code>SqlExecutionStateStore</code> in tests. Combine with <code>InMemoryLockProvider</code> for a complete zero-infrastructure engine stack.</p>
-<p><strong>Custom state store implementations</strong> must correctly implement <code>EnqueueChildSignalAsync</code> and <code>DequeueChildSignalsAsync</code>. These methods support a two-path child signal delivery mechanism: the engine first tries to resume the parent immediately on child completion (fast path), and only enqueues a durable signal if the parent's lock is held by another server. A state store that omits or stubs these methods will silently drop signals under lock contention. See <a href="FlowEngine-Design-Doc.html#api">FlowEngine Design Doc → IExecutionStateStore</a> for the full contract.</p>
+<h3>In-memory stack - zero-infrastructure integration tests</h3>
+<p><code>AddFlowEngine()</code> registers in-memory implementations of the state store, lock provider and workflow registry, and every built-in executor. <code>UseAllInMemoryProviders()</code> (from <code>EF.FlowEngine.Testing</code>) sets the in-memory state store, lock provider and human task store explicitly; <code>UseInMemoryLockProvider()</code> (from <code>EF.FlowEngine.Locks.InMemory</code>) sets only the lock provider.</p>
+<p><strong>Custom state store implementations</strong> must correctly implement the child-signal members <code>EnqueueChildSignalAsync</code>, <code>DequeueChildSignalsAsync</code>, <code>FindInstancesWithChildSignalsAsync</code> and <code>PeekChildSignalsAsync</code>. The engine first tries to resume the parent immediately on child completion (fast path), and enqueues a durable signal when the parent's lease is held or the host is stopping. A run drains the queue on entry (<code>DequeueChildSignalsAsync</code>), the engine reads it without removing to decide whether a suspended parent should run (<code>PeekChildSignalsAsync</code>; the default implementation dequeues and re-enqueues, which can lose signals if the process stops in between, so override it), and the sweep pages through parents with queued signals (<code>FindInstancesWithChildSignalsAsync</code>). A store that stubs these silently drops signals under contention. See <a href="FlowEngine-Design-Doc.html#api">FlowEngine Design Doc -&gt; IExecutionStateStore</a> for the full contract.</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">// Integration test: run a full workflow end-to-end
 var services = new ServiceCollection();
+services.AddLogging();
 services.AddFlowEngine()
-    .UseStateStore&lt;InMemoryExecutionStateStore&gt;()
-    .UseLockProvider&lt;InMemoryLockProvider&gt;()
-    .UseWorkflowRegistry&lt;InMemoryWorkflowRegistry&gt;()
-    .AddNodeExecutor&lt;FilterNodeExecutor&gt;()
-    .AddNodeExecutor&lt;HumanNodeExecutor&gt;()
-    .AddNodeExecutor&lt;OutputNodeExecutor&gt;();
-    // ... register all needed executors
+    .UseAllInMemoryProviders();
+    // .AddNodeExecutor&lt;MyCustomNodeExecutor&gt;() for custom node types only
 
 var provider = services.BuildServiceProvider();
-var engine   = provider.GetRequiredService&lt;FlowEngine&gt;();
+var engine   = provider.GetRequiredService&lt;IFlowEngine&gt;();
 var registry = provider.GetRequiredService&lt;IWorkflowRegistry&gt;();
+var ct       = CancellationToken.None;
 
 await registry.SaveAsync(MyWorkflows.ExpenseApproval, ct);
-var instance = await engine.StartAsync(new StartRequest { WorkflowId = &quot;expense-approval&quot;, Entity = entityValue });
+var instance = await engine.StartAsync(new StartRequest { WorkflowId = &quot;expense-approval&quot;, Entity = entityValue }, ct);
 
 Assert.Equal(ExecStatus.Suspended, instance.Status);   // waiting at human node
 
-// Simulate human task response
+// Simulate the human response. The in-memory task store resumes the instance itself once the
+// quorum is reached (responseToken is only checked for the External channel).
 var taskStore = provider.GetRequiredService&lt;IHumanTaskStore&gt;();
-var task      = await taskStore.GetByInstanceAsync(instance.InstanceId, ct);
-await taskStore.SubmitResponseAsync(task.TaskId,
-    JsonSerializer.SerializeToElement(new { decision = &quot;approved&quot; }), ct);
+var task      = (await taskStore.GetByInstanceAsync(instance.InstanceId, ct)).Single();
+await taskStore.SubmitResponseAsync(task.TaskId, responseToken: null,
+    JsonSerializer.SerializeToElement(new { decision = &quot;approved&quot; }), respondedBy: &quot;alice&quot;, ct);
 
-instance = await engine.ResumeByInstanceIdAsync(instance.InstanceId);
+instance = (await provider.GetRequiredService&lt;IExecutionStateStore&gt;().LoadAsync(instance.InstanceId, ct))!;
 Assert.Equal(ExecStatus.Completed, instance.Status);
 Assert.Equal(&quot;approved&quot;, ((JsonContextValue)instance.Output!)
     .Value.GetProperty(&quot;decision&quot;).GetString());
 </code></pre>
 <h3>Testing patterns</h3>
-<p><strong>Node unit test</strong> — test a single executor in isolation, no engine:</p>
+<p><strong>Node unit test</strong> - test a single executor in isolation, no engine:</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">[Fact]
 public async Task FilterNode_NullTarget_EmitsUnknown()
 {
-    var ctx    = TestExecutionContext.Create().Build();  // no entity set
-    var node   = WorkflowTestBuilder.FilterNode(&quot;$.entity&quot;, someFilterSet);
+    var ctx  = TestExecutionContext.Create().Build();  // no entity set
+    var node = new NodeDefinition
+    {
+        Id     = &quot;n-filter&quot;,
+        Type   = &quot;filter&quot;,
+        Config = JsonSerializer.SerializeToElement(new FilterNodeConfig
+            { Target = &quot;$.entity&quot;, FilterSet = someFilterSet })
+    };
     var result = await new FilterNodeExecutor().ExecuteAsync(node, ctx.Instance, ctx, default);
     Assert.Equal(DecisionOutcome.Unknown, result.Outcome);
 }
@@ -676,7 +705,7 @@ public async Task FilterNode_NullTarget_EmitsUnknown()
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">[Fact]
 public async Task ExpenseApproval_UnderThreshold_AutoApproves()
 {
-    var engine   = BuildTestEngine();   // helper that wires InMemory stack
+    var engine   = BuildTestEngine();   // helper: AddFlowEngine().UseAllInMemoryProviders(), returns IFlowEngine
     var instance = await engine.StartAsync(new StartRequest
     {
         WorkflowId = &quot;expense-approval&quot;,
@@ -703,8 +732,9 @@ public async Task WaitNode_SignalReceived_Resumes()
     Assert.Equal(&quot;payment.confirmed&quot;, instance.PendingWait!.EventName);
 
     instance = await engine.ResumeAsync(
-        eventName:     &quot;payment.confirmed&quot;,
-        correlationKey: order.OrderId,
+        instanceId:     instance.InstanceId,
+        eventName:      &quot;payment.confirmed&quot;,
+        correlationKey: instance.PendingWait!.CorrelationKey,
         signalPayload:  JsonSerializer.SerializeToElement(new { status = &quot;ok&quot; }));
 
     Assert.Equal(ExecStatus.Completed, instance.Status);

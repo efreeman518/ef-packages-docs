@@ -26,264 +26,288 @@ node executors, state store implementations, and engine services. Changes in<br 
 this area affect cross-package compatibility.</p>
 <hr />
 <h2>1. ExecutionInstance</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Represents a single running (or completed/suspended) execution of a
-/// workflow definition. Persisted to the state store after every state
-/// transition. Immutable fields are set at creation and never changed.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/ExecutionInstance.cs
+
+/// &lt;summary&gt;
+/// The root state object for a single workflow execution.
+/// Every property is persisted by &lt;see cref="IExecutionStateStore"/&gt; and
+/// read/written by the engine loop and node executors.
 /// &lt;/summary&gt;
+/// &lt;remarks&gt;
+/// &lt;para&gt;
+/// &lt;c&gt;ExecutionInstance&lt;/c&gt; is the primary aggregate root in the FlowEngine domain.
+/// Key state groups:
+/// &lt;list type="bullet"&gt;
+///   &lt;item&gt;&lt;c&gt;Status + CurrentNodeId&lt;/c&gt; - current position in the workflow graph.&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;PendingWait + PendingHumanTaskId&lt;/c&gt; - suspension point awaiting an external signal.&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;Context&lt;/c&gt; - mutable JSONPath-addressable dictionary accumulated across all nodes.&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;History&lt;/c&gt; - ordered, immutable audit trail of every node execution.&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;ClaimedBy + ClaimedAt + ClaimExpiresAt&lt;/c&gt; - distributed execution lease.&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;Version&lt;/c&gt; - monotonically-incrementing optimistic concurrency counter.&lt;/item&gt;
+/// &lt;/list&gt;
+/// &lt;/para&gt;
+/// &lt;para&gt;
+/// Typical state transitions:
+/// &lt;code&gt;
+/// Queued -&gt; Running -&gt; Suspended (wait node) -&gt; Running -&gt; Completed
+///   (intake queue)    (external signal via ResumeAsync)
+/// Running -&gt; Faulted  (unhandled error, no recovery path)
+/// Running -&gt; Cancelled (explicit CancelAsync)
+/// Running -&gt; TimedOut  (Deadline exceeded)
+/// &lt;/code&gt;
+/// &lt;/para&gt;
+/// &lt;para&gt;
+/// Persistence: saved by &lt;see cref="IExecutionStateStore"/&gt; when the instance suspends or ends, at checkpoint
+/// nodes, before a failure unwind, and after every node when the definition sets PersistAfterEveryNode;
+/// locks managed by &lt;see cref="IDistributedLockProvider"/&gt; to prevent duplicate execution.
+/// Outbox entries are saved with the state through &lt;see cref="IExecutionStateStore.SaveWithOutboxAsync"/&gt;, atomically
+/// only when the store overrides it (the default saves state, then enqueues the entries).
+/// &lt;/para&gt;
+/// &lt;/remarks&gt;
 public sealed class ExecutionInstance
 {
     // ── Identity ──────────────────────────────────────────────────────────────
 
-    /// &lt;summary&gt;Globally unique execution identifier. GUID, set at creation.&lt;/summary&gt;
-    public string InstanceId { get; init; }
+    /// &lt;summary&gt;Globally unique identifier for this execution instance (GUID, no hyphens).&lt;/summary&gt;
+    public string InstanceId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;ID of the workflow definition being executed.&lt;/summary&gt;
-    public string WorkflowId { get; init; }
+    /// &lt;summary&gt;The ID of the workflow definition being executed.&lt;/summary&gt;
+    public string WorkflowId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;
-    /// Exact semantic version of the workflow definition at the time this
-    /// instance was created. Pinned so definition changes don't affect
-    /// in-flight executions.
-    /// &lt;/summary&gt;
-    public string WorkflowVersion { get; init; }
+    /// &lt;summary&gt;Optional tenant identifier for multi-tenant deployments. Propagated from &lt;see cref="StartRequest.TenantId"/&gt;.&lt;/summary&gt;
+    public string? TenantId { get; init; }
 
-    /// &lt;summary&gt;
-    /// Optional correlation identifier supplied by the caller. Used to
-    /// associate this instance with an external entity (e.g. OrderId,
-    /// ApplicationId). Indexed in the state store for efficient lookup.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The specific version of the workflow definition that was resolved at start time. Mutable to support explicit version migration via &lt;c&gt;IFlowEngine.MigrateInstanceAsync&lt;/c&gt;.&lt;/summary&gt;
+    public string WorkflowVersion { get; set; } = string.Empty;
+
+    /// &lt;summary&gt;Optional external correlation ID for deduplication, tracing, or linking to domain objects.&lt;/summary&gt;
     public string? CorrelationId { get; init; }
 
-    /// &lt;summary&gt;
-    /// Optional parent instance ID when this instance was spawned as a
-    /// child (loop iteration, sub-workflow, parallel branch).
-    /// Null for root instances.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;ID of the parent instance when this is a child spawned by a loop, parallel, or workflow node.&lt;/summary&gt;
     public string? ParentInstanceId { get; init; }
 
-    /// &lt;summary&gt;
-    /// The node ID in the parent instance that spawned this child.
-    /// Used to signal the parent when this child completes.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Node ID in the parent workflow that spawned this instance.&lt;/summary&gt;
     public string? ParentNodeId { get; init; }
 
     // ── Status ────────────────────────────────────────────────────────────────
 
-    /// &lt;summary&gt;Current execution status. See ExecStatus enum.&lt;/summary&gt;
+    /// &lt;summary&gt;The current lifecycle status of this instance.&lt;/summary&gt;
     public ExecStatus Status { get; set; }
 
-    /// &lt;summary&gt;
-    /// ID of the node currently being executed (Running) or the node
-    /// at which execution is suspended (Suspended).
-    /// &lt;/summary&gt;
-    public string CurrentNodeId { get; set; }
+    /// &lt;summary&gt;The ID of the node currently being executed (or the last executed node when suspended/terminal).&lt;/summary&gt;
+    public string CurrentNodeId { get; set; } = string.Empty;
 
-    /// &lt;summary&gt;
-    /// For loop/parallel nodes: how many times the current node has been
-    /// visited. Checked against WorkflowNode.MaxVisits to prevent infinite
-    /// cycles. Keyed by node ID.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Tracks how many times each node has been visited to enforce &lt;c&gt;MaxVisits&lt;/c&gt; cycle detection.&lt;/summary&gt;
     public Dictionary&lt;string, int&gt; NodeVisitCounts { get; set; } = new();
 
     // ── Timing ────────────────────────────────────────────────────────────────
 
-    public DateTimeOffset CreatedAt    { get; init; }
-    public DateTimeOffset UpdatedAt    { get; set; }
+    /// &lt;summary&gt;UTC timestamp when the instance was created.&lt;/summary&gt;
+    public DateTimeOffset CreatedAt { get; init; }
+
+    /// &lt;summary&gt;UTC timestamp of the last state change.&lt;/summary&gt;
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    /// &lt;summary&gt;UTC timestamp when the instance reached a terminal state, or &lt;c&gt;null&lt;/c&gt; if still active.&lt;/summary&gt;
     public DateTimeOffset? CompletedAt { get; set; }
 
     /// &lt;summary&gt;
-    /// Optional hard deadline for the entire instance. When reached,
-    /// the engine transitions Status to TimedOut and executes
-    /// WorkflowDefinition.OnDeadline (if defined).
+    /// Optional hard deadline for the entire instance, enforced while it runs and while it is suspended (a wait's
+    /// timeout is capped at it until it is handled). When exceeded, the engine routes to
+    /// &lt;c&gt;GlobalOnDeadlineNodeId&lt;/c&gt;, or without one unwinds a saga (when compensation is enabled) and sets status to
+    /// &lt;see cref="ExecStatus.TimedOut"/&gt;.
     /// &lt;/summary&gt;
     public DateTimeOffset? Deadline { get; init; }
+
+    /// &lt;summary&gt;
+    /// UTC timestamp when the engine handled the passed &lt;see cref="Deadline"/&gt;: routed to
+    /// &lt;c&gt;GlobalOnDeadlineNodeId&lt;/c&gt;, or ended the instance &lt;see cref="ExecStatus.TimedOut"/&gt;. &lt;c&gt;null&lt;/c&gt; until then.
+    /// Once set, the deadline is not enforced again, so a suspended deadline handler continues when resumed.
+    /// &lt;/summary&gt;
+    public DateTimeOffset? DeadlineHandledAt { get; set; }
+
+    /// &lt;summary&gt;
+    /// UTC timestamp when execution was first routed to &lt;c&gt;GlobalOnDeadlineNodeId&lt;/c&gt;, by the passed
+    /// &lt;see cref="Deadline"/&gt; or by a wait timeout without an &lt;c&gt;OnTimeoutNodeId&lt;/c&gt; falling back to it. The handler
+    /// runs at most once per instance: once set, neither routes to it again. Does not stop deadline enforcement: a
+    /// deadline that passes while a handler entered by a wait-timeout fallback still runs ends the instance
+    /// &lt;see cref="ExecStatus.TimedOut"/&gt;.
+    /// &lt;/summary&gt;
+    public DateTimeOffset? DeadlineHandlerEnteredAt { get; set; }
 
     // ── Context ───────────────────────────────────────────────────────────────
 
     /// &lt;summary&gt;
-    /// The live execution context. Grows as nodes execute.
-    /// Three reserved top-level keys:
-    ///   $.entity  — the primary entity passed at invocation (read-only)
-    ///   $.params  — parameters passed at invocation (read-only)
-    ///   $.context — mutable dictionary written by store/compute/integration
-    ///               nodes via their storeAs config
-    ///
-    /// Values are ContextValue — a discriminated union supporting
-    /// JSON primitives, document references, and typed entity snapshots.
+    /// The mutable workflow context containing the entity, params, and all context values
+    /// accumulated during execution.
     /// &lt;/summary&gt;
     public ContextDictionary Context { get; set; } = new();
 
     // ── Async / Wait ──────────────────────────────────────────────────────────
 
-    /// &lt;summary&gt;
-    /// Populated when Status = Suspended. Describes what external event
-    /// or signal will resume this instance.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Describes the event the instance is waiting for when &lt;see cref="Status"/&gt; is &lt;see cref="ExecStatus.Suspended"/&gt;.&lt;/summary&gt;
     public WaitDescriptor? PendingWait { get; set; }
 
-    /// &lt;summary&gt;
-    /// For human task nodes: the ID of the open HumanTask record in
-    /// the IHumanTaskStore. Null when not at a human node.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The ID of the human task the instance is waiting for, when suspended at a human node.&lt;/summary&gt;
     public string? PendingHumanTaskId { get; set; }
 
     // ── Output / Error ────────────────────────────────────────────────────────
 
-    /// &lt;summary&gt;
-    /// Set when Status = Completed. The value produced by the terminal
-    /// output node.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The final output produced by the workflow when it completes successfully.&lt;/summary&gt;
     public ContextValue? Output { get; set; }
 
-    /// &lt;summary&gt;
-    /// Set when Status = Faulted or TimedOut. Full error detail including
-    /// the node that failed and the exception chain.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Error details for a terminal outcome, or a pending resume fault awaiting execution admission.&lt;/summary&gt;
     public ExecutionError? Error { get; set; }
 
     // ── Observability ─────────────────────────────────────────────────────────
 
-    /// &lt;summary&gt;
-    /// Arbitrary key/value tags for filtering, grouping, and dashboards.
-    /// Examples: { &quot;region&quot;: &quot;US-EAST&quot;, &quot;priority&quot;: &quot;high&quot;, &quot;tenant&quot;: &quot;acme&quot; }
-    /// Set at invocation time and/or by store nodes during execution.
-    /// Indexed in the state store.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Key/value tags for filtering, routing, and observability dashboards.&lt;/summary&gt;
     public Dictionary&lt;string, string&gt; Tags { get; set; } = new();
 
-    /// &lt;summary&gt;
-    /// Full immutable audit trail. One record appended per node execution.
-    /// Never modified after append — only appended to.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Ordered list of node execution records providing a full audit trail.&lt;/summary&gt;
     public List&lt;NodeExecutionRecord&gt; History { get; set; } = new();
+
+    /// &lt;summary&gt;
+    /// W3C &lt;c&gt;traceparent&lt;/c&gt; string captured at the moment the instance suspends.
+    /// Used by &lt;c&gt;ActivitySourceFlowEngineTelemetry&lt;/c&gt; to link the resumed execution span
+    /// back to the originating trace across async boundaries (e.g. resume from a separate HTTP call).
+    /// &lt;c&gt;null&lt;/c&gt; when the engine was started without OpenTelemetry activity tracking.
+    /// &lt;/summary&gt;
+    public string? TraceContext { get; set; }
 
     // ── Distributed Execution ─────────────────────────────────────────────────
 
-    /// &lt;summary&gt;
-    /// Opaque identifier of the server instance currently processing this
-    /// execution (e.g. hostname + PID, or a startup GUID). Set when a
-    /// server claims the instance; cleared when the instance is suspended
-    /// or reaches a terminal state.
-    ///
-    /// The claim mechanism is intentionally abstract — implementations may
-    /// use database row locks, Redis SET NX, blob leases, Cosmos ETags,
-    /// or any other atomic primitive appropriate to the state store backend.
-    /// The IDistributedLockProvider interface (see below) decouples the
-    /// locking strategy from the state store.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The claimant ID of the engine node currently holding the execution lock, or &lt;c&gt;null&lt;/c&gt; when unclaimed.&lt;/summary&gt;
     public string? ClaimedBy { get; set; }
 
-    /// &lt;summary&gt;When the claim was acquired.&lt;/summary&gt;
+    /// &lt;summary&gt;UTC timestamp when the current lease was acquired.&lt;/summary&gt;
     public DateTimeOffset? ClaimedAt { get; set; }
 
-    /// &lt;summary&gt;
-    /// When the claim automatically expires. If a server dies mid-execution
-    /// without releasing its claim, the sweep service will reclaim the
-    /// instance after this time. Must be renewed periodically by the
-    /// executing server via IDistributedLockProvider.RenewAsync.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;UTC timestamp when the current lease expires; used by the sweep service to detect crashed engines.&lt;/summary&gt;
     public DateTimeOffset? ClaimExpiresAt { get; set; }
 
     // ── Optimistic Concurrency ────────────────────────────────────────────────
 
     /// &lt;summary&gt;
-    /// Monotonically increasing version counter. Incremented by the state store
-    /// on every successful save. Used for optimistic concurrency control —
-    /// a save that presents a stale Version throws ConcurrencyException.
+    /// Monotonically-incrementing version counter used for optimistic concurrency.
+    /// Implementations of &lt;see cref="IExecutionStateStore.SaveAsync"/&gt; should reject saves
+    /// where the stored version is higher than this value.
     /// &lt;/summary&gt;
     public long Version { get; set; } = 0;
+
+    /// &lt;summary&gt;
+    /// Creates a shallow, field-by-field copy of this instance. Reference-typed members
+    /// (&lt;see cref="Context"/&gt;, &lt;see cref="History"/&gt;, &lt;see cref="Tags"/&gt;, &lt;see cref="PendingWait"/&gt;, ...)
+    /// are shared with the original, so the copy is intended for read-only previews
+    /// (e.g. a dry-run migration result) rather than independent mutation. Callers that need to
+    /// mutate a reference member on the copy must replace that member with a fresh collection first.
+    /// &lt;/summary&gt;
+    internal ExecutionInstance ShallowCopy() =&gt; (ExecutionInstance)MemberwiseClone();
+
+    /// &lt;summary&gt;
+    /// A copy for a caller that must not see later changes: a background execution keeps mutating the original.
+    /// The collections an execution changes are copied; their elements are shared. Context values and signal
+    /// payloads are immutable; a history record's &lt;c&gt;BranchTaken&lt;/c&gt; is set only while its node is being
+    /// recorded, so take the snapshot before the execution starts. Does not serialize, so it does not fail on
+    /// context value types the engine's JSON contract does not know.
+    /// &lt;/summary&gt;
+    internal ExecutionInstance Snapshot()
+    {
+        var copy = ShallowCopy();
+        copy.Context = new ContextDictionary
+        {
+            Entity = Context.Entity,
+            Params = Context.Params is null ? null : new(Context.Params, Context.Params.Comparer),
+            Context = new(Context.Context, Context.Context.Comparer)
+        };
+        copy.NodeVisitCounts = new(NodeVisitCounts, NodeVisitCounts.Comparer);
+        copy.Tags = new(Tags, Tags.Comparer);
+        copy.History = [.. History];
+        copy.PendingWait = PendingWait?.Copy();
+        return copy;
+    }
 }
 </code></pre>
 <hr />
 <h2>2. ExecStatus</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">public enum ExecStatus
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/ExecStatus.cs
+
+/// &lt;summary&gt;Lifecycle status of a workflow execution instance.&lt;/summary&gt;
+public enum ExecStatus
 {
-    /// &lt;summary&gt;Actively executing a node synchronously.&lt;/summary&gt;
+    /// &lt;summary&gt;
+    /// The instance has been submitted and persisted but is waiting for an intake queue slot
+    /// before execution begins. Only set when an &lt;c&gt;IIntakeQueue&lt;/c&gt; is registered.
+    /// The intake drain service transitions queued instances to &lt;see cref="Running"/&gt;.
+    /// &lt;/summary&gt;
+    Queued,
+
+    /// &lt;summary&gt;The instance is actively executing on an engine node.&lt;/summary&gt;
     Running,
 
-    /// &lt;summary&gt;
-    /// Paused at a Wait, Timer, or Human node. Awaiting an external signal,
-    /// webhook, elapsed duration, or human task completion. The instance is
-    /// persisted and will be resumed by the engine when the trigger fires.
-    /// For timer nodes the sweep service resumes automatically when TimeoutAt
-    /// elapses — no external call required.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The instance is paused waiting for an external event (wait, timer, human, or message reply).&lt;/summary&gt;
     Suspended,
 
-    /// &lt;summary&gt;
-    /// Reached a terminal Output node. Output field is populated.
-    /// This is a terminal status — no further transitions.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The instance has run to completion successfully.&lt;/summary&gt;
     Completed,
 
     /// &lt;summary&gt;
-    /// An unhandled error occurred and no onFailure path was available
-    /// or the failure node itself failed. Error field is populated.
-    /// Terminal status.
+    /// The instance terminated due to an unhandled error. Its open human tasks are cancelled; its children keep running,
+    /// as a dead-letter replay of the failed node adopts them.
     /// &lt;/summary&gt;
     Faulted,
 
-    /// &lt;summary&gt;
-    /// Explicitly cancelled by a caller via the engine API.
-    /// Terminal status.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The instance was explicitly cancelled via &lt;see cref="IFlowEngine.CancelAsync"/&gt;.&lt;/summary&gt;
     Cancelled,
 
     /// &lt;summary&gt;
-    /// The instance-level Deadline was reached before completion,
-    /// OR a Wait node's timeout expired with no onTimeout path.
-    /// Error field is populated. Terminal status.
+    /// The instance exceeded its configured &lt;see cref="ExecutionInstance.Deadline"/&gt; or a wait timeout. Its open human
+    /// tasks and non-terminal children are cancelled.
     /// &lt;/summary&gt;
     TimedOut,
 
     /// &lt;summary&gt;
-    /// A node's MaxVisits limit was reached (cycle guard triggered).
-    /// Error field is populated. Terminal status.
+    /// A node exceeded its &lt;c&gt;MaxVisits&lt;/c&gt; limit, indicating an infinite loop in the definition. Its open human tasks
+    /// and non-terminal children are cancelled.
     /// &lt;/summary&gt;
     CycleDetected
 }
 </code></pre>
 <h3>ExecStatus state transition diagram</h3>
-<pre><code>                    ┌─────────────────────────────────────────────────┐
-                    │              StartAsync()                       │
-                    ▼                                                 │
-              ┌──────────┐                                            │
-              │ Running  │◄──── ResumeAsync() / ResumeByInstanceId() ┤
-              └────┬─────┘                                            │
-                   │                                                  │
-       ┌───────────┼────────────────────────────┐                     │
-       │           │                            │                     │
-       ▼           ▼                            ▼                     │
-  ┌─────────┐ ┌──────────┐              ┌────────────┐               │
-  │Suspended│ │ Faulted  │              │  Completed │               │
-  └────┬────┘ │(terminal)│              │ (terminal) │               │
-       │      └──────────┘              └────────────┘               │
-       │                                                              │
-       ├─── ResumeAsync() ────────────────────────────────────────────┘
-       │
-       ├─── CancelAsync() ──────────► Cancelled (terminal)
-       │
-       └─── Sweep: deadline/timeout ─► TimedOut (terminal)
-                                    ─► CycleDetected (terminal, MaxVisits)
+<pre><code>StartAsync                     -&gt; Running (saved, then executed inline; the intake queue is not used)
+StartBackgroundAsync
+   |-- IIntakeQueue registered -&gt; Queued
+   '-- otherwise               -&gt; Running
 
 Valid transitions:
-  Running   → Suspended     (wait / human / timer node reached)
-  Running   → Completed     (output node reached)
-  Running   → Faulted       (unhandled error, no failure path)
-  Running   → TimedOut      (instance deadline breached)
-  Running   → CycleDetected (MaxVisits exceeded on a node)
-  Running   → Cancelled     (CancelAsync called)
-  Suspended → Running       (ResumeAsync / sweep reclaim / timer elapsed)
-  Suspended → Cancelled     (CancelAsync called)
-  Suspended → TimedOut      (wait timeout, sweep detected)
+  Queued    -&gt; Running       (IntakeDrainService drains the queued instance)
+  Queued    -&gt; Cancelled     (CancelAsync)
+  Running   -&gt; Suspended     (wait / timer / human / message-reply node, or an open circuit with no CircuitOpen edge)
+  Running   -&gt; Completed     (output node, or a node without edges finishing without Error/CircuitOpen)
+  Running   -&gt; Faulted       (failure with no Error edge and no GlobalOnFailureNodeId, after any saga unwind;
+                              a node without edges faults with its own error code)
+  Running   -&gt; TimedOut      (instance Deadline passed with no GlobalOnDeadlineNodeId, after any saga unwind)
+  Running   -&gt; CycleDetected (execution loop: a node exceeded MaxVisits; set only by this guard)
+  Running   -&gt; Cancelled     (CancelAsync)
+  Suspended -&gt; Running       (ResumeAsync / human task response / child completion / sweep:
+                              timer elapsed, signals accumulated, wait timeout routed, expired claim)
+  Suspended -&gt; Cancelled     (CancelAsync)
+  Suspended -&gt; Running -&gt; TimedOut
+                             (deadline or unhandled wait timeout found by the sweep; the saga unwinds in the
+                              execution loop first, then the instance ends TimedOut)
 
-Note — timer vs wait on sweep resume:
-  timer node + TimeoutAt reached → resumed with Match outcome (delay was the intent)
-  wait  node + TimeoutAt reached → resumed with Error outcome (signal didn't arrive)
+Deadline (also enforced while Suspended):
+  GlobalOnDeadlineNodeId set and not yet entered -&gt; execution continues at that node
+  otherwise                                      -&gt; saga unwind, then TimedOut (INSTANCE_DEADLINE_EXCEEDED)
+
+Wait timeout (PendingWait.TimeoutAt reached):
+  timer node           -&gt; resumed with Match (the delay was the intent)
+  wait with onTimeout  -&gt; routed to OnTimeoutNodeId
+  else                 -&gt; GlobalOnDeadlineNodeId (unless DeadlineHandlerEnteredAt is set),
+                          else WAIT_TIMEOUT: saga unwind, then TimedOut
 
 Terminal states (no further transitions):
-  Completed · Faulted · Cancelled · TimedOut · CycleDetected
+  Completed, Faulted, Cancelled, TimedOut, CycleDetected
 </code></pre>
 <pre><code>
 ---
@@ -374,154 +398,201 @@ public sealed class ContextDictionary
 </code></pre>
 <hr />
 <h2>4. WaitDescriptor</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Describes the condition under which a Suspended instance will be resumed.
-/// Persisted as part of the ExecutionInstance.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/WaitDescriptor.cs
+
+/// &lt;summary&gt;
+/// Describes the suspension state of a workflow instance waiting for an external event.
+/// Stored on &lt;see cref="ExecutionInstance.PendingWait"/&gt; when the instance is
+/// &lt;see cref="ExecStatus.Suspended"/&gt;.
 /// &lt;/summary&gt;
+/// &lt;remarks&gt;
+/// &lt;para&gt;
+/// Created by the &lt;c&gt;wait&lt;/c&gt;, &lt;c&gt;timer&lt;/c&gt;, &lt;c&gt;human&lt;/c&gt;, and &lt;c&gt;message&lt;/c&gt; node executors.
+/// The engine sweep service (&lt;c&gt;ExecutionSweepService&lt;/c&gt;) polls for timed-out waits by checking
+/// &lt;see cref="TimeoutAt"/&gt; against the current clock and calls
+/// &lt;see cref="IFlowEngine.ResumeByInstanceIdAsync"/&gt; to resume timed-out instances.
+/// &lt;/para&gt;
+/// &lt;para&gt;
+/// A wait is matched for resume by (&lt;c&gt;EventName&lt;/c&gt;, &lt;c&gt;CorrelationKey&lt;/c&gt;) pair via
+/// &lt;see cref="IExecutionStateStore.FindBySuspendedEventAsync"/&gt;.
+/// When &lt;see cref="MinSignalCount"/&gt; &amp;gt; 1, signals accumulate in &lt;see cref="ReceivedSignals"/&gt;
+/// and the instance resumes only once the threshold is reached.
+/// &lt;/para&gt;
+/// &lt;seealso cref="IFlowEngine.ResumeAsync"/&gt;
+/// &lt;seealso cref="ExecutionInstance.PendingWait"/&gt;
+/// &lt;/remarks&gt;
 public sealed class WaitDescriptor
 {
-    /// &lt;summary&gt;
-    /// The event or signal name the engine listens for.
-    /// Examples: &quot;approval.received&quot;, &quot;payment.webhook&quot;, &quot;training.completed&quot;
-    /// &lt;/summary&gt;
-    public string EventName { get; init; }
+    /// &lt;summary&gt;The logical event name the instance is waiting for (matched against the &lt;c&gt;eventName&lt;/c&gt; parameter of &lt;c&gt;ResumeAsync&lt;/c&gt;).&lt;/summary&gt;
+    public string EventName { get; init; } = string.Empty;
 
     /// &lt;summary&gt;
-    /// Value used to correlate an incoming event to this specific instance.
-    /// A JSONPath expression evaluated against the context at suspend time.
-    /// Example: &quot;$.entity.OrderId&quot; → &quot;ORD-1234&quot;
-    /// Stored as the resolved value (not the expression).
+    /// The correlation key that uniquely scopes this wait within the event type.
+    /// Typically derived from the entity ID or an external reference.
     /// &lt;/summary&gt;
-    public string CorrelationKey { get; init; }
+    public string CorrelationKey { get; init; } = string.Empty;
 
     /// &lt;summary&gt;
-    /// Optional. If set, the instance transitions to TimedOut if no
-    /// signal arrives by this time. ISO 8601 duration resolved to
-    /// absolute DateTimeOffset at suspend time. When the instance has
-    /// a Deadline, the engine caps it at the Deadline on suspend (a wait
-    /// with no timeout gets the Deadline), so the sweep finds the
-    /// instance when its deadline passes; the deadline then wins.
+    /// Optional deadline after which the wait times out. Evaluated by the sweep service. While the instance
+    /// &lt;see cref="ExecutionInstance.Deadline"/&gt; is unhandled the engine caps it at that deadline (a wait without a
+    /// timeout gets the deadline), so the sweep enforces the deadline on a suspended instance.
     /// &lt;/summary&gt;
     public DateTimeOffset? TimeoutAt { get; init; }
 
     /// &lt;summary&gt;
-    /// Node to execute on timeout. If null and TimeoutAt is set,
-    /// the instance transitions to TimedOut (terminal).
+    /// The node to jump to when a timeout occurs. When &lt;c&gt;null&lt;/c&gt;, the timeout falls back to the workflow's
+    /// &lt;c&gt;GlobalOnDeadlineNodeId&lt;/c&gt; while that handler has not been entered; otherwise the instance ends
+    /// &lt;see cref="ExecStatus.TimedOut"/&gt; with &lt;c&gt;WAIT_TIMEOUT&lt;/c&gt; (with compensation enabled, the saga unwinds first).
     /// &lt;/summary&gt;
     public string? OnTimeoutNodeId { get; init; }
 
     /// &lt;summary&gt;
-    /// Optional. Minimum number of matching events to accumulate before
-    /// resuming. Supports the &quot;accumulate N signals&quot; pattern.
-    /// Default: 1 (resume on first matching event).
+    /// The minimum number of signals that must be received before the instance resumes.
+    /// Enables multi-signal aggregation (e.g. wait for N approvals). Default: 1.
     /// &lt;/summary&gt;
     public int MinSignalCount { get; init; } = 1;
 
-    /// &lt;summary&gt;
-    /// Accumulated signals received so far. Engine appends to this
-    /// list as matching events arrive. When Count &gt;= MinSignalCount,
-    /// the instance resumes. Available in context as $.context._signals.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Accumulated signal payloads received so far; the instance resumes when count reaches &lt;see cref="MinSignalCount"/&gt;.&lt;/summary&gt;
     public List&lt;JsonElement&gt; ReceivedSignals { get; set; } = new();
+
+    /// &lt;summary&gt;A copy with its own &lt;see cref="ReceivedSignals"/&gt; list.&lt;/summary&gt;
+    internal WaitDescriptor Copy()
+    {
+        var copy = (WaitDescriptor)MemberwiseClone();
+        copy.ReceivedSignals = [.. ReceivedSignals];
+        return copy;
+    }
+
+    /// &lt;summary&gt;
+    /// Whether the most recently accumulated signal included a payload. False preserves payload-free
+    /// resume semantics during sweep recovery; null denotes legacy records without this information.
+    /// &lt;/summary&gt;
+    public bool? LastSignalHasPayload { get; set; }
 }
 </code></pre>
 <hr />
 <h2>5. NodeExecutionRecord</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Immutable audit record for a single node execution.
-/// Appended to ExecutionInstance.History. Never modified after creation.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/NodeExecutionRecord.cs
+
+/// &lt;summary&gt;
+/// An immutable record of a single node execution appended to
+/// &lt;see cref="ExecutionInstance.History"/&gt;. Provides a full audit trail of
+/// every step taken by the workflow.
 /// &lt;/summary&gt;
 public sealed class NodeExecutionRecord
 {
-    public string          NodeId       { get; init; }
-    public string          NodeType     { get; init; }
-    public string          NodeLabel    { get; init; }
-    public DateTimeOffset  StartedAt    { get; init; }
-    public DateTimeOffset? CompletedAt  { get; init; }
-
-    /// &lt;summary&gt;The outcome emitted by the node executor.&lt;/summary&gt;
-    public DecisionOutcome Outcome      { get; init; }
+    /// &lt;summary&gt;The unique identifier of the node that was executed.&lt;/summary&gt;
+    public string NodeId { get; init; } = string.Empty;
 
     /// &lt;summary&gt;
-    /// The branch label taken (edge label in the workflow definition).
-    /// Null for nodes with no branching (store, compute, transform, output).
+    /// The node type discriminator (e.g. &lt;c&gt;"fetch"&lt;/c&gt;, &lt;c&gt;"decision"&lt;/c&gt;). &lt;c&gt;"migration"&lt;/c&gt; is reserved: it marks
+    /// the record a migration appends (not a run of the node), which saga compensation skips.
     /// &lt;/summary&gt;
-    public string?         BranchTaken  { get; init; }
+    public string NodeType { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;The human-readable label of the node at the time of execution.&lt;/summary&gt;
+    public string NodeLabel { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;UTC timestamp when execution of this node started.&lt;/summary&gt;
+    public DateTimeOffset StartedAt { get; init; }
+
+    /// &lt;summary&gt;UTC timestamp when execution of this node finished, or &lt;c&gt;null&lt;/c&gt; if still in progress.&lt;/summary&gt;
+    public DateTimeOffset? CompletedAt { get; init; }
+
+    /// &lt;summary&gt;The outcome that drove edge selection after this node completed.&lt;/summary&gt;
+    public DecisionOutcome Outcome { get; init; }
+
+    /// &lt;summary&gt;The label of the outgoing edge that was taken, or &lt;c&gt;"suspended"&lt;/c&gt; if the instance suspended.&lt;/summary&gt;
+    public string? BranchTaken { get; set; }
+
+    /// &lt;summary&gt;The context key under which the node's output was stored, or &lt;c&gt;null&lt;/c&gt; if no &lt;c&gt;StoreAs&lt;/c&gt; was set.&lt;/summary&gt;
+    public string? StoredAs { get; init; }
+
+    /// &lt;summary&gt;Snapshot of the output value at the time of execution (for diagnostics).&lt;/summary&gt;
+    public ContextValue? OutputSnapshot { get; init; }
+
+    /// &lt;summary&gt;HTTP status code from a fetch/integration call, included for tracing and retry decisions.&lt;/summary&gt;
+    public int? HttpStatusCode { get; init; }
+
+    /// &lt;summary&gt;The 1-based attempt number, incremented by the retry handler on each retry.&lt;/summary&gt;
+    public int AttemptNumber { get; init; } = 1;
+
+    /// &lt;summary&gt;Error details if the node produced an &lt;see cref="DecisionOutcome.Error"/&gt; outcome.&lt;/summary&gt;
+    public ExecutionError? Error { get; init; }
 
     /// &lt;summary&gt;
-    /// The context key written if the node had storeAs set.
+    /// When non-null this record represents a compensation step. The value is the
+    /// &lt;see cref="NodeId"/&gt; of the original forward node being rolled back.
+    /// Used by the engine to avoid double-compensating a step that was already rolled back.
     /// &lt;/summary&gt;
-    public string?         StoredAs     { get; init; }
+    public string? CompensatingFor { get; init; }
 
     /// &lt;summary&gt;
-    /// Snapshot of the value produced by this node (before storage).
-    /// Truncated for large values — full value is in the context.
+    /// Optional free-form metadata set by specialised executors (e.g. agent nodes).
+    /// Carries extra observability data such as &lt;c&gt;promptVersion&lt;/c&gt;, &lt;c&gt;modelName&lt;/c&gt;, &lt;c&gt;tokensUsed&lt;/c&gt;.
+    /// On a migration record, the engine sets &lt;c&gt;migratedFromNodeId&lt;/c&gt;.
     /// &lt;/summary&gt;
-    public ContextValue?   OutputSnapshot { get; init; }
+    public Dictionary&lt;string, string&gt;? Metadata { get; init; }
 
-    /// &lt;summary&gt;
-    /// For integration/fetch nodes: the HTTP status code returned.
-    /// &lt;/summary&gt;
-    public int?            HttpStatusCode { get; init; }
-
-    /// &lt;summary&gt;
-    /// For retry-enabled nodes: which attempt this record represents.
-    /// 1 = first attempt.
-    /// &lt;/summary&gt;
-    public int             AttemptNumber { get; init; } = 1;
-
-    /// &lt;summary&gt;Error detail if this attempt failed.&lt;/summary&gt;
-    public ExecutionError? Error        { get; init; }
-
-    /// &lt;summary&gt;Wall-clock duration of this node execution.&lt;/summary&gt;
-    public TimeSpan        Duration     =&gt; CompletedAt.HasValue
-                                           ? CompletedAt.Value - StartedAt
-                                           : TimeSpan.Zero;
+    /// &lt;summary&gt;Wall-clock duration of this node execution. Returns &lt;see cref="TimeSpan.Zero"/&gt; if &lt;see cref="CompletedAt"/&gt; is not set.&lt;/summary&gt;
+    public TimeSpan Duration =&gt; CompletedAt.HasValue
+        ? CompletedAt.Value - StartedAt
+        : TimeSpan.Zero;
 }
 </code></pre>
 <hr />
 <h2>6. DecisionOutcome</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// The common outcome vocabulary emitted by all node executors.
-/// Edges in the workflow definition use these values to determine
-/// which branch to follow.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/DecisionOutcome.cs
+
+/// &lt;summary&gt;
+/// Represents the result of a node execution, used by the engine to select
+/// outgoing edges and drive retry/fault behaviour.
 /// &lt;/summary&gt;
 public enum DecisionOutcome
 {
-    /// &lt;summary&gt;Condition positively satisfied / operation succeeded.&lt;/summary&gt;
+    /// &lt;summary&gt;The node's condition was met or the operation succeeded.&lt;/summary&gt;
     Match,
 
-    /// &lt;summary&gt;Condition explicitly not satisfied (e.g. filter returned 0 results).&lt;/summary&gt;
+    /// &lt;summary&gt;The condition was explicitly not met (e.g. a null value, a filter that excluded the entity).&lt;/summary&gt;
     NoMatch,
 
-    /// &lt;summary&gt;
-    /// Could not determine — data was missing, null, or ambiguous.
-    /// Distinct from NoMatch: NoMatch means &quot;definitely not&quot;, Unknown
-    /// means &quot;couldn't tell&quot;.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The result is indeterminate (e.g. the path could not be resolved).&lt;/summary&gt;
     Unknown,
 
-    /// &lt;summary&gt;
-    /// An exception or external error occurred during node execution.
-    /// Retry policy (if configured) fires before this outcome is emitted.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;The node encountered an error; may trigger the retry policy or global failure handler.&lt;/summary&gt;
     Error,
 
-    /// &lt;summary&gt;
-    /// No specific branch condition matched. Taken by a default/fallback
-    /// edge when all other conditions evaluated to NoMatch or Unknown.
-    /// &lt;/summary&gt;
-    Default
+    /// &lt;summary&gt;Catch-all edge outcome used when no other outcome matches.&lt;/summary&gt;
+    Default,
+
+    /// &lt;summary&gt;The circuit for this node's executor is open: the engine did not call the executor, or the executor reported its dependency's own circuit open. An executor returning it asserts it caused no side effects: such a visit is not compensated. It is recorded as a circuit failure when the node has a circuit breaker policy, except for compensation steps and the global failure and deadline handler nodes, which run past circuits without recording on them. Routes to a &lt;c&gt;CircuitOpen&lt;/c&gt; edge if present, otherwise suspends the instance until the circuit cools down.&lt;/summary&gt;
+    CircuitOpen
 }
 </code></pre>
 <hr />
 <h2>7. ExecutionError</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class ExecutionError
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/ExecutionError.cs
+
+/// &lt;summary&gt;
+/// Records an error that occurred during workflow or node execution.
+/// Attached to &lt;see cref="ExecutionInstance.Error"/&gt; and to individual
+/// &lt;see cref="NodeExecutionRecord.Error"/&gt; entries in the history.
+/// &lt;/summary&gt;
+public sealed class ExecutionError
 {
-    public string  Code      { get; init; }  // machine-readable — see error code table below
-    public string  Message   { get; init; }  // human-readable
-    public string  NodeId    { get; init; }  // which node caused this
-    public string? Detail    { get; init; }  // stack trace or API error body
+    /// &lt;summary&gt;Machine-readable error code (e.g. &lt;c&gt;NODE_EXECUTION_TIMEOUT&lt;/c&gt;, &lt;c&gt;NO_MATCHING_EDGE&lt;/c&gt;).&lt;/summary&gt;
+    public string Code { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Human-readable description of the error.&lt;/summary&gt;
+    public string Message { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;The ID of the workflow node at which the error occurred.&lt;/summary&gt;
+    public string NodeId { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Optional additional detail such as a stack trace or full exception string.&lt;/summary&gt;
+    public string? Detail { get; init; }
+
+    /// &lt;summary&gt;The UTC timestamp when the error was recorded.&lt;/summary&gt;
     public DateTimeOffset OccurredAt { get; init; }
 }
 </code></pre>
@@ -530,149 +601,279 @@ public enum DecisionOutcome
 <thead><tr><th>Code</th><th>When raised</th></tr></thead>
 <tbody>
 <tr><td><code>NODE_EXECUTION_TIMEOUT</code></td><td>Node exceeded its per-node <code>executionTimeout</code></td></tr>
+<tr><td><code>NODE_EXECUTOR_EXCEPTION</code></td><td>Unhandled exception thrown by a node executor (including <code>MissingClientException</code> for a <code>clientRef</code> not registered at run time)</td></tr>
 <tr><td><code>MAX_VISITS_EXCEEDED</code></td><td>Node exceeded its <code>maxVisits</code> limit &rarr; instance transitions to <code>CycleDetected</code></td></tr>
+<tr><td><code>CIRCUIT_OPEN</code></td><td>Node result while its circuit is open (outcome <code>CircuitOpen</code>)</td></tr>
 <tr><td><code>CIRCUIT_OPEN_RETRIES_EXHAUSTED</code></td><td>A node re-run after waiting for its open circuit would exceed <code>maxVisits</code> &rarr; the node fails (its <code>Error</code> edge, else compensation and the global failure node, else <code>Faulted</code>)</td></tr>
-<tr><td><code>NO_MATCHING_EDGE</code></td><td>Node completed but no edge matched the outcome (and no <code>GlobalOnFailureNodeId</code>)</td></tr>
-<tr><td><code>MISSING_CLIENT</code></td><td>A node referenced a <code>clientRef</code> that was not registered</td></tr>
-<tr><td><code>WORKFLOW_NOT_FOUND</code></td><td>A <code>workflow</code> or <code>loop</code> node referenced a definition that doesn&apos;t exist</td></tr>
+<tr><td><code>NO_MATCHING_EDGE</code></td><td>Node completed but no edge matched the outcome (and no <code>GlobalOnFailureNodeId</code> applies)</td></tr>
+<tr><td><code>NODE_FAILED</code></td><td>Fallback code when a node without outgoing edges fails without an error of its own; a failing node without edges otherwise faults the instance with its own error code</td></tr>
+<tr><td><code>DEFINITION_NOT_FOUND</code></td><td>The instance's pinned workflow definition could not be loaded on resume or replay</td></tr>
+<tr><td><code>NODE_NOT_FOUND</code></td><td><code>CurrentNodeId</code> does not exist in the loaded definition</td></tr>
+<tr><td><code>RUNTIME_KEY_TOO_LONG</code></td><td>A node result carried a wait event name or correlation key, or an outbox entry field, longer than its bounded store column</td></tr>
+<tr><td><code>ASSIGNEE_TOO_LONG</code></td><td>A human node resolved an <code>AssignedTo</code> longer than <code>FlowEngine.MaxAssignedToLength</code> (256)</td></tr>
+<tr><td><code>CONTEXT_REQUIREMENTS_FAILED</code></td><td>The node's <code>ContextRequirements</code> were not met before execution</td></tr>
+<tr><td><code>OUTPUT_SCHEMA_VALIDATION_FAILED</code></td><td>The node output failed its <code>OutputSchema</code></td></tr>
+<tr><td><code>RETRY_AFTER_LIMIT_EXCEEDED</code></td><td>A <code>Retry-After</code> delay exceeded the retry wait limit (integration <code>retryAfterMaxDelay</code>, else the retry policy <code>MaxDelay</code>, else 60s); the request is not resent</td></tr>
+<tr><td><code>COMPENSATION_ERROR</code></td><td>A saga compensation node threw</td></tr>
 <tr><td><code>INSTANCE_DEADLINE_EXCEEDED</code></td><td>The instance-level <code>Deadline</code> was reached with no <code>GlobalOnDeadlineNodeId</code>, while running or suspended (a saga unwinds first)</td></tr>
-<tr><td><code>WAIT_TIMEOUT</code></td><td>A <code>wait</code> node&apos;s timeout elapsed with no signal and no <code>onTimeoutNodeId</code>, and the fallback to <code>GlobalOnDeadlineNodeId</code> is unavailable (none defined, or the handler was already entered: <code>DeadlineHandlerEnteredAt</code> set) (a saga unwinds first, in the execution loop; the instance shows this error while <code>Running</code> until the unwind ends it <code>TimedOut</code>)</td></tr>
-<tr><td><code>CONCURRENCY_ERROR</code></td><td>Optimistic concurrency conflict on state store save &mdash; sweep service will retry</td></tr>
-<tr><td><code>EXECUTION_FAULT</code></td><td>Unhandled exception inside a node executor</td></tr>
+<tr><td><code>WAIT_TIMEOUT</code></td><td>A <code>wait</code> node&apos;s timeout elapsed with no signal and no <code>onTimeoutNodeId</code>, and the fallback to <code>GlobalOnDeadlineNodeId</code> is unavailable (none defined, or <code>DeadlineHandlerEnteredAt</code> set). A saga unwinds first in the execution loop; the instance shows this error while <code>Running</code> until the unwind ends it <code>TimedOut</code></td></tr>
+<tr><td><code>CAPACITY_EXCEEDED</code></td><td>A rejected new start (admission overflow policy <code>Reject</code>) whose acquisition was still owned is persisted <code>Faulted</code></td></tr>
+<tr><td><code>CANCELLED</code></td><td>Set on the instance by <code>CancelAsync</code></td></tr>
+<tr><td><code>ENGINE_ERROR</code></td><td>Unhandled exception in the engine loop itself (outside a node executor)</td></tr>
+<tr><td colspan="2">Node executors also emit their own codes (for example <code>CHILD_WORKFLOW_FAILED</code>, <code>LOOP_CHILD_FAILED</code>, <code>PARALLEL_BRANCH_FAILED</code>, <code>INTEGRATION_ERROR</code>, <code>AGENT_ERROR</code>, <code>QUERY_ERROR</code>, <code>MESSAGE_ERROR</code>). Save-time definition errors (<code>DEFINITION_INVALID</code>, <code>CLIENT_NOT_REGISTERED</code>, <code>CLIENT_TYPE_MISMATCH</code>) are <code>WorkflowDefinitionError</code> codes thrown at registry save, not instance errors.</td></tr>
 </tbody>
 </table>
 <hr />
 <h2>8. HumanTask</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// A work item created when execution reaches a Human node.
-/// Stored in IHumanTaskStore, separate from IExecutionStateStore.
-/// The engine suspends the instance and creates a HumanTask; when a
-/// human submits a response the engine resumes the instance.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/HumanTask.cs
+
+/// &lt;summary&gt;
+/// Represents a unit of human-in-the-loop work created by the human node executor.
+/// The task suspends the parent workflow instance until the required quorum of
+/// responses is received via &lt;see cref="IHumanTaskStore.SubmitResponseAsync"/&gt;.
 /// &lt;/summary&gt;
 public sealed class HumanTask
 {
-    public string  TaskId       { get; init; }
-    public string  InstanceId   { get; init; }
-    public string  NodeId       { get; init; }
-    public string  WorkflowId   { get; init; }
+    /// &lt;summary&gt;Globally unique identifier for this task.&lt;/summary&gt;
+    public string TaskId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;Human-readable title. May include resolved context values.&lt;/summary&gt;
-    public string  Title        { get; init; }
-    public string? Description  { get; init; }
+    /// &lt;summary&gt;The workflow execution instance that created this task.&lt;/summary&gt;
+    public string InstanceId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;
-    /// Who this task is assigned to. Three formats:
-    ///   &quot;user:alice@company.com&quot;         — specific user
-    ///   &quot;role:finance-approvers&quot;          — any member of a role
-    ///   resolved string from context     — dynamic at runtime
-    /// &lt;/summary&gt;
-    public string  AssignedTo   { get; init; }
+    /// &lt;summary&gt;The human node ID within the workflow that created this task.&lt;/summary&gt;
+    public string NodeId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;
-    /// Channel determines how the assignee is notified and how they respond.
-    ///   Internal: task appears in the FlowEngine task queue UI/API
-    ///   External: engine sends a notification (email, SMS, Teams, etc.)
-    ///             with a tokenized response link
-    /// &lt;/summary&gt;
-    public TaskChannel Channel  { get; init; }
+    /// &lt;summary&gt;The workflow definition ID for cross-referencing.&lt;/summary&gt;
+    public string WorkflowId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;
-    /// For External channel: how to notify the assignee.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Short human-readable task title displayed in task-list UIs.&lt;/summary&gt;
+    public string Title { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Optional detailed description of the action required from the assignee.&lt;/summary&gt;
+    public string? Description { get; init; }
+
+    /// &lt;summary&gt;The user, group, or role the task is assigned to.&lt;/summary&gt;
+    public string AssignedTo { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Delivery channel: &lt;see cref="TaskChannel.Internal"/&gt; (in-app) or &lt;see cref="TaskChannel.External"/&gt; (email link).&lt;/summary&gt;
+    public TaskChannel Channel { get; init; }
+
+    /// &lt;summary&gt;Optional notification configuration to send when the task is created.&lt;/summary&gt;
     public NotificationConfig? Notification { get; init; }
 
-    /// &lt;summary&gt;
-    /// JSON Schema defining the form the human must complete.
-    /// The submitted values are validated against this schema before
-    /// the engine resumes. Simplest case: { &quot;approved&quot;: { &quot;type&quot;: &quot;boolean&quot; } }
-    /// &lt;/summary&gt;
-    public string  FormSchema   { get; init; }
+    /// &lt;summary&gt;JSON Schema describing the form the assignee must fill in.&lt;/summary&gt;
+    public string FormSchema { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Keys from the workflow context that are surfaced in the task UI for reference.&lt;/summary&gt;
+    public List&lt;string&gt; VisibleContext { get; init; } = [];
 
     /// &lt;summary&gt;
-    /// Context snapshot provided to the reviewer. The workflow definition
-    /// controls which context keys are visible — avoids leaking sensitive data.
-    /// Defined as a list of JSONPath expressions to include.
-    /// &lt;/summary&gt;
-    public List&lt;string&gt; VisibleContext { get; init; } = new();
-
-    /// &lt;summary&gt;
-    /// For multi-approver scenarios. Task stays open until Response count
-    /// reaches Quorum. All responses are available in context.
-    /// Default: 1.
+    /// Minimum number of responses required before the workflow resumes (quorum voting).
+    /// Default: 1 (first respondent wins).
     /// &lt;/summary&gt;
     public int Quorum { get; init; } = 1;
 
-    /// &lt;summary&gt;Responses received so far.&lt;/summary&gt;
-    public List&lt;HumanTaskResponse&gt; Responses { get; set; } = new();
+    /// &lt;summary&gt;All responses recorded so far; the workflow resumes once &lt;see cref="Quorum"/&gt; is reached.&lt;/summary&gt;
+    public List&lt;HumanTaskResponse&gt; Responses { get; set; } = [];
 
-    public HumanTaskStatus Status  { get; set; }
+    /// &lt;summary&gt;Current lifecycle status of the task.&lt;/summary&gt;
+    public HumanTaskStatus Status { get; set; }
+
+    /// &lt;summary&gt;UTC timestamp when the task was created.&lt;/summary&gt;
     public DateTimeOffset CreatedAt { get; init; }
-    public DateTimeOffset? DueAt   { get; init; }
+
+    /// &lt;summary&gt;Optional due date; tasks past this date are returned by &lt;see cref="IHumanTaskStore.FindOverdueAsync"/&gt;.&lt;/summary&gt;
+    public DateTimeOffset? DueAt { get; init; }
+
+    /// &lt;summary&gt;UTC timestamp when the task reached a terminal status, or &lt;c&gt;null&lt;/c&gt; if still open.&lt;/summary&gt;
     public DateTimeOffset? CompletedAt { get; set; }
 
-    /// &lt;summary&gt;
-    /// Escalation config. If DueAt is reached without Quorum responses,
-    /// the task is reassigned or escalated rather than timing out.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Optional escalation configuration applied when the task becomes overdue.&lt;/summary&gt;
     public EscalationConfig? Escalation { get; init; }
 
-    /// &lt;summary&gt;
-    /// Context snapshot provided to the reviewer, built from
-    /// HumanNodeConfig.VisibleContext paths at task creation time.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;A snapshot of the workflow context at the time the task was created (for task-list display).&lt;/summary&gt;
     public JsonElement ContextSnapshot { get; init; }
+
+    /// &lt;summary&gt;
+    /// The token issued by &lt;see cref="IHumanTaskStore.GenerateResponseTokenAsync"/&gt; for External-channel tasks.
+    /// Stored on first generation and returned on subsequent calls (idempotent).
+    /// &lt;/summary&gt;
+    public string? IssuedResponseToken { get; set; }
 }
 
-/// &lt;summary&gt;
-/// Context keys written by HumanNodeExecutor on quorum completion.
-/// See section 16 (Signal context conventions) for full table.
-///
-/// Quorum = 1:
-///   $.context._humanTaskResponse   — submitted form values (JsonElement)
-///
-/// Quorum &gt; 1 (additionally):
-///   $.context._humanTaskResponses  — array of all respondents' form values
-///   $.context._humanTaskConsensus  — &quot;unanimous&quot; | &quot;majority&quot; | &quot;any-denied&quot; | &quot;split&quot;
-///
-/// The consensus value is computed by HumanNodeExecutor.WriteResponseToContext()
-/// and reflects whether all, most, any-denied, or no clear majority emerged
-/// from the quorum responses. Used in edge when predicates:
-///   &quot;$.context._humanTaskConsensus == 'unanimous'&quot;
-/// &lt;/summary&gt;
-public static class HumanTaskContextKeys
-{
-    public const string Response   = &quot;_humanTaskResponse&quot;;
-    public const string Responses  = &quot;_humanTaskResponses&quot;;
-    public const string Consensus  = &quot;_humanTaskConsensus&quot;;
-}
-
+/// &lt;summary&gt;A single response submitted by an assignee for a &lt;see cref="HumanTask"/&gt;.&lt;/summary&gt;
 public sealed class HumanTaskResponse
 {
-    public string       RespondedBy { get; init; }
+    /// &lt;summary&gt;Identifier of the user who submitted this response.&lt;/summary&gt;
+    public string RespondedBy { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;UTC timestamp of the submission.&lt;/summary&gt;
     public DateTimeOffset RespondedAt { get; init; }
-    /// &lt;summary&gt;The form values submitted, validated against FormSchema.&lt;/summary&gt;
-    public JsonElement  Values      { get; init; }
-    /// &lt;summary&gt;Optional secure token used for external channel response links.&lt;/summary&gt;
-    public string?      ResponseToken { get; init; }
+
+    /// &lt;summary&gt;The form values submitted by the respondent.&lt;/summary&gt;
+    public JsonElement Values { get; init; }
+
+    /// &lt;summary&gt;The one-time response token supplied for external (email) tasks, or &lt;c&gt;null&lt;/c&gt; for internal tasks.&lt;/summary&gt;
+    public string? ResponseToken { get; init; }
 }
 
-public enum HumanTaskStatus { Open, InProgress, Completed, Escalated, Cancelled }
-public enum TaskChannel     { Internal, External }
+/// &lt;summary&gt;Lifecycle status of a human task.&lt;/summary&gt;
+public enum HumanTaskStatus
+{
+    /// &lt;summary&gt;The task has been created and is awaiting responses.&lt;/summary&gt;
+    Open,
 
+    /// &lt;summary&gt;At least one response has been received but quorum has not been reached.&lt;/summary&gt;
+    InProgress,
+
+    /// &lt;summary&gt;Quorum was reached; the workflow has resumed.&lt;/summary&gt;
+    Completed,
+
+    /// &lt;summary&gt;The task was escalated due to expiry.&lt;/summary&gt;
+    Escalated,
+
+    /// &lt;summary&gt;The parent workflow instance was cancelled.&lt;/summary&gt;
+    Cancelled
+}
+
+/// &lt;summary&gt;Delivery channel for human task notifications.&lt;/summary&gt;
+public enum TaskChannel
+{
+    /// &lt;summary&gt;In-app task list; respondents access the task via the internal UI.&lt;/summary&gt;
+    Internal,
+
+    /// &lt;summary&gt;External channel (e.g. email link) using a one-time response token.&lt;/summary&gt;
+    External
+}
+
+/// &lt;summary&gt;Notification sent when a human task is created.&lt;/summary&gt;
 public sealed class NotificationConfig
 {
-    public string   Via      { get; init; }  // &quot;email&quot;, &quot;sms&quot;, &quot;teams&quot;, &quot;slack&quot;, &quot;webhook&quot;
-    public string   To       { get; init; }  // address/handle — may be JSONPath expression
-    public string?  Template { get; init; }  // named message template
+    /// &lt;summary&gt;The notification channel or provider (e.g. &lt;c&gt;"email"&lt;/c&gt;, &lt;c&gt;"teams"&lt;/c&gt;).&lt;/summary&gt;
+    public string Via { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Recipient address or identifier.&lt;/summary&gt;
+    public string To { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Optional notification template reference.&lt;/summary&gt;
+    public string? Template { get; init; }
+
+    /// &lt;summary&gt;Optional key/value pairs substituted into the notification template.&lt;/summary&gt;
     public Dictionary&lt;string, string&gt;? TemplateData { get; init; }
 }
 
+/// &lt;summary&gt;Configuration for escalating an overdue human task to a different assignee.&lt;/summary&gt;
 public sealed class EscalationConfig
 {
-    /// &lt;summary&gt;ISO 8601 duration after DueAt before escalation fires.&lt;/summary&gt;
-    public string  After        { get; init; }   // e.g. &quot;PT4H&quot;
-    public string  ReassignTo   { get; init; }   // same format as AssignedTo
-    public bool    NotifyOriginal { get; init; } = true;
+    /// &lt;summary&gt;ISO 8601 duration or calendar expression defining when escalation triggers (e.g. &lt;c&gt;"PT1H"&lt;/c&gt;).&lt;/summary&gt;
+    public string After { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;The user, group, or role the task is reassigned to upon escalation.&lt;/summary&gt;
+    public string ReassignTo { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;When &lt;c&gt;true&lt;/c&gt;, the original assignee is notified of the reassignment. Default: &lt;c&gt;true&lt;/c&gt;.&lt;/summary&gt;
+    public bool NotifyOriginal { get; init; } = true;
+}
+
+/// &lt;summary&gt;Well-known context keys written to the workflow context when a human task completes.&lt;/summary&gt;
+public static class HumanTaskContextKeys
+{
+    /// &lt;summary&gt;Context key holding the most recent &lt;see cref="HumanTaskResponse"/&gt; values as JSON.&lt;/summary&gt;
+    public const string Response = "_humanTaskResponse";
+
+    /// &lt;summary&gt;Context key holding the list of all collected responses.&lt;/summary&gt;
+    public const string Responses = "_humanTaskResponses";
+
+    /// &lt;summary&gt;Context key holding the consensus label computed from quorum responses (e.g. &lt;c&gt;"unanimous"&lt;/c&gt;, &lt;c&gt;"majority"&lt;/c&gt;).&lt;/summary&gt;
+    public const string Consensus = "_humanTaskConsensus";
+
+    /// &lt;summary&gt;
+    /// Builds the resume payload a human task store passes to the engine when a task reaches its quorum: the task id
+    /// under &lt;c&gt;_humanTaskId&lt;/c&gt; correlates the response to the instance's pending task, the first
+    /// response under &lt;see cref="Response"/&gt;, every response under &lt;see cref="Responses"/&gt;, and the consensus label
+    /// (null for a single-respondent task) under &lt;see cref="Consensus"/&gt;.
+    /// &lt;/summary&gt;
+    /// &lt;param name="task"&gt;The completed task; it holds at least one response.&lt;/param&gt;
+    /// &lt;returns&gt;The signal payload the engine promotes into the instance context on resume.&lt;/returns&gt;
+    public static JsonElement BuildSignalPayload(HumanTask task)
+    {
+        var first = task.Responses[0].Values;
+
+        if (task.Quorum &lt;= 1)
+        {
+            return JsonSerializer.SerializeToElement(new
+            {
+                _humanTaskId = task.TaskId,
+                _humanTaskResponse = first,
+                _humanTaskResponses = task.Responses.Select(r =&gt; r.Values).ToArray(),
+                _humanTaskConsensus = (string?)null
+            });
+        }
+
+        // Multi-respondent: compute consensus label from all responses
+        var consensusLabel = ComputeConsensusLabel(task.Responses);
+        return JsonSerializer.SerializeToElement(new
+        {
+            _humanTaskId = task.TaskId,
+            _humanTaskResponse = first,
+            _humanTaskResponses = task.Responses.Select(r =&gt; r.Values).ToArray(),
+            _humanTaskConsensus = consensusLabel
+        });
+    }
+
+    /// &lt;summary&gt;
+    /// Returns a consensus label for multi-respondent tasks:
+    /// "unanimous" - all responses are identical,
+    /// "any-denied" - majority rejected/denied/no,
+    /// "majority" - more than half agree,
+    /// "split" - no majority.
+    /// &lt;/summary&gt;
+    private static string ComputeConsensusLabel(IReadOnlyList&lt;HumanTaskResponse&gt; responses)
+    {
+        if (responses.Count &lt;= 1) return "unanimous";
+
+        var groups = responses
+            .GroupBy(r =&gt; r.Values.GetRawText())
+            .OrderByDescending(g =&gt; g.Count())
+            .ToList();
+
+        if (groups.Count == 1) return "unanimous";
+
+        var top = groups[0];
+
+        // Majority: strictly more than half
+        if (top.Count() &gt; responses.Count / 2.0)
+        {
+            // Check if the majority answer contains a denial-like value
+            var topJson = JsonDocument.Parse(top.Key).RootElement;
+            var hasDenial = topJson.ValueKind == JsonValueKind.Object
+                &amp;&amp; topJson.EnumerateObject().Any(p =&gt;
+                    IsDenialValue(p.Value.ValueKind == JsonValueKind.String
+                        ? p.Value.GetString()
+                        : null));
+
+            return hasDenial ? "any-denied" : "majority";
+        }
+
+        // Check if ANY response contains a denial
+        var anyDenied = responses.Any(r =&gt;
+            r.Values.ValueKind == JsonValueKind.Object
+            &amp;&amp; r.Values.EnumerateObject().Any(p =&gt;
+                IsDenialValue(p.Value.ValueKind == JsonValueKind.String
+                    ? p.Value.GetString()
+                    : null)));
+
+        return anyDenied ? "any-denied" : "split";
+    }
+
+    private static bool IsDenialValue(string? value)
+        =&gt; value != null &amp;&amp; (
+            value.Equals("rejected", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("reject", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("denied", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("deny", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("no", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("false", StringComparison.OrdinalIgnoreCase));
 }
 </code></pre>
 <hr />
@@ -709,106 +910,122 @@ public enum BackoffType { Fixed, Linear, Exponential, ExponentialWithJitter }
 </code></pre>
 <hr />
 <h2>10. IDistributedLockProvider</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Pluggable distributed lock/lease abstraction. Decouples the locking
-/// strategy from the state store implementation — any backend can be
-/// paired with any lock provider.
-///
-/// The engine uses this interface to:
-///   1. Claim an instance before executing it (prevents duplicate execution)
-///   2. Renew the claim while executing (prevents expiry during long work)
-///   3. Release the claim when suspending or reaching a terminal state
-///   4. Find instances whose claims have expired (crashed server recovery)
-///
-/// Implementations ship as separate packages and are registered alongside
-/// the state store:
-///
-///   EF.FlowEngine.Locks.Sql          — advisory locks or optimistic UPDATE WHERE
-///   EF.FlowEngine.Locks.Redis        — SET NX EX (atomic, TTL-based)
-///   EF.FlowEngine.Locks.AzureBlob    — Azure Blob Storage lease API
-///   EF.FlowEngine.Locks.Cosmos       — conditional ETag write
-///   EF.FlowEngine.Locks.AzureTable   — entity ETag conditional replace
-///   EF.FlowEngine.Locks.InMemory     — ConcurrentDictionary (single process only)
-///
-/// The File state store uses InMemory locks (dev/test only — not safe for
-/// multi-server deployments).
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Abstractions/IDistributedLockProvider.cs
+
+/// &lt;summary&gt;
+/// Provides distributed mutual exclusion for workflow execution instances.
+/// Ensures that only one engine node executes a given instance at a time,
+/// even across horizontally-scaled deployments.
+/// Implement this interface using Redis, SQL, Azure Blob leases, or any other
+/// distributed coordination mechanism.
 /// &lt;/summary&gt;
+/// &lt;remarks&gt;
+/// &lt;para&gt;&lt;b&gt;Exclusivity.&lt;/b&gt; Each successful &lt;see cref="TryAcquireAsync"/&gt; is exclusive: while an unexpired
+/// lease exists, every further &lt;see cref="TryAcquireAsync"/&gt; returns &lt;c&gt;false&lt;/c&gt;, including one from the claimant
+/// that holds it. The engine uses one claimant id per process, so a re-entrant grant would let two code paths in
+/// the same process (for example a start and the sweep) execute one instance concurrently. A holder that wants to
+/// keep its lease calls &lt;see cref="RenewAsync"/&gt;.&lt;/para&gt;
+/// &lt;para&gt;&lt;b&gt;Claim lifecycle.&lt;/b&gt;&lt;/para&gt;
+/// &lt;list type="bullet"&gt;
+/// &lt;item&gt;&lt;description&gt;Start: &lt;c&gt;StartAsync&lt;/c&gt; and &lt;c&gt;StartBackgroundAsync&lt;/c&gt; take the lease with
+/// &lt;see cref="TryAcquireNewAsync"/&gt; before the instance's first save, and save the record with
+/// &lt;c&gt;ClaimedBy&lt;/c&gt;/&lt;c&gt;ClaimExpiresAt&lt;/c&gt; already set. The sweep therefore never sees a new Running instance
+/// without a claim. Draining a Queued instance takes the lease before the record turns Running.&lt;/description&gt;&lt;/item&gt;
+/// &lt;item&gt;&lt;description&gt;Execution: the engine loop confirms a lease taken at start with &lt;see cref="RenewAsync"/&gt;;
+/// every other entry (signal resume, human-task resume, child completion, dead-letter replay, sweep) acquires with
+/// &lt;see cref="TryAcquireAsync"/&gt; and skips the instance when that returns &lt;c&gt;false&lt;/c&gt;. The lease is renewed by
+/// &lt;c&gt;LeaseRenewalService&lt;/c&gt; while the instance executes; a failed renewal cancels the execution.&lt;/description&gt;&lt;/item&gt;
+/// &lt;item&gt;&lt;description&gt;Suspend and finish: when the instance suspends or reaches a terminal status, the engine
+/// clears the claim fields, saves the record, then calls &lt;see cref="ReleaseAsync"/&gt;. Resuming a suspended instance
+/// acquires a new lease.&lt;/description&gt;&lt;/item&gt;
+/// &lt;item&gt;&lt;description&gt;Host shutdown: the instance stays Running and the lease is not released; once it expires
+/// the sweep (&lt;see cref="FindResumableInstanceIdsAsync"/&gt;) resumes the instance on any node.&lt;/description&gt;&lt;/item&gt;
+/// &lt;item&gt;&lt;description&gt;Cancel: &lt;c&gt;CancelAsync&lt;/c&gt; tries to take the lease and proceeds without it when the instance is
+/// executing; it releases only a lease it acquired.&lt;/description&gt;&lt;/item&gt;
+/// &lt;/list&gt;
+/// &lt;/remarks&gt;
 public interface IDistributedLockProvider
 {
     /// &lt;summary&gt;
-    /// Attempt to acquire an exclusive claim on an instance.
-    ///
-    /// Must be implemented as a single atomic operation. If the instance
-    /// is already claimed by another server with a valid (non-expired)
-    /// claim, returns false immediately without blocking.
-    ///
-    /// The implementation is responsible for writing ClaimedBy,
-    /// ClaimedAt, and ClaimExpiresAt to the persisted instance, OR
-    /// maintaining these in a separate lock record — whichever is natural
-    /// for the backing store.
+    /// Attempts to acquire an exclusive lease on the execution instance.
+    /// Returns &lt;c&gt;true&lt;/c&gt; when the lease is obtained; &lt;c&gt;false&lt;/c&gt; while any unexpired lease exists,
+    /// even one held by &lt;paramref name="claimantId"/&gt;.
     /// &lt;/summary&gt;
-    /// &lt;param name=&quot;instanceId&quot;&gt;The instance to claim.&lt;/param&gt;
-    /// &lt;param name=&quot;claimantId&quot;&gt;
-    ///   This server's unique identity. Should be stable for the lifetime
-    ///   of the server process (e.g. Environment.MachineName + PID, or a
-    ///   startup GUID stored in DI as a singleton).
-    /// &lt;/param&gt;
-    /// &lt;param name=&quot;leaseDuration&quot;&gt;
-    ///   How long the claim is valid before it auto-expires.
-    ///   Recommended: 30–60 seconds. Must be longer than the lease
-    ///   renewal interval (see RenewAsync).
-    /// &lt;/param&gt;
-    /// &lt;returns&gt;True if the claim was acquired; false if already held.&lt;/returns&gt;
+    /// &lt;param name="instanceId"&gt;The workflow execution instance to lock.&lt;/param&gt;
+    /// &lt;param name="claimantId"&gt;Unique identifier for this engine node/process.&lt;/param&gt;
+    /// &lt;param name="leaseDuration"&gt;How long the lease remains valid without renewal.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;bool&gt; TryAcquireAsync(
-        string    instanceId,
-        string    claimantId,
-        TimeSpan  leaseDuration,
+        string instanceId,
+        string claimantId,
+        TimeSpan leaseDuration,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Extend the claim expiry. Called by the engine's heartbeat service
-    /// every leaseDuration/2 while the instance is actively executing.
-    ///
-    /// Returns false if the claim has already expired (another server may
-    /// have reclaimed the instance). The engine must treat a false return
-    /// as a fatal condition for that execution — stop processing, do not
-    /// save state.
+    /// Acquires the lease on a brand-new instance before the engine first saves it. The engine then saves the
+    /// record with &lt;c&gt;ClaimedBy&lt;/c&gt;, &lt;c&gt;ClaimedAt&lt;/c&gt; and &lt;c&gt;ClaimExpiresAt&lt;/c&gt; already set to this claim.
+    /// The default calls &lt;see cref="TryAcquireAsync"/&gt;. A provider that keeps the lease on the instance record
+    /// itself returns &lt;c&gt;true&lt;/c&gt; without writing: the engine's first save is the acquisition.
     /// &lt;/summary&gt;
+    /// &lt;param name="instanceId"&gt;The new instance's id; no record exists for it yet.&lt;/param&gt;
+    /// &lt;param name="claimantId"&gt;Unique identifier for this engine node/process.&lt;/param&gt;
+    /// &lt;param name="leaseDuration"&gt;How long the lease remains valid without renewal.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task&lt;bool&gt; TryAcquireNewAsync(
+        string instanceId,
+        string claimantId,
+        TimeSpan leaseDuration,
+        CancellationToken ct = default)
+        =&gt; TryAcquireAsync(instanceId, claimantId, leaseDuration, ct);
+
+    /// &lt;summary&gt;
+    /// Extends an existing lease held by &lt;paramref name="claimantId"/&gt;.
+    /// Returns &lt;c&gt;true&lt;/c&gt; when renewal succeeds, &lt;c&gt;false&lt;/c&gt; if the lease has expired
+    /// or was taken by another node.
+    /// &lt;/summary&gt;
+    /// &lt;param name="instanceId"&gt;The workflow execution instance whose lease to renew.&lt;/param&gt;
+    /// &lt;param name="claimantId"&gt;Must match the claimant that originally acquired the lease.&lt;/param&gt;
+    /// &lt;param name="leaseDuration"&gt;New lease duration from now.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;bool&gt; RenewAsync(
-        string    instanceId,
-        string    claimantId,
-        TimeSpan  leaseDuration,
+        string instanceId,
+        string claimantId,
+        TimeSpan leaseDuration,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Explicitly release the claim. Called when the instance is saved
-    /// in a Suspended or terminal state. After release, any server can
-    /// claim the instance.
-    ///
-    /// Must be a no-op if the claim has already expired or was claimed
-    /// by a different claimant.
+    /// Releases a previously acquired lease so another node can claim the instance.
     /// &lt;/summary&gt;
+    /// &lt;param name="instanceId"&gt;The workflow execution instance to unlock.&lt;/param&gt;
+    /// &lt;param name="claimantId"&gt;Must match the claimant that holds the lease; no-op if it does not.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task ReleaseAsync(
-        string    instanceId,
-        string    claimantId,
+        string instanceId,
+        string claimantId,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Return IDs of instances whose claims have expired (server died)
-    /// OR which have no claim and are in a resumable state.
-    ///
-    /// Called by the background sweep service (typically every 30s).
-    /// Results are used to reclaim and resume orphaned instances.
-    ///
-    /// &quot;Resumable&quot; means:
-    ///   - Status = Running with ClaimExpiresAt in the past (crashed server)
-    ///   - Status = Suspended with WaitDescriptor.TimeoutAt in the past
-    ///   - Status = Suspended with ReceivedSignals.Count &gt;= MinSignalCount
-    ///     (signal arrived but push path didn't resume it)
+    /// Returns instance IDs that are candidates for resumption by the sweep service:
+    /// unclaimed Running instances (server crash) and Suspended instances with expired
+    /// waits or accumulated signals.
     /// &lt;/summary&gt;
+    /// &lt;param name="now"&gt;The current timestamp used to evaluate claim expiry and wait timeouts.&lt;/param&gt;
+    /// &lt;param name="batchSize"&gt;Maximum number of IDs to return per sweep pass.&lt;/param&gt;
+    /// &lt;param name="partitionCount"&gt;
+    /// Total number of sweep partitions. When greater than 1, only instances whose
+    /// ID hashes to &lt;paramref name="partitionIndex"/&gt; are returned, so multiple replicas
+    /// can sweep disjoint subsets without contention. Default: &lt;c&gt;1&lt;/c&gt; (no partitioning).
+    /// &lt;/param&gt;
+    /// &lt;param name="partitionIndex"&gt;
+    /// Zero-based index of the caller's partition. Ignored when &lt;paramref name="partitionCount"/&gt; is 1.
+    /// Default: &lt;c&gt;0&lt;/c&gt;.
+    /// &lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;string&gt;&gt; FindResumableInstanceIdsAsync(
         DateTimeOffset now,
-        int            batchSize,
+        int batchSize,
+        int partitionCount = 1,
+        int partitionIndex = 0,
         CancellationToken ct = default);
 }
 </code></pre>
@@ -850,289 +1067,532 @@ public interface IDistributedLockProvider
 <tr>
 <td><strong>InMemory</strong></td>
 <td><code>ConcurrentDictionary.TryAdd</code> + <code>DateTimeOffset</code> expiry check</td>
-<td>Single process only. <code>FindResumableInstanceIdsAsync</code> scans the dictionary.</td>
+<td>Single process only. <code>FindResumableInstanceIdsAsync</code> scans the state store's instances (lazily resolved <code>IExecutionStateStore</code>).</td>
 </tr>
 </tbody>
 </table></div>
 <hr />
 <h2>11. IExecutionStateStore</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Pluggable persistence layer for ExecutionInstance objects.
-/// All methods are async and cancellation-token aware.
-///
-/// Implementations must guarantee:
-///   - SaveAsync is atomic per instance (no partial writes)
-///   - LoadAsync returns the most recently saved state
-///   - FindBySuspendedEventAsync uses an index on (EventName, CorrelationKey)
-///   - QueryAsync supports cursor-based pagination via the skip/take pattern
-///
-/// Implementations ship as separate packages:
-///   EF.FlowEngine.StateStore.File        (dev/test — no infrastructure)
-///   EF.FlowEngine.StateStore.Sql         (SQL Server, Postgres, SQLite via EF Core)
-///   EF.FlowEngine.StateStore.Redis       (StackExchange.Redis)
-///   EF.FlowEngine.StateStore.Cosmos      (Azure Cosmos DB SDK v3)
-///   EF.FlowEngine.StateStore.AzureTable  (Azure Table Storage SDK v12)
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Abstractions/IExecutionStateStore.cs
+
+/// &lt;summary&gt;
+/// Persists and retrieves &lt;see cref="ExecutionInstance"/&gt; state for the FlowEngine.
+/// Implement this interface to back execution state with a database, Redis, or
+/// any durable store. The built-in &lt;c&gt;InMemoryExecutionStateStore&lt;/c&gt; is suitable
+/// for development and single-process scenarios only.
 /// &lt;/summary&gt;
+/// &lt;remarks&gt;
+/// &lt;para&gt;
+/// Built-in implementations (each in its own NuGet package):
+/// &lt;list type="bullet"&gt;
+///   &lt;item&gt;&lt;c&gt;InMemoryExecutionStateStore&lt;/c&gt; - in-process, dev/test only&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;SqlExecutionStateStore&amp;lt;TContext&amp;gt;&lt;/c&gt; - EF Core, any SQL provider&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;RedisExecutionStateStore&lt;/c&gt; - Redis via StackExchange.Redis&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;CosmosExecutionStateStore&lt;/c&gt; - Azure Cosmos DB NoSQL&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;AzureTableExecutionStateStore&lt;/c&gt; - Azure Table Storage&lt;/item&gt;
+///   &lt;item&gt;&lt;c&gt;FileExecutionStateStore&lt;/c&gt; - JSON files, dev/test only&lt;/item&gt;
+/// &lt;/list&gt;
+/// Register via &lt;c&gt;FlowEngineBuilder.UseStateStore&amp;lt;T&amp;gt;()&lt;/c&gt;.
+/// &lt;/para&gt;
+/// &lt;para&gt;
+/// Concurrency: implementations must enforce optimistic concurrency via
+/// &lt;see cref="ExecutionInstance.Version"/&gt;. Callers catch &lt;c&gt;ConcurrencyException&lt;/c&gt;
+/// and retry. The distributed lock (&lt;see cref="IDistributedLockProvider"/&gt;) prevents
+/// concurrent engine loops on the same instance; the version counter is a secondary guard.
+/// &lt;/para&gt;
+/// &lt;seealso cref="ExecutionInstance"/&gt;
+/// &lt;seealso cref="IDistributedLockProvider"/&gt;
+/// &lt;seealso cref="IOutboxStore"/&gt;
+/// &lt;/remarks&gt;
 public interface IExecutionStateStore
 {
-    // ── Core CRUD ─────────────────────────────────────────────────────────────
-
-    Task&lt;ExecutionInstance?&gt;  LoadAsync(string instanceId,
-                                         CancellationToken ct = default);
+    /// &lt;summary&gt;
+    /// Loads an execution instance by its unique identifier.
+    /// Returns &lt;c&gt;null&lt;/c&gt; when not found.
+    /// &lt;/summary&gt;
+    /// &lt;param name="instanceId"&gt;The unique workflow execution instance ID.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task&lt;ExecutionInstance?&gt; LoadAsync(string instanceId, CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Persist the instance. Implementations must use optimistic concurrency
-    /// to prevent lost updates in concurrent environments. Use the
-    /// <code>long Version</code> field on <code>ExecutionInstance</code> (incremented on every
-    /// successful save); throw <code>ConcurrencyException</code> on version mismatch.
+    /// Persists the current state of an execution instance.
+    /// Implementations should use optimistic concurrency via &lt;see cref="ExecutionInstance.Version"/&gt;.
     /// &lt;/summary&gt;
-    Task                      SaveAsync(ExecutionInstance instance,
-                                         CancellationToken ct = default);
-
-    Task                      DeleteAsync(string instanceId,
-                                           CancellationToken ct = default);
+    /// &lt;param name="instance"&gt;The instance to persist.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task SaveAsync(ExecutionInstance instance, CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Bulk-delete terminal instances older than the given cutoff, filtered by status.
-    /// Called by InstanceRetentionService. Implementations should use a single
-    /// batched DELETE rather than loading instances into memory.
-    /// Only statuses listed in the statuses array are considered — never deletes
-    /// Running or Suspended instances regardless of age.
+    /// Persists the instance and stages outbox entries in the same database transaction.
+    /// When the underlying DbContext also implements &lt;see cref="IOutboxCapableDbContext"/&gt;,
+    /// both writes are committed atomically - guaranteeing at-least-once outbox delivery
+    /// even if the process crashes immediately after &lt;c&gt;SaveChangesAsync&lt;/c&gt;.
+    /// Implementations that do not support transactional outbox fall back to calling
+    /// &lt;see cref="SaveAsync"/&gt; and then enqueueing entries via the supplied &lt;paramref name="outboxStore"/&gt;.
     /// &lt;/summary&gt;
-    Task                      ArchiveAsync(
-                                  DateTimeOffset      olderThan,
-                                  ExecStatus[]        statuses,
-                                  CancellationToken   ct = default);
+    /// &lt;param name="instance"&gt;The instance to persist.&lt;/param&gt;
+    /// &lt;param name="outboxEntries"&gt;Outbox entries produced by node executors during this cycle.&lt;/param&gt;
+    /// &lt;param name="outboxStore"&gt;Fallback outbox store used when the state store cannot write entries atomically.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    async Task SaveWithOutboxAsync(
+        ExecutionInstance instance,
+        IReadOnlyList&lt;OutboxEntry&gt; outboxEntries,
+        IOutboxStore? outboxStore,
+        CancellationToken ct = default)
+    {
+        await SaveAsync(instance, ct);
+
+        if (outboxEntries.Count &gt; 0 &amp;&amp; outboxStore is not null)
+        {
+            foreach (var entry in outboxEntries)
+                await outboxStore.EnqueueAsync(entry, ct);
+        }
+    }
 
     /// &lt;summary&gt;
-    /// Stream instances matching the filter as IAsyncEnumerable.
-    /// Use for large result sets where loading all items into memory would be expensive.
-    /// Implementations should use server-side pagination or cursor-based streaming
-    /// rather than buffering all results.
+    /// Permanently removes an execution instance from the store.
     /// &lt;/summary&gt;
-    IAsyncEnumerable&lt;ExecutionInstance&gt; StreamAsync(
-                                  ExecutionQuery      filter,
-                                  CancellationToken   ct = default);
-
-    // ── Signal / Resume ───────────────────────────────────────────────────────
+    /// &lt;param name="instanceId"&gt;The unique workflow execution instance ID to delete.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task DeleteAsync(string instanceId, CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Find the suspended instance waiting for the given event + correlation key.
-    /// Must use an index for efficient lookup — this is called on every
-    /// incoming webhook/event. Returns null if no matching instance found.
+    /// Deletes all instances whose completion time is on or before &lt;paramref name="olderThan"/&gt;
+    /// and whose &lt;see cref="ExecutionInstance.Status"/&gt; is in &lt;paramref name="statuses"/&gt;.
+    /// Used by &lt;c&gt;InstanceRetentionService&lt;/c&gt; to enforce a retention policy.
     /// &lt;/summary&gt;
-    Task&lt;ExecutionInstance?&gt;  FindBySuspendedEventAsync(
+    /// &lt;remarks&gt;
+    /// "Completion time" means &lt;see cref="ExecutionInstance.CompletedAt"/&gt;. Implementations that
+    /// do not persist &lt;c&gt;CompletedAt&lt;/c&gt; as a queryable column may filter on
+    /// &lt;see cref="ExecutionInstance.UpdatedAt"/&gt; instead - for a terminal instance the last update
+    /// is the transition into the terminal state, so the two timestamps are equivalent.
+    /// &lt;para&gt;
+    /// There is no correct general-purpose default: &lt;see cref="ExecutionQuery"/&gt; exposes only
+    /// &lt;see cref="ExecutionQuery.CreatedBefore"/&gt; (creation time), and filtering retention by
+    /// creation time would delete recently-completed long-running instances. Every built-in store
+    /// overrides this method with a native bulk-delete; the default therefore throws rather than
+    /// silently delete by the wrong timestamp.
+    /// &lt;/para&gt;
+    /// &lt;/remarks&gt;
+    /// &lt;param name="olderThan"&gt;Cutoff timestamp; instances completed at or before this are eligible.&lt;/param&gt;
+    /// &lt;param name="statuses"&gt;Terminal statuses to include (typically Completed, Faulted, Cancelled).&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task ArchiveAsync(
+        DateTimeOffset olderThan,
+        IReadOnlyList&lt;ExecStatus&gt; statuses,
+        CancellationToken ct = default)
+        =&gt; throw new NotSupportedException(
+            $"{GetType().Name} does not implement ArchiveAsync. Implement it with a native " +
+            "bulk-delete filtered by completion time before enabling UseRetentionPolicy().");
+
+    /// &lt;summary&gt;
+    /// Streams instances matching &lt;paramref name="filter"/&gt; as an async sequence, yielding pages
+    /// lazily to avoid loading the entire result set into memory at once.
+    /// Implementations should override this with a native cursor or server-side streaming query
+    /// (e.g. Cosmos SDK iterator, EF Core &lt;c&gt;AsAsyncEnumerable&lt;/c&gt;, Redis &lt;c&gt;KeysAsync&lt;/c&gt;).
+    /// &lt;/summary&gt;
+    /// &lt;param name="filter"&gt;Filter and paging base parameters. &lt;c&gt;Skip&lt;/c&gt; and &lt;c&gt;Take&lt;/c&gt; are
+    /// used as the page-size hint; the stream continues until all matching records are exhausted.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    async IAsyncEnumerable&lt;ExecutionInstance&gt; StreamAsync(
+        ExecutionQuery filter,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var pageSize = filter.Take &gt; 0 ? filter.Take : 100;
+        var skip = filter.Skip;
+        while (true)
+        {
+            var page = await QueryAsync(new ExecutionQuery
+            {
+                TenantId = filter.TenantId,
+                WorkflowId = filter.WorkflowId,
+                WorkflowVersion = filter.WorkflowVersion,
+                CorrelationId = filter.CorrelationId,
+                Status = filter.Status,
+                TagKey = filter.TagKey,
+                TagValue = filter.TagValue,
+                CreatedAfter = filter.CreatedAfter,
+                CreatedBefore = filter.CreatedBefore,
+                UpdatedAfter = filter.UpdatedAfter,
+                ParentInstanceId = filter.ParentInstanceId,
+                IncludeHistory = filter.IncludeHistory,
+                Skip = skip,
+                Take = pageSize,
+            }, ct);
+            foreach (var item in page.Items)
+                yield return item;
+            // Terminate on an empty page as well as on HasMore=false. The empty-page guard is
+            // essential for correctness: a QueryAsync implementation that omits Skip on its result
+            // makes HasMore (= Skip + Items.Count &lt; TotalCount) read true forever, which would
+            // otherwise spin this loop indefinitely once the records are exhausted.
+            if (page.Items.Count == 0 || !page.HasMore) yield break;
+            skip += pageSize;
+        }
+    }
+
+    /// &lt;summary&gt;
+    /// Finds a &lt;see cref="ExecStatus.Suspended"/&gt; instance waiting for &lt;paramref name="eventName"/&gt;
+    /// with the given &lt;paramref name="correlationKey"/&gt;. Used by &lt;c&gt;ResumeAsync&lt;/c&gt;.
+    /// &lt;/summary&gt;
+    /// &lt;param name="eventName"&gt;The event name set on the instance's &lt;see cref="WaitDescriptor"/&gt;.&lt;/param&gt;
+    /// &lt;param name="correlationKey"&gt;The correlation key that uniquely identifies the signal target.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task&lt;ExecutionInstance?&gt; FindBySuspendedEventAsync(
         string eventName,
         string correlationKey,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Find all instances suspended with a deadline at or before the given
-    /// cutoff. Called by the engine's deadline-sweep background service
-    /// (typically runs every 30s).
+    /// Ids of &lt;see cref="ExecStatus.Suspended"/&gt; instances waiting for exactly &lt;paramref name="eventName"/&gt; (ordinal)
+    /// under any correlation key, in ascending id order (the store's order, applied consistently) after
+    /// &lt;paramref name="afterInstanceId"/&gt;, at most &lt;paramref name="batchSize"/&gt;; none for a &lt;paramref name="batchSize"/&gt;
+    /// of 0 or less. Pass the last id of a page as the cursor for the next. The engine uses it to resume every
+    /// instance waiting for a circuit that has just closed. The default implementation scans suspended instances
+    /// through &lt;see cref="StreamAsync"/&gt;; the built-in stores answer it from an index.
     /// &lt;/summary&gt;
+    /// &lt;param name="eventName"&gt;The event name set on the instances' &lt;see cref="WaitDescriptor"/&gt;.&lt;/param&gt;
+    /// &lt;param name="afterInstanceId"&gt;The cursor: only ids after it are returned; &lt;c&gt;null&lt;/c&gt; for the first page.&lt;/param&gt;
+    /// &lt;param name="batchSize"&gt;Maximum number of ids to return.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    async Task&lt;IReadOnlyList&lt;string&gt;&gt; FindSuspendedOnEventAsync(
+        string eventName,
+        string? afterInstanceId,
+        int batchSize,
+        CancellationToken ct = default)
+    {
+        if (batchSize &lt;= 0) return [];
+        // A full scan per page: a store with many suspended instances should override this with an index query.
+        var ids = new SortedSet&lt;string&gt;(StringComparer.Ordinal);
+        await foreach (var instance in StreamAsync(new ExecutionQuery { Status = ExecStatus.Suspended, Take = 200 }, ct))
+            if (string.Equals(instance.PendingWait?.EventName, eventName, StringComparison.Ordinal)
+                &amp;&amp; (afterInstanceId is null || string.CompareOrdinal(instance.InstanceId, afterInstanceId) &gt; 0)
+                &amp;&amp; ids.Add(instance.InstanceId) &amp;&amp; ids.Count &gt; batchSize)
+                ids.Remove(ids.Max!);
+        return [.. ids];
+    }
+
+    /// &lt;summary&gt;
+    /// The status and version of each listed instance that exists, in no particular order. The lease renewal service
+    /// reads these for every running execution on each pass, so the server-backed built-in stores (SQL, Cosmos,
+    /// Redis, Azure Table) answer it without loading full records; the default implementation loads each record.
+    /// &lt;/summary&gt;
+    /// &lt;param name="instanceIds"&gt;The instance ids to read; unknown ids are omitted from the result.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    async Task&lt;IReadOnlyList&lt;ExecutionStatusInfo&gt;&gt; GetStatusesAsync(
+        IReadOnlyCollection&lt;string&gt; instanceIds,
+        CancellationToken ct = default)
+    {
+        var result = new List&lt;ExecutionStatusInfo&gt;(instanceIds.Count);
+        foreach (var id in instanceIds)
+            if (await LoadAsync(id, ct) is { } instance)
+                result.Add(new ExecutionStatusInfo(instance.InstanceId, instance.Status, instance.Version));
+        return result;
+    }
+
+    /// &lt;summary&gt;
+    /// Returns all instances whose &lt;see cref="WaitDescriptor.TimeoutAt"/&gt; is at or before
+    /// &lt;paramref name="cutoff"/&gt;. Used by the sweep service to resume timed-out waits.
+    /// &lt;/summary&gt;
+    /// &lt;param name="cutoff"&gt;The timestamp cutoff; instances with &lt;c&gt;TimeoutAt &amp;lt;= cutoff&lt;/c&gt; are returned.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; FindTimedOutInstancesAsync(
         DateTimeOffset cutoff,
         CancellationToken ct = default);
 
-    // ── Observability Queries ─────────────────────────────────────────────────
+    /// &lt;summary&gt;
+    /// Returns up to &lt;paramref name="batchSize"/&gt; instance IDs that are in
+    /// &lt;see cref="ExecStatus.Queued"/&gt; status. Used by &lt;c&gt;IntakeDrainService&lt;/c&gt; on startup
+    /// to re-hydrate the in-process intake queue with any instances that survived a host restart.
+    /// Durable &lt;c&gt;IIntakeQueue&lt;/c&gt; implementations (SQL, Redis, Service Bus) do not need this
+    /// re-hydration - but it is safe for them to call it as a consistency check.
+    /// &lt;/summary&gt;
+    /// &lt;param name="batchSize"&gt;Maximum number of IDs to return.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task&lt;IReadOnlyList&lt;string&gt;&gt; FindQueuedInstanceIdsAsync(
+        int batchSize = 500,
+        CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Flexible query for the observability layer and admin UI.
-    /// All filter parameters are optional (null = no filter on that field).
-    /// Results are ordered by UpdatedAt descending.
+    /// Queries instances using the supplied filter criteria with pagination support.
     /// &lt;/summary&gt;
+    /// &lt;param name="query"&gt;The filter and paging parameters.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;ExecutionQueryResult&gt; QueryAsync(
         ExecutionQuery query,
         CancellationToken ct = default);
 
-    // ── Child Instance Management ─────────────────────────────────────────────
-
     /// &lt;summary&gt;
-    /// Return all child instances of a given parent.
-    /// Used by loop/parallel nodes to check completion status.
+    /// Returns all child instances spawned by &lt;paramref name="parentInstanceId"/&gt;.
+    /// Used by loop and parallel executors to poll child completion.
     /// &lt;/summary&gt;
+    /// &lt;param name="parentInstanceId"&gt;The parent workflow execution instance ID.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; GetChildrenAsync(
         string parentInstanceId,
         CancellationToken ct = default);
 
-    // ── Child signal queue ────────────────────────────────────────────────────
-
     /// &lt;summary&gt;
-    /// Enqueue a child-completion signal for a parent instance that is
-    /// currently claimed by another server and cannot be resumed directly.
-    ///
-    /// Called by ChildSignalHandler when TryAcquireAsync on the parent fails.
-    /// The parent's next load cycle (or the sweep service) will call
-    /// DequeueChildSignalsAsync to process pending signals.
-    ///
-    /// Implementations must store signals durably alongside the instance
-    /// so they survive process restarts.
+    /// Enqueues a &lt;see cref="ChildSignal"/&gt; for the parent to process on its next execution cycle.
+    /// Used when the parent's lock is held by another node and direct resumption is not possible.
     /// &lt;/summary&gt;
+    /// &lt;param name="parentInstanceId"&gt;The parent workflow execution instance ID.&lt;/param&gt;
+    /// &lt;param name="signal"&gt;The child completion signal to enqueue.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task EnqueueChildSignalAsync(
-        string      parentInstanceId,
+        string parentInstanceId,
         ChildSignal signal,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Retrieve and atomically remove all pending child signals for a
-    /// parent instance. Called by the engine immediately after loading
-    /// a parent instance, before executing the next node.
-    ///
-    /// Returns an empty list if no signals are pending — never null.
+    /// Ids of instances that may have queued child signals (an id whose queue was just drained may still appear),
+    /// in ascending id order (the store's order, applied consistently) after &lt;paramref name="afterInstanceId"/&gt;, at
+    /// most &lt;paramref name="batchSize"/&gt;; none for a &lt;paramref name="batchSize"/&gt; of 0 or less. Pass the last id of a
+    /// page as the cursor for the next. The sweep uses it to resume a parent whose child finished while nothing could resume it
+    /// (the parent's lease was held, or the host was stopping): a queued signal is otherwise only read when the
+    /// parent next runs.
     /// &lt;/summary&gt;
+    /// &lt;param name="afterInstanceId"&gt;The cursor: only ids after it are returned; &lt;c&gt;null&lt;/c&gt; for the first page.&lt;/param&gt;
+    /// &lt;param name="batchSize"&gt;Maximum number of ids to return.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task&lt;IReadOnlyList&lt;string&gt;&gt; FindInstancesWithChildSignalsAsync(
+        string? afterInstanceId,
+        int batchSize,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Atomically dequeues all pending child signals for &lt;paramref name="parentInstanceId"/&gt;.
+    /// Called at the start of each execution cycle to drain accumulated signals.
+    /// &lt;/summary&gt;
+    /// &lt;param name="parentInstanceId"&gt;The parent workflow execution instance ID.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; DequeueChildSignalsAsync(
         string parentInstanceId,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// The pending child signals, left queued (the engine reads them to decide whether a suspended
-    /// parent should run; the run drains them). The default implementation dequeues and re-enqueues;
-    /// override it with a non-destructive read.
+    /// The pending child signals for &lt;paramref name="parentInstanceId"/&gt;, left queued. The engine reads them to
+    /// decide whether a suspended parent should run (the run drains them on entry), so a process stopping in
+    /// between loses none. The default implementation dequeues and re-enqueues them, which loses the signals of a
+    /// process stopping between the two; the built-in stores read without removing.
     /// &lt;/summary&gt;
-    Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; PeekChildSignalsAsync(
+    /// &lt;param name="parentInstanceId"&gt;The parent workflow execution instance ID.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    async Task&lt;IReadOnlyList&lt;ChildSignal&gt;&gt; PeekChildSignalsAsync(
         string parentInstanceId,
-        CancellationToken ct = default);
-
-    /// &lt;summary&gt;
-    /// Ids of instances with queued child signals, in ascending id order after the cursor
-    /// (null for the first page). The sweep pages through them across passes.
-    /// &lt;/summary&gt;
-    Task&lt;IReadOnlyList&lt;string&gt;&gt; FindInstancesWithChildSignalsAsync(
-        string? afterInstanceId,
-        int batchSize,
-        CancellationToken ct = default);
+        CancellationToken ct = default)
+    {
+        var signals = await DequeueChildSignalsAsync(parentInstanceId, ct);
+        foreach (var signal in signals)
+            await EnqueueChildSignalAsync(parentInstanceId, signal, CancellationToken.None);
+        return signals;
+    }
 }
 
-// ── Child signal ──────────────────────────────────────────────────────────────
+// Source: EF.FlowEngine/Model/ChildSignal.cs
 
 /// &lt;summary&gt;
-/// Carries the result of a child instance (loop item, sub-workflow,
-/// parallel branch) to its parent. Enqueued when the parent is claimed
-/// by another server; dequeued by the parent on its next execution cycle.
+/// Carries terminal-state information from a child workflow instance to its parent.
+/// Enqueued by &lt;see cref="IExecutionStateStore.EnqueueChildSignalAsync"/&gt; when the child
+/// completes, faults, or is cancelled; dequeued by the parent's execution loop.
 /// &lt;/summary&gt;
 public sealed class ChildSignal
 {
-    /// &lt;summary&gt;
-    /// The node ID in the parent workflow that spawned this child and
-    /// is waiting for its completion.
-    /// &lt;/summary&gt;
-    public string         ParentNodeId      { get; init; }
+    /// &lt;summary&gt;The node ID in the parent workflow that spawned the child instance.&lt;/summary&gt;
+    public string ParentNodeId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;The InstanceId of the child that completed.&lt;/summary&gt;
-    public string         ChildInstanceId   { get; init; }
+    /// &lt;summary&gt;The ID of the child instance that reached a terminal state.&lt;/summary&gt;
+    public string ChildInstanceId { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;Terminal status the child reached.&lt;/summary&gt;
-    public ExecStatus     ChildStatus       { get; init; }
+    /// &lt;summary&gt;The terminal status the child reached (Completed, Faulted, Cancelled, etc.).&lt;/summary&gt;
+    public ExecStatus ChildStatus { get; init; }
 
-    /// &lt;summary&gt;
-    /// The output produced by the child's terminal Output node.
-    /// Null if the child faulted or was cancelled without producing output.
-    /// &lt;/summary&gt;
-    public ContextValue?  ChildOutput       { get; init; }
+    /// &lt;summary&gt;The output produced by the child instance, or &lt;c&gt;null&lt;/c&gt; if none.&lt;/summary&gt;
+    public ContextValue? ChildOutput { get; init; }
 
-    public DateTimeOffset OccurredAt        { get; init; }
+    /// &lt;summary&gt;The UTC timestamp when the child reached its terminal state.&lt;/summary&gt;
+    public DateTimeOffset OccurredAt { get; init; }
 }
 
-// ── Query model ───────────────────────────────────────────────────────────────
+// Source: EF.FlowEngine/Model/ExecutionQuery.cs
 
+/// &lt;summary&gt;Filter and pagination criteria for querying workflow execution instances.&lt;/summary&gt;
 public sealed class ExecutionQuery
 {
-    public string?       WorkflowId     { get; init; }
-    public string?       CorrelationId  { get; init; }
-    public ExecStatus?   Status         { get; init; }
-    public string?       TagKey         { get; init; }   // filter by tag presence
-    public string?       TagValue       { get; init; }   // filter by tag value (requires TagKey)
+    /// &lt;summary&gt;Filter by tenant ID. &lt;c&gt;null&lt;/c&gt; = all tenants.&lt;/summary&gt;
+    public string? TenantId { get; init; }
+
+    /// &lt;summary&gt;Filter by workflow ID. &lt;c&gt;null&lt;/c&gt; = all workflows.&lt;/summary&gt;
+    public string? WorkflowId { get; init; }
+
+    /// &lt;summary&gt;Filter by the exact workflow definition version pinned on the instance. &lt;c&gt;null&lt;/c&gt; = any version.&lt;/summary&gt;
+    public string? WorkflowVersion { get; init; }
+
+    /// &lt;summary&gt;Filter by external correlation ID.&lt;/summary&gt;
+    public string? CorrelationId { get; init; }
+
+    /// &lt;summary&gt;Filter by execution status (e.g. &lt;see cref="ExecStatus.Suspended"/&gt;).&lt;/summary&gt;
+    public ExecStatus? Status { get; init; }
+
+    /// &lt;summary&gt;Filter by tag key; must be combined with &lt;see cref="TagValue"/&gt; for an exact tag match.&lt;/summary&gt;
+    public string? TagKey { get; init; }
+
+    /// &lt;summary&gt;Tag value to match when &lt;see cref="TagKey"/&gt; is also set.&lt;/summary&gt;
+    public string? TagValue { get; init; }
+
+    /// &lt;summary&gt;Return only instances created after this timestamp.&lt;/summary&gt;
     public DateTimeOffset? CreatedAfter { get; init; }
-    public DateTimeOffset? CreatedBefore{ get; init; }
+
+    /// &lt;summary&gt;Return only instances created before this timestamp.&lt;/summary&gt;
+    public DateTimeOffset? CreatedBefore { get; init; }
+
+    /// &lt;summary&gt;Return only instances updated after this timestamp.&lt;/summary&gt;
     public DateTimeOffset? UpdatedAfter { get; init; }
-    public string?       ParentInstanceId { get; init; }
 
-    // Pagination
-    public int  Skip  { get; init; } = 0;
-    public int  Take  { get; init; } = 50;    // max 500
+    /// &lt;summary&gt;Filter by parent instance ID. Returns child instances only.&lt;/summary&gt;
+    public string? ParentInstanceId { get; init; }
 
-    // Optional: include full History in results (expensive — default false)
+    /// &lt;summary&gt;Number of records to skip for pagination. Default: 0.&lt;/summary&gt;
+    public int Skip { get; init; } = 0;
+
+    /// &lt;summary&gt;Maximum number of records to return. Default: 50.&lt;/summary&gt;
+    public int Take { get; init; } = 50;
+
+    /// &lt;summary&gt;
+    /// When &lt;c&gt;true&lt;/c&gt;, the &lt;see cref="ExecutionInstance.History"/&gt; collection is populated
+    /// in the result items. Omitting it reduces payload size for list views.
+    /// &lt;/summary&gt;
     public bool IncludeHistory { get; init; } = false;
 }
 
+/// &lt;summary&gt;Paged result returned by &lt;see cref="IExecutionStateStore.QueryAsync"/&gt;.&lt;/summary&gt;
 public sealed class ExecutionQueryResult
 {
-    public IReadOnlyList&lt;ExecutionInstance&gt; Items      { get; init; }
-    public int                              TotalCount { get; init; }
-    public bool                             HasMore    =&gt; Skip + Items.Count &lt; TotalCount;
-    public int                              Skip       { get; init; }
-    public int                              Take       { get; init; }
+    /// &lt;summary&gt;The matching execution instances for the current page.&lt;/summary&gt;
+    public IReadOnlyList&lt;ExecutionInstance&gt; Items { get; init; } = [];
+
+    /// &lt;summary&gt;Total count of matching instances across all pages.&lt;/summary&gt;
+    public int TotalCount { get; init; }
+
+    /// &lt;summary&gt;The skip offset used for this page.&lt;/summary&gt;
+    public int Skip { get; init; }
+
+    /// &lt;summary&gt;The take (page size) used for this page.&lt;/summary&gt;
+    public int Take { get; init; }
+
+    /// &lt;summary&gt;&lt;c&gt;true&lt;/c&gt; when additional pages are available.&lt;/summary&gt;
+    public bool HasMore =&gt; Skip + Items.Count &lt; TotalCount;
 }
 </code></pre>
 <hr />
 <h2>12. IHumanTaskStore</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Separate store for HumanTask records. Decoupled from the execution
-/// state store so human task UIs can query tasks independently without
-/// loading full execution instances.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Abstractions/IHumanTaskStore.cs
+
+/// &lt;summary&gt;
+/// Persists and retrieves &lt;see cref="HumanTask"/&gt; records created by the human node executor.
+/// Implement this interface to store human-in-the-loop tasks in a relational database,
+/// Azure Table Storage, or any other durable store.
+/// The built-in &lt;c&gt;InMemoryHumanTaskStore&lt;/c&gt; is suitable for testing only.
 /// &lt;/summary&gt;
 public interface IHumanTaskStore
 {
-    Task&lt;HumanTask?&gt;              LoadAsync(string taskId, CancellationToken ct = default);
-    Task                          SaveAsync(HumanTask task, CancellationToken ct = default);
+    /// &lt;summary&gt;Loads a human task by its unique identifier. Returns &lt;c&gt;null&lt;/c&gt; when not found.&lt;/summary&gt;
+    /// &lt;param name="taskId"&gt;The unique task ID assigned when the task was created.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task&lt;HumanTask?&gt; LoadAsync(string taskId, CancellationToken ct = default);
 
-    /// &lt;summary&gt;Find open tasks assigned to a specific user or role.&lt;/summary&gt;
+    /// &lt;summary&gt;Persists the current state of a human task (creates or updates).&lt;/summary&gt;
+    /// &lt;param name="task"&gt;The task to persist.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task SaveAsync(HumanTask task, CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Returns all tasks assigned to &lt;paramref name="assignee"/&gt;, optionally filtered by status.
+    /// Used by task-list UIs.
+    /// &lt;/summary&gt;
+    /// &lt;param name="assignee"&gt;The assignee identifier (user, group, or role).&lt;/param&gt;
+    /// &lt;param name="status"&gt;When specified, only tasks in this status are returned.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetAssignedToAsync(
-        string assignee,                       // &quot;user:x&quot; or &quot;role:y&quot;
+        string assignee,
         HumanTaskStatus? status = null,
         CancellationToken ct = default);
 
-    /// &lt;summary&gt;
-    /// Find all open tasks for a given instance.
-    /// Used when cancelling an instance to close its open tasks.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Returns all tasks created for the specified workflow execution instance.&lt;/summary&gt;
+    /// &lt;param name="instanceId"&gt;The workflow execution instance ID.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetByInstanceAsync(
         string instanceId,
         CancellationToken ct = default);
 
-    /// &lt;summary&gt;Find tasks past their DueAt that have not been completed.&lt;/summary&gt;
+    /// &lt;summary&gt;
+    /// Returns tasks whose &lt;see cref="HumanTask.DueAt"/&gt; is at or before &lt;paramref name="cutoff"/&gt;.
+    /// Used by escalation services.
+    /// &lt;/summary&gt;
+    /// &lt;param name="cutoff"&gt;The timestamp; tasks due at or before this time are returned.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; FindOverdueAsync(
         DateTimeOffset cutoff,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Submit a human response and resume the associated execution instance.
-    /// This is the primary entry point for both Internal (task queue UI) and
-    /// External (tokenized response link) channel completions.
-    ///
-    /// Implementation must:
-    ///   1. Load the HumanTask by taskId
-    ///   2. If channel = External, validate responseToken matches
-    ///      HumanTaskResponse.ResponseToken; throw UnauthorizedAccessException if not
-    ///   3. Validate formValues against HumanTask.FormSchema; throw
-    ///      ValidationException if schema fails
-    ///   4. Append a HumanTaskResponse to HumanTask.Responses
-    ///   5. If Responses.Count &gt;= HumanTask.Quorum:
-    ///        a. Set HumanTask.Status = Completed, HumanTask.CompletedAt = UtcNow
-    ///        b. Write the submitted form values to $.context._humanTaskResponse
-    ///           on the ExecutionInstance (merge all quorum responses if Quorum &gt; 1)
-    ///        c. Call engine.ResumeByInstanceIdAsync(HumanTask.InstanceId, ...)
-    ///           to re-enter the execution loop
-    ///   6. If Responses.Count &lt; HumanTask.Quorum:
-    ///        a. Save the partial response; do NOT resume yet
-    ///   7. SaveAsync the updated HumanTask
-    ///
-    /// Must be idempotent per (taskId, respondedBy) — duplicate submissions
-    /// from the same respondent are ignored.
+    /// Records a response to the task, optionally validates a response token, checks
+    /// form schema required fields, and advances quorum counting.
+    /// Resumes the parent workflow instance synchronously once the quorum threshold is reached -
+    /// the caller blocks until the workflow reaches its next suspension point or terminal state.
     /// &lt;/summary&gt;
+    /// &lt;param name="taskId"&gt;The unique task ID.&lt;/param&gt;
+    /// &lt;param name="responseToken"&gt;Optional secure token (for external/email channels) to prevent replay.&lt;/param&gt;
+    /// &lt;param name="formValues"&gt;The form values submitted by the assignee.&lt;/param&gt;
+    /// &lt;param name="respondedBy"&gt;The identifier of the user submitting the response.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;exception cref="UnauthorizedAccessException"&gt;
+    /// An External-channel task and the response token is missing or does not match the issued one (checked first,
+    /// so a cancelled External task also answers a bad token this way).
+    /// &lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.HumanTaskClosedException"&gt;
+    /// The task is cancelled (its instance timed out, was cancelled, or left the wait): nothing waits for it any more.
+    /// &lt;/exception&gt;
     Task&lt;HumanTask&gt; SubmitResponseAsync(
-        string        taskId,
-        string?       responseToken,   // null for Internal channel
-        JsonElement   formValues,
-        string        respondedBy,     // &quot;user:alice@company.com&quot;
+        string taskId,
+        string? responseToken,
+        JsonElement formValues,
+        string respondedBy,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Generate a secure one-time response token for External channel tasks.
-    /// The token is stored on HumanTaskResponse.ResponseToken and included
-    /// in the notification link. Validated in SubmitResponseAsync.
+    /// Records a response to the task, optionally validates a response token, checks
+    /// form schema required fields, and advances quorum counting.
+    /// When quorum is reached, resumes the parent workflow on the thread pool and returns
+    /// immediately with &lt;see cref="HumanTaskStatus.Completed"/&gt; - the caller does not wait
+    /// for subsequent workflow execution. Use this overload from HTTP handlers where
+    /// response latency matters.
     /// &lt;/summary&gt;
+    /// &lt;param name="taskId"&gt;The unique task ID.&lt;/param&gt;
+    /// &lt;param name="responseToken"&gt;Optional secure token (for external/email channels) to prevent replay.&lt;/param&gt;
+    /// &lt;param name="formValues"&gt;The form values submitted by the assignee.&lt;/param&gt;
+    /// &lt;param name="respondedBy"&gt;The identifier of the user submitting the response.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;exception cref="UnauthorizedAccessException"&gt;
+    /// An External-channel task and the response token is missing or does not match the issued one (checked first,
+    /// so a cancelled External task also answers a bad token this way).
+    /// &lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.HumanTaskClosedException"&gt;
+    /// The task is cancelled (its instance timed out, was cancelled, or left the wait): nothing waits for it any more.
+    /// &lt;/exception&gt;
+    Task&lt;HumanTask&gt; SubmitResponseBackgroundAsync(
+        string taskId,
+        string? responseToken,
+        JsonElement formValues,
+        string respondedBy,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Generates a one-time secure response token for external channel tasks
+    /// (e.g. embedded in an email approval link).
+    /// &lt;/summary&gt;
+    /// &lt;param name="taskId"&gt;The task for which a token is generated.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;returns&gt;A URL-safe token string that must be supplied to &lt;see cref="SubmitResponseAsync"/&gt;.&lt;/returns&gt;
     Task&lt;string&gt; GenerateResponseTokenAsync(
         string taskId,
         CancellationToken ct = default);
@@ -1232,74 +1692,102 @@ public interface IFlowEngineClient : IFlowClient
 </code></pre>
 <hr />
 <h2>14. IClientRegistry</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Registry of all named IFlowClient instances.
-/// Populated at startup via FlowEngineBuilder.AddClient().
-/// Resolved by node executors at execution time.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Abstractions/IClientRegistry.cs
+
+/// &lt;summary&gt;
+/// Provides access to named external clients registered with the FlowEngine.
+/// Clients are looked up by their &lt;see cref="IFlowClient.ClientRef"/&gt; string and
+/// must be registered via &lt;c&gt;FlowEngineBuilder.AddClient&lt;/c&gt; at startup.
 /// &lt;/summary&gt;
 public interface IClientRegistry
 {
-    /// &lt;summary&gt;
-    /// Retrieve a client by ref. Returns null if not registered.
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;Returns the client registered under &lt;paramref name="clientRef"/&gt;, or &lt;c&gt;null&lt;/c&gt; if not found.&lt;/summary&gt;
+    /// &lt;param name="clientRef"&gt;The unique client reference name used during registration.&lt;/param&gt;
     IFlowClient? Get(string clientRef);
 
     /// &lt;summary&gt;
-    /// Retrieve a client by ref and cast to a capability interface.
-    /// Returns null if not registered or does not implement T.
+    /// Returns the client registered under &lt;paramref name="clientRef"/&gt; cast to &lt;typeparamref name="T"/&gt;,
+    /// or &lt;c&gt;null&lt;/c&gt; if not found or the client does not implement &lt;typeparamref name="T"/&gt;.
     /// &lt;/summary&gt;
+    /// &lt;typeparam name="T"&gt;The specific client interface to cast to (e.g. &lt;see cref="IRequestResponseClient"/&gt;).&lt;/typeparam&gt;
+    /// &lt;param name="clientRef"&gt;The unique client reference name used during registration.&lt;/param&gt;
     T? GetAs&lt;T&gt;(string clientRef) where T : class, IFlowClient;
 
-    /// &lt;summary&gt;
-    /// All registered clients (every registered IFlowClient, not only HTTP ones).
-    /// Get(clientRef) is the lookup used by executors and by save-time clientRef
-    /// validation (WorkflowDefinitionValidator.ValidateClients).
-    /// &lt;/summary&gt;
+    /// &lt;summary&gt;All registered clients in registration order.&lt;/summary&gt;
     IReadOnlyList&lt;IFlowClient&gt; All { get; }
+
+    /// &lt;summary&gt;Registers or replaces the client identified by &lt;see cref="IFlowClient.ClientRef"/&gt;.&lt;/summary&gt;
+    void Register(IFlowClient client);
 }
 
-/// &lt;summary&gt;Default implementation — ConcurrentDictionary keyed by ClientRef.&lt;/summary&gt;
-public sealed class ClientRegistry : IClientRegistry
-{
-    private readonly ConcurrentDictionary&lt;string, IFlowClient&gt; _clients = new();
-
-    public void Register(IFlowClient client)
-        =&gt; _clients[client.ClientRef] = client;
-
-    public IFlowClient? Get(string clientRef)
-        =&gt; _clients.GetValueOrDefault(clientRef);
-
-    public T? GetAs&lt;T&gt;(string clientRef) where T : class, IFlowClient
-        =&gt; _clients.GetValueOrDefault(clientRef) as T;
-
-    public IReadOnlyList&lt;IFlowClient&gt; All
-        =&gt; _clients.Values.ToList();
-}
+// Default implementation: EF.FlowEngine/Impl/ClientRegistry.cs (thread-safe; wraps clients that declare
+// ConcurrencyLimit or RateLimit in ThrottledClientWrapper).
 </code></pre>
 <hr />
 <h2>15. Client request/response types</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">// ── IRequestResponseClient ────────────────────────────────────────────────────
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Clients/ClientRequest.cs
 
+/// &lt;summary&gt;An HTTP-style request passed to &lt;see cref="IRequestResponseClient.ExecuteAsync"/&gt;.&lt;/summary&gt;
 public sealed class ClientRequest
 {
-    /// &lt;summary&gt;HTTP method or operation name. Default &quot;GET&quot;.&lt;/summary&gt;
-    public string   Method      { get; init; } = &quot;GET&quot;;
-    /// &lt;summary&gt;URL or path. Supports {{$.context.x}} interpolation.&lt;/summary&gt;
-    public string   Url         { get; init; }
-    public JsonElement? Body    { get; init; }
+    /// &lt;summary&gt;HTTP method (e.g. &lt;c&gt;"GET"&lt;/c&gt;, &lt;c&gt;"POST"&lt;/c&gt;). Default: &lt;c&gt;"GET"&lt;/c&gt;.&lt;/summary&gt;
+    public string Method { get; init; } = "GET";
+
+    /// &lt;summary&gt;The target URL.&lt;/summary&gt;
+    public string Url { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;Optional JSON request body. Ignored when &lt;see cref="BodyStream"/&gt; is set.&lt;/summary&gt;
+    public JsonElement? Body { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional raw binary request body stream. When set, &lt;see cref="Body"/&gt; is ignored.
+    /// The caller is responsible for disposing after the request completes.
+    /// &lt;/summary&gt;
+    public Stream? BodyStream { get; init; }
+
+    /// &lt;summary&gt;
+    /// MIME content type for &lt;see cref="BodyStream"/&gt;.
+    /// Defaults to &lt;c&gt;application/octet-stream&lt;/c&gt; when &lt;see cref="BodyStream"/&gt; is set and this is null.
+    /// &lt;/summary&gt;
+    public string? ContentType { get; init; }
+
+    /// &lt;summary&gt;Optional HTTP headers to merge with the client's default headers.&lt;/summary&gt;
     public Dictionary&lt;string, string&gt;? Headers { get; init; }
-    public string?  IdempotencyKey { get; init; }
-    public int      TimeoutMs   { get; init; } = 10_000;
+
+    /// &lt;summary&gt;
+    /// Optional idempotency key forwarded to the client for safe retry deduplication.
+    /// &lt;/summary&gt;
+    public string? IdempotencyKey { get; init; }
+
+    /// &lt;summary&gt;Maximum milliseconds to wait for a response. Default: 10 000 ms (10 s).&lt;/summary&gt;
+    public int TimeoutMs { get; init; } = 10_000;
 }
 
+/// &lt;summary&gt;The response returned by &lt;see cref="IRequestResponseClient.ExecuteAsync"/&gt;.&lt;/summary&gt;
 public sealed class ClientResponse
 {
-    public int         StatusCode  { get; init; }
-    public bool        IsSuccess   =&gt; StatusCode &gt;= 200 &amp;&amp; StatusCode &lt; 300;
-    public JsonElement Body        { get; init; }
+    /// &lt;summary&gt;HTTP status code returned by the remote service.&lt;/summary&gt;
+    public int StatusCode { get; init; }
+
+    /// &lt;summary&gt;&lt;c&gt;true&lt;/c&gt; when the status code is in the 2xx range.&lt;/summary&gt;
+    public bool IsSuccess =&gt; StatusCode &gt;= 200 &amp;&amp; StatusCode &lt; 300;
+
+    /// &lt;summary&gt;The JSON response body, or an empty element when &lt;see cref="BodyStream"/&gt; is set.&lt;/summary&gt;
+    public JsonElement Body { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional raw binary response body stream. Set by implementations when the service returns
+    /// binary or large non-JSON content. Callers are responsible for disposing.
+    /// &lt;/summary&gt;
+    public Stream? BodyStream { get; init; }
+
+    /// &lt;summary&gt;Response headers returned by the client.&lt;/summary&gt;
     public Dictionary&lt;string, string&gt;? Headers { get; init; }
+
+    /// &lt;summary&gt;The edge-selection outcome: &lt;c&gt;Match&lt;/c&gt; for 2xx, &lt;c&gt;NoMatch&lt;/c&gt; for 4xx, &lt;c&gt;Error&lt;/c&gt; for failures.&lt;/summary&gt;
     public DecisionOutcome Outcome { get; init; }
 }
+
 
 // ── IQueryClient ──────────────────────────────────────────────────────────────
 
@@ -1446,80 +1934,60 @@ to reserved context keys before re-entering the execution loop.</p>
 <tbody>
 <tr>
 <td><code>$.context._signal</code></td>
-<td>Engine (ResumeAsync)</td>
-<td>Any signal/resume</td>
-<td>Most recent signal payload — overwritten on each resume</td>
+<td>Engine (on resume)</td>
+<td>Any resume carrying a payload</td>
+<td>Most recent signal payload, overwritten on each resume</td>
 </tr>
 <tr>
 <td><code>$.context._signals</code></td>
-<td>Engine (ResumeAsync)</td>
-<td>MinSignalCount &gt; 1</td>
-<td>Append-only array of all received payloads</td>
+<td>Engine (on resume)</td>
+<td>Any resume carrying a payload</td>
+<td>Append-only array with one entry per resume: the payload that resumed the instance. Signals below a wait's <code>MinSignalCount</code> accumulate in <code>PendingWait.ReceivedSignals</code> and are not appended</td>
 </tr>
 <tr>
 <td><code>$.context._humanTaskResponse</code></td>
-<td>HumanNodeExecutor</td>
+<td>Engine (promoted from the store payload)</td>
 <td>Human task quorum reached</td>
-<td>First/only respondent's validated form values</td>
+<td>First respondent's validated form values</td>
 </tr>
 <tr>
 <td><code>$.context._humanTaskResponses</code></td>
-<td>HumanNodeExecutor</td>
-<td>Quorum &gt; 1 only</td>
-<td>Array of all respondents' form values</td>
+<td>Engine (promoted from the store payload)</td>
+<td>Human task quorum reached</td>
+<td>Array of all respondents' form values (also written when Quorum = 1)</td>
 </tr>
 <tr>
 <td><code>$.context._humanTaskConsensus</code></td>
-<td>HumanNodeExecutor</td>
-<td>Quorum &gt; 1 only</td>
-<td><code>"unanimous"</code> | <code>"majority"</code> | <code>"any-denied"</code> | <code>"split"</code></td>
+<td>Engine (promoted from the store payload)</td>
+<td>Human task quorum reached</td>
+<td><code>"unanimous"</code> | <code>"majority"</code> | <code>"any-denied"</code> | <code>"split"</code>; null (<code>NullContextValue</code>) when Quorum = 1</td>
 </tr>
 </tbody>
 </table></div>
 <p><strong>Notes:</strong><br />
-- <code>$.context._signal</code> is overwritten on each <code>ResumeAsync</code> call. For accumulation patterns (<code>MinSignalCount &gt; 1</code>) use <code>$.context._signals</code> which is append-only.<br />
-- <code>$.context._humanTaskResponse</code> is distinct from <code>$.context._signal</code> — it contains the validated form values submitted by the human, not the raw signal payload from the <code>HumanTaskStore</code>.<br />
-- Timer nodes do NOT write signal context keys on resume — the sweep service resumes them directly without a signal payload.<br />
-- <code>$.context._humanTaskConsensus</code> values: <code>"unanimous"</code> (all same decision), <code>"majority"</code> (&gt;50% agree), <code>"any-denied"</code> (at least one denied/rejected), <code>"split"</code> (no clear pattern).</p>
+- The human task store builds the resume payload with <code>HumanTaskContextKeys.BuildSignalPayload(task)</code>: <code>_humanTaskId</code>, <code>_humanTaskResponse</code>, <code>_humanTaskResponses</code>, <code>_humanTaskConsensus</code>. The engine stores the whole payload as <code>_signal</code> (and appends it to <code>_signals</code>), then promotes the three response keys to their own context entries. <code>_humanTaskId</code> is not promoted; the engine uses it to reject a response whose task id differs from <code>PendingHumanTaskId</code>.<br />
+- <code>$.context._signal</code> is overwritten on each resume; <code>$.context._signals</code> gets one entry per resume with a payload (only the threshold-reaching signal; earlier signals of a <code>MinSignalCount</code> wait stay in <code>PendingWait.ReceivedSignals</code>).<br />
+- Timer nodes do NOT write signal context keys on resume: the sweep service resumes them directly without a signal payload.<br />
+- <code>$.context._humanTaskConsensus</code> values: <code>"unanimous"</code> (all responses identical), <code>"majority"</code> (&gt;50% agree), <code>"any-denied"</code> (the majority answer, or with no majority any answer, contains a denial value such as rejected/deny/no/false), <code>"split"</code> (no majority and no denial).</p>
 <p><strong>Usage in edge predicates:</strong></p>
 <pre><code>$.context._signal.amount               ← field from most recent signal payload
-$.context._signals.length              ← how many signals accumulated
+$.context._signals.length              ← how many resumes carried a payload
 $.context._humanTaskResponse.decision  ← human decision (Quorum = 1)
 $.context._humanTaskConsensus          ← &quot;unanimous&quot; | &quot;majority&quot; | &quot;any-denied&quot; | &quot;split&quot;
 </code></pre>
 <p>See <code>HumanTaskContextKeys</code> static class for typed string constants.</p>
 <h2>17. Background Services</h2>
-<p>Two <code>IHostedService</code> implementations registered automatically by <code>services.AddFlowEngine()</code>:</p>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Runs every SweepInterval (default 30s).
-/// Calls IDistributedLockProvider.FindResumableInstanceIdsAsync,
-/// then for each result: TryAcquireAsync → load → resume execution.
-/// Handles: crashed server recovery, wait timeouts, accumulated signals.
-/// &lt;/summary&gt;
-public class ExecutionSweepService : BackgroundService { }
-
-/// &lt;summary&gt;
-/// Background service that renews distributed lock leases for all execution
-/// instances currently active on this process.
-///
-/// Purpose: prevents ExecutionSweepService on other nodes from reclaiming
-/// instances that are still running locally (false "orphaned" detection).
-///
-/// Runs every FlowEngineOptions.LeaseRenewalInterval (default 13s).
-/// LeaseRenewalInterval MUST be less than DefaultLeaseDuration / 2.
-///   Default: 13s &lt; 30s / 2 = 15s ✓
-///
-/// If IDistributedLockProvider.RenewAsync returns false (another node has
-/// taken the claim), the local execution CancellationTokenSource is cancelled
-/// immediately and the instance ID is removed from ActiveExecutions.
-///
-/// No-op when InMemory lock provider is registered (single-process mode).
-/// &lt;/summary&gt;
-public class LeaseRenewalService : BackgroundService { }
-</code></pre>
-<p>Both services are no-ops when the <code>InMemory</code> lock provider is registered<br />
-(single-process embedded mode). They activate automatically in multi-server<br />
-deployments where a real <code>IDistributedLockProvider</code> is registered.</p>
+<p>Hosted services registered by <code>services.AddFlowEngine()</code> (<code>EF.FlowEngine/FlowEngineServiceExtensions.cs</code>):</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Service</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>FlowEngineInitializationService</code></td><td>Startup only: calls <code>IFlowEngineInitializable.EnsureCreatedAsync</code> on every registered provider.</td></tr>
+<tr><td><code>ExecutionSweepService</code></td><td>Every <code>SweepInterval</code> (default 30s, after a random start-up jitter): resumes instances returned by <code>IDistributedLockProvider.FindResumableInstanceIdsAsync</code> for this node's sweep partition (<code>SweepPartitionCount</code>/<code>SweepPartitionIndex</code>), bounded by a resume semaphore; a separate cursor-paged pass resumes parents with queued child signals (<code>FindInstancesWithChildSignalsAsync</code>).</td></tr>
+<tr><td><code>LeaseRenewalService</code></td><td>Every <code>LeaseRenewalInterval</code> (default 13s): renews the leases of local executions (up to 16 in parallel); a failed renewal cancels that execution. One batched <code>GetStatusesAsync</code> read then stops any local execution whose record is already final, so a cancel from another node stops it within about one interval.</td></tr>
+<tr><td><code>FlowEngineShutdownService</code></td><td>On host stop, waits up to <code>MaxShutdownDrainSeconds</code> for in-flight executions to drain; undrained instances are reclaimed by the sweep after their leases expire.</td></tr>
+</tbody>
+</table></div>
+<p>Registered only when configured: <code>InstanceRetentionService</code> (retention policy), <code>IntakeDrainService</code> (intake queue), <code>WorkflowJsonSeedingService</code> (JSON workflow seeding). Source: <code>EF.FlowEngine/Background/</code>. The sweep and lease renewal run with every lock provider, including the InMemory provider.</p>
 <hr />
 <h2>18. INodeExecutor</h2>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
@@ -1585,19 +2053,66 @@ public interface INodeExecutor
         CancellationToken  ct = default);
 }
 
+// Source: EF.FlowEngine/Abstractions/INodeExecutor.cs
+/// &lt;summary&gt;
+/// The result returned by &lt;see cref="INodeExecutor.ExecuteAsync"/&gt;.
+/// Drives edge selection, suspension, retry, and checkpoint behaviour in the engine loop.
+/// &lt;/summary&gt;
 public sealed class NodeResult
 {
-    public DecisionOutcome  Outcome      { get; init; }
-    public ContextValue?    Output       { get; init; }   // written to context if storeAs set
-    public ExecutionError?  Error        { get; init; }
-    public WaitDescriptor?  PendingWait  { get; init; }   // set by wait/human nodes
-    public string?          HumanTaskId  { get; init; }   // set by human nodes
     /// &lt;summary&gt;
-    /// When true, the engine calls SaveWithRetryAsync immediately after this
-    /// node completes, before advancing to the next node. Only the checkpoint
-    /// node executor sets this to true. All other executors leave it false.
+    /// The execution outcome used to select the next outgoing edge.
+    /// Most executors return &lt;see cref="DecisionOutcome.Match"/&gt; on success and
+    /// &lt;see cref="DecisionOutcome.Error"/&gt; on failure.
     /// &lt;/summary&gt;
-    public bool             ForceCheckpoint { get; init; }
+    public DecisionOutcome Outcome { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional output value produced by the node. Stored in the workflow context
+    /// under the &lt;c&gt;StoreAs&lt;/c&gt; key defined in the node definition.
+    /// &lt;/summary&gt;
+    public ContextValue? Output { get; init; }
+
+    /// &lt;summary&gt;Populated when the node encounters an error; logged in node execution history.&lt;/summary&gt;
+    public ExecutionError? Error { get; init; }
+
+    /// &lt;summary&gt;
+    /// When set, the engine suspends the instance until the described event arrives.
+    /// Used by wait, timer, human, and message nodes.
+    /// &lt;/summary&gt;
+    public WaitDescriptor? PendingWait { get; init; }
+
+    /// &lt;summary&gt;When set, the ID of the human task created by a human node executor.&lt;/summary&gt;
+    public string? HumanTaskId { get; init; }
+
+    /// &lt;summary&gt;When &lt;c&gt;true&lt;/c&gt;, the engine forces a mid-loop checkpoint save after this node.&lt;/summary&gt;
+    public bool ForceCheckpoint { get; init; }
+
+    /// &lt;summary&gt;HTTP status code from the remote call, recorded in node execution history for diagnostics.&lt;/summary&gt;
+    public int? HttpStatusCode { get; init; }
+
+    /// &lt;summary&gt;Server-requested minimum retry wait for integration 429/503 responses.&lt;/summary&gt;
+    public TimeSpan? RetryAfter { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional free-form metadata recorded in &lt;see cref="NodeExecutionRecord.Metadata"/&gt;.
+    /// Used by specialised executors (e.g. agent nodes) to store extra observability data
+    /// such as prompt version, model name, or token counts.
+    /// &lt;/summary&gt;
+    public Dictionary&lt;string, string&gt;? Metadata { get; init; }
+
+    /// &lt;summary&gt;
+    /// Outbox entries to be written atomically with the next state save.
+    /// When the state store implements transactional outbox (e.g. &lt;c&gt;SqlExecutionStateStore&lt;/c&gt;
+    /// with a &lt;c&gt;FlowEngineOutboxDbContext&lt;/c&gt;), all entries are committed in the same
+    /// database transaction as the instance row - guaranteeing at-least-once delivery.
+    /// Return entries here rather than calling &lt;see cref="Abstractions.IOutboxStore.EnqueueAsync"/&gt; directly
+    /// to get that transactional guarantee.
+    /// &lt;/summary&gt;
+    public IReadOnlyList&lt;Model.OutboxEntry&gt;? PendingOutboxEntries { get; init; }
+
+    // A loop body failure already retried under the body node's own policy; the loop node must not rerun it.
+    internal bool RetriesExhausted { get; init; }
 }
 
 /// &lt;summary&gt;
@@ -1766,19 +2281,19 @@ private ContextValue ResolveVisit(string path)
 <hr />
 <h2>19. Versioning and concurrency note</h2>
 <p><code>ExecutionInstance.Version</code> is a monotonically increasing <code>long</code> (see the class definition in section 1).
-The state store's <code>SaveAsync</code> must fail with <code>ConcurrencyException</code> if the stored
-version does not match the in-memory version. The engine catches <code>ConcurrencyException</code>,
-reloads the instance, replays the last node result, and retries the save. This prevents
-lost updates in multi-host deployments.</p>
+The state store's save must fail with <code>ConcurrencyException</code> if the stored
+version does not match the in-memory version. The engine's <code>SaveWithRetryAsync</code> catches it, reloads the
+instance and, if the reloaded record is terminal (for example cancelled meanwhile), adopts that terminal state and stops;
+otherwise it copies the fields the execution owns onto the fresh snapshot and saves again.</p>
 <p><strong>Implementation note:</strong> Cosmos and Azure Table stores may additionally use provider-native
 ETags for the conditional write; the <code>Version</code> field is still required and must be
 incremented on every successful save regardless of which mechanism the store uses.</p>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">// State store SaveAsync — required behaviour:
-// 1. Compare instance.Version against persisted version.
-// 2. If mismatch → throw new ConcurrencyException(instance.InstanceId).
-// 3. If match   → write the new state and increment Version.
-// The engine's SaveWithRetryAsync catches ConcurrencyException,
-// reloads, merges, and retries up to 3 times.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// State store save - required behaviour:
+// 1. Compare instance.Version against the persisted version.
+// 2. If mismatch -&gt; throw new ConcurrencyException(instance.InstanceId).
+// 3. If match    -&gt; write the new state and increment Version.
+// SaveWithRetryAsync (EF.FlowEngine/Engine/FlowEngine.cs) makes up to 3 save attempts, reloading between
+// them; it returns false when it adopted a terminal state, and a conflict on the third attempt propagates.
 </code></pre>
 <hr />
 <hr />
@@ -1786,154 +2301,151 @@ incremented on every successful save regardless of which mechanism the store use
 <p>These interfaces complete the pluggability model. Each has a default<br />
 implementation registered automatically by <code>services.AddFlowEngine()</code>.<br />
 All are replaceable via <code>FlowEngineBuilder</code>.</p>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">// ── IWorkflowRegistry ──────────────────────────────────────────────────────────
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Abstractions/IWorkflowRegistry.cs
 
 /// &lt;summary&gt;
-/// Registry of WorkflowDefinition objects. Populated at startup and/or
-/// at runtime. The engine calls GetAsync before every execution start.
+/// Stores and retrieves &lt;see cref="WorkflowDefinition"/&gt; objects.
+/// Implement this interface to persist workflow definitions in a database or blob store.
+/// The built-in &lt;c&gt;InMemoryWorkflowRegistry&lt;/c&gt; is suitable for testing and
+/// single-process scenarios.
 /// &lt;/summary&gt;
 public interface IWorkflowRegistry
 {
     /// &lt;summary&gt;
-    /// Load a definition by ID and optional version constraint.
-    /// Version null = latest Active version.
-    /// Version &quot;2.*&quot; = latest Active 2.x version.
-    /// Version &quot;2.1.0&quot; = exact version.
-    /// Returns null if no matching Active definition found.
+    /// Loads the workflow definition with the given &lt;paramref name="id"/&gt; and optional &lt;paramref name="version"/&gt;.
+    /// When &lt;paramref name="version"/&gt; is &lt;c&gt;null&lt;/c&gt;, returns the newest
+    /// &lt;see cref="DefinitionStatus.Active"/&gt; version; &lt;see cref="DefinitionStatus.Draft"/&gt; and
+    /// &lt;see cref="DefinitionStatus.Archived"/&gt; versions are excluded from this resolution.
+    /// Returns &lt;c&gt;null&lt;/c&gt; when not found.
     /// &lt;/summary&gt;
+    /// &lt;param name="id"&gt;The workflow definition identifier.&lt;/param&gt;
+    /// &lt;param name="version"&gt;Specific version string, or &lt;c&gt;null&lt;/c&gt; to retrieve the latest.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;WorkflowDefinition?&gt; GetAsync(
-        string id, string? version, CancellationToken ct = default);
+        string id,
+        string? version,
+        CancellationToken ct = default);
 
-    /// All provided implementations call WorkflowDefinitionValidator.ValidateAndThrow
-    /// before persisting. Registries registered through FlowEngineBuilder are also
-    /// wrapped to reject any node clientRef not in IClientRegistry. Throws
-    /// WorkflowDefinitionValidationException (Details codes DEFINITION_INVALID,
-    /// CLIENT_NOT_REGISTERED). GetAsync/ListAsync do not validate.
+    /// &lt;summary&gt;
+    /// Persists a new or Draft workflow definition. The registry key is &lt;c&gt;"{Id}@{Version}"&lt;/c&gt;.
+    /// Throws &lt;see cref="Exceptions.WorkflowDefinitionMutationException"/&gt; if the key already exists
+    /// with &lt;see cref="DefinitionStatus.Active"/&gt; or &lt;see cref="DefinitionStatus.Archived"/&gt; status -
+    /// use &lt;see cref="TransitionStatusAsync"/&gt; to move it back to &lt;see cref="DefinitionStatus.Draft"/&gt;
+    /// before editing (note: Archived -&gt; Draft is not permitted; Unarchive to Active first).
+    /// &lt;/summary&gt;
+    /// &lt;param name="definition"&gt;The workflow definition to save.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task SaveAsync(WorkflowDefinition definition, CancellationToken ct = default);
 
+    /// &lt;summary&gt;
+    /// Returns all definitions matching the optional &lt;paramref name="idFilter"/&gt; and
+    /// &lt;paramref name="status"/&gt; filters.
+    /// &lt;/summary&gt;
+    /// &lt;param name="idFilter"&gt;Optional ID prefix or exact ID to filter by.&lt;/param&gt;
+    /// &lt;param name="status"&gt;Optional status filter (e.g. &lt;see cref="DefinitionStatus.Active"/&gt;).&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
         string? idFilter = null,
         DefinitionStatus? status = null,
         CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Transitions the publication status of an existing definition.
+    /// Allowed transitions:
+    /// &lt;list type="bullet"&gt;
+    ///   &lt;item&gt;&lt;see cref="DefinitionStatus.Draft"/&gt; &lt;-&gt; &lt;see cref="DefinitionStatus.Active"/&gt; (Publish / Unpublish)&lt;/item&gt;
+    ///   &lt;item&gt;&lt;see cref="DefinitionStatus.Active"/&gt; -&gt; &lt;see cref="DefinitionStatus.Archived"/&gt; (Archive)&lt;/item&gt;
+    ///   &lt;item&gt;&lt;see cref="DefinitionStatus.Archived"/&gt; -&gt; &lt;see cref="DefinitionStatus.Active"/&gt; (Unarchive)&lt;/item&gt;
+    /// &lt;/list&gt;
+    /// Archiving prevents new instances from being started; any in-flight instances continue normally.
+    /// Throws &lt;see cref="InvalidOperationException"/&gt; for disallowed transitions or missing definitions.
+    /// &lt;/summary&gt;
+    /// &lt;param name="id"&gt;Workflow definition ID.&lt;/param&gt;
+    /// &lt;param name="version"&gt;Exact version string.&lt;/param&gt;
+    /// &lt;param name="newStatus"&gt;Target status.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task TransitionStatusAsync(
+        string id,
+        string version,
+        DefinitionStatus newStatus,
+        CancellationToken ct = default);
+
+    /// &lt;summary&gt;
+    /// Removes a workflow definition from the registry.
+    /// Implementations should only allow deletion of &lt;see cref="DefinitionStatus.Draft"/&gt; definitions.
+    /// For safe deletion of Active definitions (with live-instance guard), use
+    /// &lt;c&gt;IFlowEngine.DeleteWorkflowVersionAsync&lt;/c&gt; instead.
+    /// &lt;/summary&gt;
+    /// &lt;param name="id"&gt;Workflow definition ID.&lt;/param&gt;
+    /// &lt;param name="version"&gt;Exact version string.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task DeleteAsync(
+        string id,
+        string version,
+        CancellationToken ct = default);
 }
 
-// ── WorkflowDefinitionValidator ───────────────────────────────────────────────
 
-/// &lt;summary&gt;
-/// Validates a WorkflowDefinition for structural correctness. Called automatically
-/// by all provided IWorkflowRegistry.SaveAsync implementations before persisting.
-///
-/// Checks: Id/Version non-empty, EntryNodeId exists, GlobalOnFailureNodeId/
-/// GlobalOnDeadlineNodeId exist (when set), all edge NextNodeId targets exist,
-/// all node Types non-empty, MaxVisits &gt; 0, self-loops with default MaxVisits flagged.
-/// &lt;/summary&gt;
+// WorkflowDefinitionValidator (EF.FlowEngine/Definition/WorkflowDefinitionValidator.cs)
+//
+// Structural checks (Validate / ValidateAndThrow): Id and Version required and within the store limits
+// (Id 128, Version 64, node Id 64, clientRef 127, circuit breaker key and node Type 240 UTF-16 units);
+// at least one node; EntryNodeId, GlobalOnFailureNodeId, GlobalOnDeadlineNodeId and edge targets exist;
+// node Type required and not the reserved "migration"; MaxVisits &gt; 0; self-loops with the default MaxVisits
+// flagged; 412 rejected in any RetryOnHttpStatus / retryOnStatusCodes; integration, OutputSchema and
+// ContextRequirements config parsed.
 public static class WorkflowDefinitionValidator
 {
-    /// &lt;summary&gt;Returns all validation errors. Empty list = valid.&lt;/summary&gt;
     public static IReadOnlyList&lt;string&gt; Validate(WorkflowDefinition definition);
-
-    /// &lt;summary&gt;Throws WorkflowDefinitionValidationException if any errors found.&lt;/summary&gt;
     public static void ValidateAndThrow(WorkflowDefinition definition);
-
-    /// &lt;summary&gt;
-    /// One CLIENT_NOT_REGISTERED error per node whose non-blank clientRef (key matched
-    /// case-insensitively) is not provided by clients. Checks every node, including
-    /// untaken branches.
-    /// &lt;/summary&gt;
     public static IReadOnlyList&lt;WorkflowDefinitionError&gt; ValidateClients(
         WorkflowDefinition definition, IClientRegistry clients);
-
-    /// &lt;summary&gt;Structure plus clientRefs; throws with structured Details.&lt;/summary&gt;
     public static void ValidateAndThrow(WorkflowDefinition definition, IClientRegistry clients);
 
-    /// &lt;summary&gt;Non-blocking advisory warnings as messages.&lt;/summary&gt;
+    // Start-time policy: compute nodes when AllowComputeNodes = false, edge 'when' expressions when
+    // AllowWhenExpressions = false.
+    public static IReadOnlyList&lt;string&gt; ValidateSecurityPolicy(
+        WorkflowDefinition definition, FlowEngineOptions options);
+
+    // Non-blocking advisories with stable codes: MESSAGE_IDEMPOTENCY_KEY_MISSING,
+    // AGENT_IDEMPOTENCY_KEY_MISSING, INTEGRATION_IDEMPOTENCY_KEY_MISSING,
+    // UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER.
     public static IReadOnlyList&lt;WorkflowDefinitionWarning&gt; GetWarnings(WorkflowDefinition definition);
+}
+
+// WorkflowDefinitionError codes: DEFINITION_INVALID, CLIENT_NOT_REGISTERED, CLIENT_TYPE_MISMATCH.
+// WorkflowDefinitionValidationException exposes WorkflowId, Version, Errors (messages) and Details
+// (WorkflowDefinitionError list).
+
+// Source: EF.FlowEngine/Definition/DefinitionStatus.cs
+
+/// &lt;summary&gt;Publication status of a &lt;see cref="WorkflowDefinition"/&gt;.&lt;/summary&gt;
+public enum DefinitionStatus
+{
+    /// &lt;summary&gt;Work-in-progress; cannot be started by the engine. May be freely edited and deleted.&lt;/summary&gt;
+    Draft,
 
     /// &lt;summary&gt;
-    /// The same warnings, structured. Codes: MESSAGE_IDEMPOTENCY_KEY_MISSING,
-    /// AGENT_IDEMPOTENCY_KEY_MISSING, INTEGRATION_IDEMPOTENCY_KEY_MISSING,
-    /// UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER. Node config keys are read
-    /// case-insensitively. Assert on Code; Message may change.
+    /// Published and available for new workflow instances.
+    /// An Active definition is immutable - use &lt;see cref="IWorkflowRegistry.TransitionStatusAsync"/&gt;
+    /// to move it back to &lt;see cref="Draft"/&gt; before editing.
     /// &lt;/summary&gt;
-    public static IReadOnlyList&lt;WorkflowDefinitionWarning&gt; GetWarnings(WorkflowDefinition definition);
+    Active,
+
+    /// &lt;summary&gt;
+    /// Retired; no new instances may be started against this definition.
+    /// Any in-flight instances that were already running when the definition was archived
+    /// will continue to completion normally - archiving only gates the creation of new instances.
+    /// An Archived definition is immutable and cannot be deleted.
+    /// Use &lt;see cref="IWorkflowRegistry.TransitionStatusAsync"/&gt; to return it to
+    /// &lt;see cref="Active"/&gt; if re-activation is needed.
+    /// &lt;/summary&gt;
+    Archived
 }
 
-public sealed class WorkflowDefinitionWarning
-{
-    public string  Code    { get; }   // stable code (constants on this type)
-    public string? NodeId  { get; }   // null for a workflow-level warning
-    public string  Message { get; }
-}
-
-public sealed class WorkflowDefinitionError
-{
-    public const string DefinitionInvalid   = &quot;DEFINITION_INVALID&quot;;
-    public const string ClientNotRegistered = &quot;CLIENT_NOT_REGISTERED&quot;;
-
-    public string  Code    { get; }   // stable code (constants above); assert on this
-    public string? NodeId  { get; }   // null for a workflow-level error
-    public string  Message { get; }   // may change
-}
-
-public class WorkflowDefinitionValidationException : Exception
-{
-    public string                WorkflowId { get; }
-    public string                Version    { get; }
-    public IReadOnlyList&lt;string&gt; Errors     { get; }   // messages
-    public IReadOnlyList&lt;WorkflowDefinitionError&gt; Details { get; }   // structural errors use DEFINITION_INVALID
-}
-
-/// <summary>
-/// DefinitionStatus lifecycle:
-///   Draft  — under construction; cannot be started; GetAsync(id, null) excludes Draft.
-///   Active — published; new instances can be started; GetAsync(id, null) returns latest Active.
-///
-/// Transitions: Draft ↔ Active (bidirectional).
-/// Active definitions are immutable — transition back to Draft to edit.
-/// StartAsync throws WorkflowNotActiveException for Draft definitions.
-/// </summary>
-public enum DefinitionStatus { Draft, Active }
-
-/// &lt;summary&gt;Default — ConcurrentDictionary keyed by &quot;id@version&quot;.&lt;/summary&gt;
-public sealed class InMemoryWorkflowRegistry : IWorkflowRegistry
-{
-    private readonly ConcurrentDictionary&lt;string, WorkflowDefinition&gt; _store = new();
-
-    public Task&lt;WorkflowDefinition?&gt; GetAsync(string id, string? version, CancellationToken ct)
-    {
-        if (version != null &amp;&amp; !version.Contains('*'))
-        {
-            _store.TryGetValue($&quot;{id}@{version}&quot;, out var exact);
-            return Task.FromResult(exact);
-        }
-        // Find latest Active version matching constraint
-        var candidates = _store.Values
-            .Where(d =&gt; d.Id == id &amp;&amp; d.Status == DefinitionStatus.Active)
-            .OrderByDescending(d =&gt; d.Version);
-        if (version != null) // wildcard like &quot;2.*&quot;
-        {
-            var prefix = version.Replace(&quot;.*&quot;, &quot;.&quot;);
-            candidates = (IOrderedEnumerable&lt;WorkflowDefinition&gt;)
-                candidates.Where(d =&gt; d.Version.StartsWith(prefix));
-        }
-        return Task.FromResult(candidates.FirstOrDefault());
-    }
-
-    public Task SaveAsync(WorkflowDefinition definition, CancellationToken ct)
-    {
-        _store[$&quot;{definition.Id}@{definition.Version}&quot;] = definition;
-        return Task.CompletedTask;
-    }
-
-    public Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
-        string? idFilter, DefinitionStatus? status, CancellationToken ct)
-    {
-        var q = _store.Values.AsEnumerable();
-        if (idFilter != null) q = q.Where(d =&gt; d.Id == idFilter);
-        if (status   != null) q = q.Where(d =&gt; d.Status == status);
-        return Task.FromResult&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt;(q.ToList());
-    }
-}
+// Default registry: EF.FlowEngine/Impl/InMemoryWorkflowRegistry.cs (thread-safe, lost on restart).
+// SaveAsync validates with WorkflowDefinitionValidator.ValidateAndThrow; it also implements
+// TransitionStatusAsync and DeleteAsync. Exact versions, "1.*" prefixes and latest Active lookups.
 
 // ── INodeExecutorRegistry ──────────────────────────────────────────────────────
 
@@ -2116,57 +2628,51 @@ public sealed class DefaultCredentialStore : ICredentialStore
 
 // ── IDocumentStore ─────────────────────────────────────────────────────────────
 
+// Source: EF.FlowEngine/Abstractions/IDocumentStore.cs
+
 /// &lt;summary&gt;
-/// Stores and retrieves binary documents referenced by DocumentContextValue.
-/// Used by node executors that produce or consume documents (agent nodes,
-/// fetch nodes, human task attachments).
-/// Default implementation uses the local filesystem (dev/test only).
-/// Register a custom implementation for Azure Blob, S3, etc.
+/// Provides binary document storage and retrieval for workflow context values.
+/// Documents (PDFs, images, attachments) are stored by reference and accessed
+/// via &lt;see cref="DocumentContextValue"/&gt; tokens. Implement this interface to
+/// back documents with Azure Blob Storage, S3, or any stream-capable store.
+/// The built-in &lt;c&gt;DefaultDocumentStore&lt;/c&gt; throws &lt;see cref="NotSupportedException"/&gt;.
 /// &lt;/summary&gt;
+/// &lt;remarks&gt;
+/// Every call carries the &lt;see cref="ExecutionInstance.TenantId"/&gt; of the executing instance, so a
+/// multi-tenant store can partition documents by tenant and refuse a reference that belongs to another
+/// tenant. Child workflows inherit their parent's tenant, so a child reads with the same tenant that stored
+/// the document.
+/// &lt;/remarks&gt;
 public interface IDocumentStore
 {
-    /// &lt;summary&gt;Read a document by its StoreRef.&lt;/summary&gt;
-    Task&lt;Stream&gt; OpenReadAsync(string storeRef, CancellationToken ct = default);
+    /// &lt;summary&gt;
+    /// Opens a readable stream for the document identified by &lt;paramref name="storeRef"/&gt;.
+    /// &lt;/summary&gt;
+    /// &lt;param name="storeRef"&gt;The opaque reference returned when the document was stored.&lt;/param&gt;
+    /// &lt;param name="tenantId"&gt;Tenant of the executing instance; &lt;c&gt;null&lt;/c&gt; for a single-tenant deployment.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    Task&lt;Stream&gt; OpenReadAsync(string storeRef, string? tenantId, CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Write a document and return a DocumentContextValue for storage in context.
-    /// Implementations assign an opaque StoreRef (URL, blob path, etc.).
+    /// Stores &lt;paramref name="content"/&gt; and returns a &lt;see cref="DocumentContextValue"/&gt;
+    /// that can be placed in the workflow context for downstream nodes.
     /// &lt;/summary&gt;
+    /// &lt;param name="content"&gt;The document content stream.&lt;/param&gt;
+    /// &lt;param name="fileName"&gt;The original file name (e.g. &lt;c&gt;report.pdf&lt;/c&gt;).&lt;/param&gt;
+    /// &lt;param name="contentType"&gt;MIME type (e.g. &lt;c&gt;application/pdf&lt;/c&gt;).&lt;/param&gt;
+    /// &lt;param name="tenantId"&gt;Tenant of the executing instance; &lt;c&gt;null&lt;/c&gt; for a single-tenant deployment.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;returns&gt;A &lt;see cref="DocumentContextValue"/&gt; token referencing the stored document.&lt;/returns&gt;
     Task&lt;DocumentContextValue&gt; StoreAsync(
-        Stream        content,
-        string        fileName,
-        string        contentType,
+        Stream content,
+        string fileName,
+        string contentType,
+        string? tenantId,
         CancellationToken ct = default);
 }
 
-/// &lt;summary&gt;Default — local filesystem under a configurable base path.&lt;/summary&gt;
-public sealed class LocalFileDocumentStore : IDocumentStore
-{
-    private readonly string _basePath;
-    public LocalFileDocumentStore(string basePath)
-    {
-        _basePath = basePath;
-        Directory.CreateDirectory(basePath);
-    }
-    public Task&lt;Stream&gt; OpenReadAsync(string storeRef, CancellationToken ct)
-        =&gt; Task.FromResult&lt;Stream&gt;(File.OpenRead(Path.Combine(_basePath, storeRef)));
-    public async Task&lt;DocumentContextValue&gt; StoreAsync(
-        Stream content, string fileName, string contentType, CancellationToken ct)
-    {
-        var id   = Guid.NewGuid().ToString(&quot;N&quot;);
-        var path = Path.Combine(_basePath, id);
-        await using var fs = File.Create(path);
-        await content.CopyToAsync(fs, ct);
-        return new DocumentContextValue
-        {
-            StoreRef    = id,
-            FileName    = fileName,
-            ContentType = contentType,
-            SizeBytes   = fs.Length,
-            StoredAt    = DateTimeOffset.UtcNow
-        };
-    }
-}
+// Default: EF.FlowEngine/Impl/DefaultDocumentStore.cs - both methods throw NotSupportedException.
+// Register an implementation (Azure Blob, S3, ...) to use document context values.
 
 // ── IFlowEngineTelemetry ───────────────────────────────────────────────────────
 
@@ -2175,16 +2681,17 @@ public sealed class LocalFileDocumentStore : IDocumentStore
 /// Default implementation logs via ILogger. Register a custom implementation
 /// to emit directly to an OpenTelemetry ActivitySource, Application Insights, etc.
 ///
-/// Standard event names (all begin with &quot;flow.&quot;):
+/// Event names emitted by the engine and executors:
+///   flow.instance.queued       flow.instance.running
 ///   flow.instance.started      flow.instance.resumed
 ///   flow.instance.suspended    flow.instance.completed
 ///   flow.instance.faulted      flow.instance.cancelled
+///   flow.instance.timed_out
 ///   flow.node.started          flow.node.completed
-///   flow.node.faulted          flow.node.retrying
-///   flow.task.created          flow.task.completed
+///   flow.agent.completed
+///   flow.checkpoint.saved
 ///   flow.humantask.response_discarded  (a response the store accepted after the instance left the wait, e.g.
 ///                                       past its deadline; tags nodeId, taskId)
-///   flow.checkpoint.saved
 ///   flow.compensation.incomplete  (a saga step left uncompensated; nodeId is the forward step;
 ///                                  outcome is the compensation's, absent when its node is missing)
 /// &lt;/summary&gt;
@@ -2239,180 +2746,145 @@ they evolve with each node type independently.</p>
 fallback lock provider when the state store's native locking is inconvenient<br />
 or unavailable.</p>
 <hr />
-<h2>SqlWorkflowRegistry — database-backed IWorkflowRegistry</h2>
-<p><code>InMemoryWorkflowRegistry</code> is for dev/test only. Production deployments must<br />
-use a persistent registry so workflow definitions survive restarts and can be<br />
-managed without code changes.</p>
+<h2>SqlWorkflowRegistry - database-backed IWorkflowRegistry</h2>
+<p><code>InMemoryWorkflowRegistry</code> is for dev/test only. Production deployments should
+use a persistent registry so workflow definitions survive restarts.</p>
 <h3>Package</h3>
 <pre><code>dotnet add package EF.FlowEngine.WorkflowRegistry.Sql
 </code></pre>
-<p>Supports SQL Server, PostgreSQL, and SQLite via Entity Framework Core.</p>
-<h3>Schema</h3>
-<pre><span class="lang-tag">sql</span><code class="language-sql">CREATE TABLE workflow_definitions (
-    id          VARCHAR(200)   NOT NULL,   -- workflow Id (e.g. &quot;loan-origination&quot;)
-    version     VARCHAR(50)    NOT NULL,   -- semantic version (e.g. &quot;1.2.0&quot;)
-    status      VARCHAR(20)    NOT NULL,   -- 'Draft' | 'Active'
-    label       VARCHAR(500)   NOT NULL,
-    definition  NVARCHAR(MAX)  NOT NULL,   -- full WorkflowDefinition serialized as JSON
-    created_at  DATETIMEOFFSET NOT NULL,
-    updated_at  DATETIMEOFFSET NOT NULL,
-    created_by  VARCHAR(200)   NULL,
-    CONSTRAINT pk_workflow_definitions PRIMARY KEY (id, version)
-);
-
--- Speeds up GetAsync(id, version: null) — &quot;latest Active for this id&quot;
-CREATE INDEX ix_workflow_definitions_id_status
-    ON workflow_definitions (id, status);
-</code></pre>
-<p>The <code>definition</code> column stores the entire <code>WorkflowDefinition</code> serialized as<br />
-JSON. Do <strong>not</strong> normalize nodes/edges into relational tables — the definition<br />
-is always loaded and saved as a unit.</p>
-<h3>Implementation contract</h3>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class SqlWorkflowRegistry : IWorkflowRegistry
-{
-    // Constructor receives IDbContextFactory&lt;WorkflowRegistryDbContext&gt;
-    // (registered by UseWorkflowRegistry&lt;SqlWorkflowRegistry&gt;).
-
-    public async Task&lt;WorkflowDefinition?&gt; GetAsync(
-        string id, string? version, CancellationToken ct)
-    {
-        // version == null  → latest Active: WHERE id=@id AND status='Active'
-        //                    ORDER BY version_sort_key DESC  LIMIT 1
-        // version == &quot;2.*&quot; → WHERE id=@id AND status='Active'
-        //                    AND version LIKE '2.%'
-        //                    ORDER BY version_sort_key DESC  LIMIT 1
-        // version == exact → WHERE id=@id AND version=@version
-        //                    (any status — pinned in-flight instances use exact)
-    }
-
-    public async Task SaveAsync(WorkflowDefinition definition, CancellationToken ct)
-    {
-        // UPSERT on (id, version).
-        // If a row with this (id, version) exists and status = Active:
-        //   throw WorkflowAlreadyPublishedException
-        //   — published definitions are immutable; bump the version instead.
-        // Draft rows may be overwritten freely.
-        // Sets updated_at = UtcNow on every save.
-    }
-
-    public async Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListAsync(
-        string? idFilter, DefinitionStatus? status, CancellationToken ct)
-    {
-        // Both filters optional. Returns fully deserialized definitions.
-        // Used by management UIs to list all versions for a workflow ID.
-    }
-}
-</code></pre>
-<h3>Semver ordering</h3>
-<p>SQL <code>ORDER BY version DESC</code> is lexicographic and incorrect for semver<br />
-(<code>"1.10.0"</code> sorts before <code>"1.9.0"</code>). Store a computed sort key:</p>
-<pre><span class="lang-tag">sql</span><code class="language-sql">-- Add to schema:
-version_sort_key INT NOT NULL
-    GENERATED ALWAYS AS (
-        CAST(SPLIT_PART(version, '.', 1) AS INT) * 1000000 +
-        CAST(SPLIT_PART(version, '.', 2) AS INT) * 1000    +
-        CAST(SPLIT_PART(version, '.', 3) AS INT)
-    )  -- SQL Server: use a computed column expression equivalent
-</code></pre>
-<p>For portability, computing the sort key in application code before insert is<br />
-also acceptable — there will never be enough versions per workflow ID for<br />
-this to be a performance concern.</p>
+<p>Any EF Core relational provider (SQL Server, PostgreSQL, SQLite). Source: <code>EF.FlowEngine.WorkflowRegistry.Sql/SqlWorkflowRegistry.cs</code>.</p>
+<h3>Storage</h3>
+<p>Definitions live in the consumer's <code>DbContext</code>, which implements <code>IFlowEngineStateDbContext</code> and calls
+<code>modelBuilder.ApplyFlowEngineState()</code> (both in <code>EF.FlowEngine.StateStore.Sql</code>). The table is
+<code>FlowEngineWorkflowRow</code> (<code>EF.FlowEngine.StateStore.Sql/FlowEngineRows.cs</code>): <code>CompositeKey</code>
+(primary key, <code>{id}@{version}</code>, max 256), <code>WorkflowId</code> (max 128), <code>Status</code> (integer
+<code>DefinitionStatus</code>) and <code>Data</code> (the full definition as JSON).</p>
+<h3>Behaviour</h3>
+<ul>
+<li><code>SqlWorkflowRegistry&lt;TContext&gt;</code> takes an <code>IDbContextFactory&lt;TContext&gt;</code>.</li>
+<li><code>GetAsync</code>: an exact version matches <code>CompositeKey</code> in any status; <code>null</code> or a <code>"2.*"</code> prefix loads the Active rows for the id and picks the highest <code>Version</code> string in application code (there is no version sort column).
+<strong>Warning:</strong> the comparison is plain string order (<code>OrderByDescending(d =&gt; d.Version)</code>), not semantic-version order, so <code>"1.9.0"</code> sorts above <code>"1.10.0"</code> and stays the "latest" Active version. Until this is fixed, use versions whose string order matches their release order, for example zero-padded segments (<code>"1.09.0"</code>, <code>"1.10.0"</code>).</li>
+<li><code>SaveAsync</code> validates with <code>WorkflowDefinitionValidator.ValidateAndThrow</code>, inserts or updates the row, and throws <code>WorkflowDefinitionMutationException</code> when the existing row is Active.</li>
+<li><code>TransitionStatusAsync</code> allows Draft &lt;-&gt; Active only and rewrites the status inside the JSON too; <code>DeleteAsync</code> refuses an Active row.</li>
+<li><code>EnsureCreatedAsync</code> (<code>IFlowEngineInitializable</code>) calls <code>Database.EnsureCreatedAsync</code>.</li>
+</ul>
 <h3>Registration</h3>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">services.AddFlowEngine()
-    .UseWorkflowRegistry&lt;SqlWorkflowRegistry&gt;(options =&gt;
-    {
-        options.ConnectionString = config.GetConnectionString(&quot;FlowEngine&quot;);
-        options.Schema           = &quot;flow&quot;;   // optional, defaults to dbo / public
-    });
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">builder.Services.AddFlowEngine()
+    .UseWorkflowRegistrySql&lt;MyDbContext&gt;();   // requires IDbContextFactory&lt;MyDbContext&gt;
 </code></pre>
 <h3>Migrations</h3>
-<p>The package ships EF Core migrations. Apply at deploy time:</p>
-<pre><span class="lang-tag">bash</span><code class="language-bash">dotnet ef database update --project FlowEngine.WorkflowRegistry.Sql
-</code></pre>
-<p>Or call at startup (acceptable for smaller deployments):</p>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">await registryDbContext.Database.MigrateAsync();
-</code></pre>
+<p>The package ships no migrations. Either let <code>EnsureCreatedAsync</code> create the schema at startup, or generate and apply
+migrations in your own project for your <code>DbContext</code>.</p>
 
 <hr />
 <h2>IFlowEngineInitializable</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Optional interface implemented by store and provider types that require
-/// async initialization at startup (e.g. creating Redis keys, ensuring
-/// SQL schema exists). Called by FlowEngineInitializationService before
-/// the engine accepts traffic.
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Abstractions/IFlowEngineInitializable.cs
+
+/// &lt;summary&gt;
+/// Implemented by provider components (state stores, lock providers, workflow registries,
+/// human task stores) that require one-time resource creation before the engine can operate.
+/// &lt;para&gt;
+/// Examples: creating Azure Table Storage tables, creating Cosmos DB containers,
+/// running EF Core database migrations, creating Redis structures.  InMemory providers need
+/// no init and do not implement this interface.
+/// &lt;/para&gt;
+/// &lt;para&gt;
+/// Implementations are picked up automatically by
+/// &lt;see cref="FlowEngineInitializationService"/&gt;, which calls
+/// &lt;see cref="EnsureCreatedAsync"/&gt; on every registered
+/// &lt;see cref="IFlowEngineInitializable"/&gt; during application startup.
+/// &lt;/para&gt;
 /// &lt;/summary&gt;
 public interface IFlowEngineInitializable
 {
-    Task InitializeAsync(CancellationToken ct = default);
+    /// &lt;summary&gt;
+    /// Ensure all required backend resources (tables, containers, schemas) exist.
+    /// The method must be idempotent - calling it when resources already exist must succeed.
+    /// &lt;/summary&gt;
+    Task EnsureCreatedAsync(CancellationToken ct = default);
 }
 </code></pre>
-<p><strong>Providers that implement <code>IFlowEngineInitializable</code>:</strong> <code>RedisExecutionStateStore</code>, <code>RedisDistributedLockProvider</code>, <code>RedisWorkflowRegistry</code>, <code>RedisHumanTaskStore</code> (all Redis providers), and <code>SqlDistributedLockProvider</code>. These implementations use <code>InitializeAsync</code> to create required Redis data structures or SQL schema objects on first startup.</p>
+<p><strong>Providers that implement <code>IFlowEngineInitializable</code></strong> (22 classes): <code>AzureBlobDistributedLockProvider</code>, <code>AzureTableDistributedLockProvider</code>, <code>AzureTableExecutionStateStore</code>, <code>AzureTableHumanTaskStore</code>, <code>AzureTableWorkflowRegistry</code>, <code>CosmosCircuitBreakerStore</code>, <code>CosmosDistributedLockProvider</code>, <code>CosmosExecutionStateStore</code>, <code>CosmosHumanTaskStore</code>, <code>CosmosIntakeQueue</code>, <code>CosmosOutboxStore</code>, <code>CosmosWorkflowRegistry</code>, <code>FileHumanTaskStore</code>, <code>FileWorkflowRegistry</code>, <code>RedisDistributedLockProvider</code>, <code>RedisExecutionStateStore</code>, <code>RedisHumanTaskStore</code>, <code>RedisWorkflowRegistry</code>, <code>SqlDistributedLockProvider</code>, <code>SqlExecutionStateStore</code>, <code>SqlHumanTaskStore</code>, <code>SqlWorkflowRegistry</code>. Each creates its tables, containers, schema or Redis structures in <code>EnsureCreatedAsync</code>.</p>
 
 <hr />
 <h2>New Models (Gap Closure)</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Represents a faulted instance that has been enqueued to the dead-letter store.
-/// Created by the engine after EmitFinalEvent when Status == Faulted and
-/// IDeadLetterStore is registered. Replay via engine.ReplayFromDeadLetterAsync(instanceId).
-/// &lt;/summary&gt;
-public sealed class DeadLetterEntry
-{
-    /// &lt;summary&gt;The faulted instance ID.&lt;/summary&gt;
-    public string         InstanceId      { get; init; }
-
-    /// &lt;summary&gt;Workflow definition ID.&lt;/summary&gt;
-    public string         WorkflowId      { get; init; }
-
-    /// &lt;summary&gt;Pinned version at the time of fault.&lt;/summary&gt;
-    public string         WorkflowVersion { get; init; }
-
-    /// &lt;summary&gt;Human-readable fault reason.&lt;/summary&gt;
-    public string         Reason          { get; init; }
-
-    /// &lt;summary&gt;When the entry was enqueued to the dead-letter store.&lt;/summary&gt;
-    public DateTimeOffset EnqueuedAt      { get; init; }
-
-    /// &lt;summary&gt;The ExecutionError from the instance at enqueue time.&lt;/summary&gt;
-    public ExecutionError? LastError      { get; init; }
-}
+<pre><span class="lang-tag">csharp</span><code class="language-csharp">// Source: EF.FlowEngine/Model/DeadLetterEntry.cs
 
 /// &lt;summary&gt;
-/// Controls how InstanceRetentionService archives terminal instances.
-/// Registered via FlowEngineBuilder.UseRetentionPolicy(policy).
+/// A record in the dead-letter store representing a faulted workflow instance that has
+/// exhausted all retry attempts and requires manual inspection or replay.
+/// &lt;/summary&gt;
+/// &lt;seealso cref="EF.FlowEngine.Abstractions.IDeadLetterStore"/&gt;
+public sealed class DeadLetterEntry
+{
+    /// &lt;summary&gt;The ID of the faulted execution instance.&lt;/summary&gt;
+    public string InstanceId { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;The workflow definition ID the instance was executing.&lt;/summary&gt;
+    public string WorkflowId { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;The workflow version the instance was executing.&lt;/summary&gt;
+    public string WorkflowVersion { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;The tenant the instance belonged to, or &lt;c&gt;null&lt;/c&gt; for single-tenant/unscoped instances.&lt;/summary&gt;
+    public string? TenantId { get; init; }
+
+    /// &lt;summary&gt;Human-readable reason the instance was routed to the dead-letter store.&lt;/summary&gt;
+    public string Reason { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;UTC timestamp when the entry was enqueued.&lt;/summary&gt;
+    public DateTimeOffset EnqueuedAt { get; init; }
+
+    /// &lt;summary&gt;The last error recorded on the instance before it was dead-lettered.&lt;/summary&gt;
+    public ExecutionError? LastError { get; init; }
+}
+
+// Source: EF.FlowEngine/Model/RetentionPolicy.cs
+
+/// &lt;summary&gt;
+/// Configuration for the &lt;c&gt;InstanceRetentionService&lt;/c&gt; background cleanup job.
+/// Instances that have reached a terminal status and whose
+/// &lt;see cref="ExecutionInstance.CompletedAt"/&gt; is older than &lt;see cref="MaxAge"/&gt;
+/// are permanently removed from the state store on each tick.
 /// &lt;/summary&gt;
 public sealed class RetentionPolicy
 {
     /// &lt;summary&gt;
-    /// Retain instances for this duration after reaching a terminal state.
-    /// Instances older than (now - RetainFor) matching Statuses are archived.
+    /// How long to keep terminal instances before they are archived (deleted).
+    /// Default: 90 days.
     /// &lt;/summary&gt;
-    public TimeSpan     RetainFor { get; init; } = TimeSpan.FromDays(90);
+    public TimeSpan MaxAge { get; init; } = TimeSpan.FromDays(90);
 
     /// &lt;summary&gt;
-    /// Which terminal statuses to archive. Defaults to Completed and Cancelled.
-    /// Running and Suspended are never archived regardless of this list.
+    /// Terminal statuses eligible for archival.
+    /// Default: Completed, Faulted, and Cancelled.
     /// &lt;/summary&gt;
-    public ExecStatus[] Statuses  { get; init; } = [ExecStatus.Completed, ExecStatus.Cancelled];
+    public ExecStatus[] Statuses { get; init; } =
+        [ExecStatus.Completed, ExecStatus.Faulted, ExecStatus.Cancelled];
 
-    /// &lt;summary&gt;How often InstanceRetentionService runs. Default: 6 hours.&lt;/summary&gt;
-    public TimeSpan     RunEvery  { get; init; } = TimeSpan.FromHours(6);
+    /// &lt;summary&gt;
+    /// How frequently the retention job runs.
+    /// Default: every 6 hours.
+    /// &lt;/summary&gt;
+    public TimeSpan RunInterval { get; init; } = TimeSpan.FromHours(6);
 }
 
-/// &lt;summary&gt;
-/// Configuration for UseStoreResiliency() — wraps IExecutionStateStore with a
-/// Polly retry pipeline. ConcurrencyException is never retried (it is handled
-/// separately by SaveWithRetryAsync with a reload-and-merge strategy).
-/// &lt;/summary&gt;
+// Source: EF.FlowEngine/Model/StoreResilienceOptions.cs
+
+/// &lt;summary&gt;Configuration for &lt;see cref="EF.FlowEngine.Impl.ResilientExecutionStateStore"/&gt;.&lt;/summary&gt;
 public sealed class StoreResilienceOptions
 {
-    /// &lt;summary&gt;Maximum number of retry attempts on transient store failures. Default: 3.&lt;/summary&gt;
-    public int     MaxRetryAttempts    { get; init; } = 3;
+    /// &lt;summary&gt;Maximum number of retry attempts on transient failures. Default: 3.&lt;/summary&gt;
+    public int MaxRetryAttempts { get; init; } = 3;
 
     /// &lt;summary&gt;Base delay between retry attempts. Default: 500 ms.&lt;/summary&gt;
-    public TimeSpan RetryDelay         { get; init; } = TimeSpan.FromMilliseconds(500);
+    public TimeSpan RetryDelay { get; init; } = TimeSpan.FromMilliseconds(500);
 
-    /// &lt;summary&gt;Number of consecutive failures before the circuit breaker opens. Default: 5.&lt;/summary&gt;
-    public int     CircuitBreakerErrors { get; init; } = 5;
+    /// &lt;summary&gt;
+    /// Number of consecutive errors before the circuit trips.
+    /// Default: 5. Set to 0 to disable the circuit breaker.
+    /// &lt;/summary&gt;
+    public int CircuitBreakerErrors { get; init; } = 5;
 }
 </code></pre>
 </div>

@@ -17,7 +17,7 @@
     <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">☀️</button>
   </div>
   <h1><span>Flow</span>Engine — Workflow Definition Schema</h1>
-  <p class="tagline">Complete class signatures for WorkflowDefinition, NodeDefinition, EdgeDefinition, and all 19 node config types.</p>
+  <p class="tagline">Complete class signatures for WorkflowDefinition, NodeDefinition, EdgeDefinition, and all 18 built-in node config types.</p>
 </div>
 <div class="content">
 <p>This document describes the static blueprint format — the JSON (or C#) definition<br />
@@ -37,13 +37,16 @@ public sealed class WorkflowDefinition
     // ── Identity ──────────────────────────────────────────────────────────────
 
     /// &lt;summary&gt;
-    /// Stable identifier across versions. URL-safe string.
-    /// Examples: &quot;order-fulfillment&quot;, &quot;loan-origination&quot;, &quot;employee-onboarding&quot;
+    /// Stable identifier across versions. Required; at most
+    /// FlowEngine.MaxWorkflowIdLength (128) UTF-16 code units. The format is not
+    /// validated; a URL-safe slug is recommended. Examples: &quot;order-fulfillment&quot;, &quot;loan-origination&quot;, &quot;employee-onboarding&quot;
     /// &lt;/summary&gt;
     public string Id      { get; init; }
 
     /// &lt;summary&gt;
-    /// Semantic version (major.minor.patch). A new version is required for
+    /// Required; at most FlowEngine.MaxWorkflowVersionLength (64) UTF-16 code units.
+    /// The format is not validated; semantic versioning (major.minor.patch) is
+    /// recommended. A new version is required for
     /// any change to node IDs, edge structure, or config that would alter
     /// the behavior of in-flight instances. In-flight instances always
     /// execute against the version they were started on.
@@ -66,7 +69,7 @@ public sealed class WorkflowDefinition
     public string? Intent { get; init; }
 
     /// &lt;summary&gt;Draft | Active. Only Active definitions accept new instances. Transitions: Draft ↔ Active.&lt;/summary&gt;
-    public DefinitionStatus Status { get; init; } = DefinitionStatus.Draft;
+    public DefinitionStatus Status { get; set; } = DefinitionStatus.Draft;
 
     public DateTimeOffset CreatedAt   { get; init; }
     public DateTimeOffset UpdatedAt   { get; init; }
@@ -82,8 +85,8 @@ public sealed class WorkflowDefinition
 
     /// &lt;summary&gt;
     /// All nodes in this workflow, keyed by node ID.
-    /// Node IDs must be unique within the definition.
-    /// At least one node must have no outgoing edges (terminal output node).
+    /// At least one node is required, and each dictionary key must equal its
+    /// node's Id. Terminal nodes are not required by validation.
     /// &lt;/summary&gt;
     public Dictionary&lt;string, NodeDefinition&gt; Nodes { get; init; } = new();
 
@@ -99,6 +102,9 @@ public sealed class WorkflowDefinition
     /// &lt;summary&gt;
     /// Global deadline handler — node ID to execute when the instance-level
     /// Deadline is reached. If null, the instance transitions to TimedOut.
+    /// Also the fallback route for a wait/human/message-reply timeout that has no
+    /// OnTimeoutNodeId, until the handler is first entered (it runs at most once
+    /// per instance).
     /// &lt;/summary&gt;
     public string? GlobalOnDeadlineNodeId { get; init; }
 
@@ -106,8 +112,9 @@ public sealed class WorkflowDefinition
 
     /// &lt;summary&gt;
     /// Default retry policy applied to all async nodes unless overridden
-    /// in the node's own config. Nodes may set retryPolicy: null to
-    /// explicitly disable retries.
+    /// by NodeDefinition.RetryPolicy. A node whose retryPolicy is null falls back
+    /// to this default; set the node's retryPolicy to { &quot;maxAttempts&quot;: 0 }
+    /// to disable retries for that node.
     /// &lt;/summary&gt;
     public RetryPolicy? DefaultRetryPolicy { get; init; }
 
@@ -128,6 +135,8 @@ public sealed class WorkflowDefinition
     /// &lt;summary&gt;
     /// Arbitrary tags inherited by all instances of this workflow at creation.
     /// Instance-specific tags (set at invocation time) are merged over these.
+    /// Keys at most FlowEngine.MaxTagKeyLength (256), values at most
+    /// FlowEngine.MaxTagValueLength (512) UTF-16 code units.
     /// &lt;/summary&gt;
     public Dictionary&lt;string, string&gt; DefaultTags { get; init; } = new();
 
@@ -145,31 +154,45 @@ public sealed class WorkflowDefinition
     /// creating the instance. Optional — if null, any params are accepted.
     /// &lt;/summary&gt;
     public string? ParamsSchema { get; init; }
+
+    /// &lt;summary&gt;
+    /// When true, the engine persists instance state after every node completes
+    /// (not just at wait boundaries or checkpoint nodes), so crash recovery resumes
+    /// from the last completed node at the cost of one extra state store write per
+    /// node. Default: false.
+    /// &lt;/summary&gt;
+    public bool PersistAfterEveryNode { get; init; } = false;
 }
 
 /// <summary>
 /// Lifecycle states for a workflow definition.
 ///   Draft  — under construction; cannot be started; excluded from GetAsync(id, null) results.
 ///   Active — published; new instances can be started; GetAsync(id, null) returns latest Active version.
+///   Archived - retired; no new instances; in-flight instances run to completion; excluded from
+///              GetAsync(id, null); immutable and cannot be deleted.
 ///
-/// Transitions: Draft ↔ Active (bidirectional).
+/// Transitions (RegistryStatusTransitions): Draft &lt;-&gt; Active and Active &lt;-&gt; Archived.
+/// Draft -&gt; Archived and Archived -&gt; Draft are refused.
 /// Active definitions are immutable — transition back to Draft to edit.
-/// Only Active definitions can be started via IFlowEngine.StartAsync.
-/// StartAsync throws WorkflowNotActiveException for Draft definitions.
+/// Only Active definitions can be started via IFlowEngine.StartAsync, unless
+/// StartRequest.AllowDraft is true (dashboard test runs and admin tooling).
+/// Otherwise StartAsync throws WorkflowNotActiveException for Draft definitions.
 /// </summary>
-public enum DefinitionStatus { Draft, Active }
+public enum DefinitionStatus { Draft, Active, Archived }
 </code></pre>
 <hr />
 <h2>2. NodeDefinition</h2>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
 /// A single node in the workflow graph. The Type field determines which
 /// INodeExecutor handles it. Config is the type-specific configuration,
-/// validated by the executor at startup (not at execution time).
+/// validated by WorkflowDefinitionValidator when the definition is saved to
+/// the workflow registry (not at execution time).
 /// &lt;/summary&gt;
 public sealed class NodeDefinition
 {
-    public string  Id    { get; init; }   // unique within the workflow
-    public string  Type  { get; init; }   // matches INodeExecutor.NodeType
+    public string  Id    { get; init; }   // equals its Nodes dictionary key; at most 64 (MaxNodeIdLength)
+    public string  Type  { get; init; }   // required; matches INodeExecutor.NodeType; at most 240;
+                                          // &quot;migration&quot; is reserved for migration history records
     public string  Label { get; init; }   // human-readable
     public string? Description { get; init; }
 
@@ -189,7 +212,9 @@ public sealed class NodeDefinition
     /// into its strongly-typed config class (e.g. FilterNodeConfig,
     /// IntegrationNodeConfig). Keys are read case-insensitively by every
     /// built-in executor, so camelCase JSON binds. Validated at workflow
-    /// registration time.
+    /// registration time: for the 18 built-in node types an unknown or
+    /// misspelled key is a validation error. Custom node types (and the
+    /// built-in checkpoint node, which has no config class) are not key-checked.
     /// &lt;/summary&gt;
     public JsonElement Config { get; init; }
 
@@ -248,7 +273,8 @@ public sealed class NodeDefinition
 
     /// &lt;summary&gt;
     /// Per-node circuit breaker policy. Overrides WorkflowDefinition.DefaultCircuitBreakerPolicy
-    /// when set. null falls back to the workflow default; if that is also null, no circuit
+    /// when set. Key at most FlowEngine.MaxCircuitBreakerKeyLength (240); a policy
+    /// without a Key is keyed by the node Type. null falls back to the workflow default; if that is also null, no circuit
     /// breaker is applied to this node.
     /// &lt;/summary&gt;
     public CircuitBreakerPolicy? CircuitBreakerPolicy { get; init; }
@@ -328,21 +354,29 @@ public sealed class EdgeDefinition
     /// Optional additional predicate evaluated AFTER the outcome matches.
     /// A Roslyn C# boolean expression compiled and cached at runtime.
     ///
-    /// Four globals are in scope — all IReadOnlyDictionary&lt;string, object?&gt;:
-    ///   Context  — mutable workflow context ($.context.*)
-    ///   Entity   — primary entity fields ($.entity.*)
-    ///   Params   — invocation parameters ($.params.*)
-    ///   Engine   — runtime metadata: instanceId, workflowId, currentNodeId,
-    ///              status (string), visits (Dictionary&lt;string, int&gt;), totalVisits
+    /// Four globals are in scope:
+    ///   Context  - IReadOnlyDictionary&lt;string, ContextVal&gt; ($.context.*).
+    ///              ContextVal supports only a string indexer (chained:
+    ///              Context[&quot;a&quot;][&quot;b&quot;]) and ToString(); it has no numeric or
+    ///              bool conversions, so compare strings or parse:
+    ///              int.Parse(Context[&quot;x&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture). A missing key throws
+    ///              KeyNotFoundException; guard with Context.ContainsKey(&quot;x&quot;).
+    ///   Entity   - IReadOnlyDictionary&lt;string, object?&gt; ($.entity.*); values
+    ///              are JsonElement.
+    ///   Params   - IReadOnlyDictionary&lt;string, object?&gt; ($.params.*); values
+    ///              are unwrapped CLR objects (string, bool, int/long/double,
+    ///              Dictionary&lt;string, object?&gt;, List&lt;object?&gt;).
+    ///   Engine   - IReadOnlyDictionary&lt;string, object?&gt;: instanceId, workflowId,
+    ///              currentNodeId, status (string), visits (Dictionary&lt;string, int&gt;),
+    ///              totalVisits (int)
     ///
-    /// Values are unwrapped CLR objects: JSON strings → string, booleans → bool,
-    /// JSON numbers → boxed numeric, objects → JsonElement.
+    /// Imports: System, System.Linq, System.Collections.Generic, System.Text.Json.
     ///
     /// Examples:
-    ///   &quot;Context[&quot;customerTier&quot;]?.ToString() == &quot;VIP&quot;&quot;
-    ///   &quot;(decimal)Context[&quot;riskScore&quot;] &gt; 80&quot;
+    ///   &quot;Context[&quot;customerTier&quot;].ToString() == &quot;VIP&quot;&quot;
+    ///   &quot;int.Parse(Context[&quot;riskScore&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture) &gt; 80&quot;
     ///   &quot;((Dictionary&lt;string,int&gt;)Engine[&quot;visits&quot;]).GetValueOrDefault(&quot;n-review&quot;) &gt;= 3&quot;
-    ///   &quot;Entity[&quot;Amount&quot;] != null&quot;
+    ///   &quot;Entity.ContainsKey(&quot;Amount&quot;)&quot;
     ///
     /// Allows multiple edges with the same outcome to branch on context data
     /// or engine metadata, enabling decision-tree semantics without a
@@ -358,24 +392,29 @@ public sealed class EdgeDefinition
 when the executor runs. Config is validated at workflow registration time,<br />
 not at execution time, so misconfigured workflows fail immediately on deploy.<br />
 Config keys are case-insensitive: every built-in executor uses the same options as the<br />
-definition deserializer, so <code>assignedTo</code>, <code>eventName</code> and <code>workflowId</code> bind like their PascalCase forms.</p>
+definition deserializer, so <code>assignedTo</code>, <code>eventName</code> and <code>workflowId</code> bind like their PascalCase forms.<br />
+For the 18 built-in node types, <code>WorkflowDefinitionValidator</code> deserializes <code>config</code> strictly: a key that is not a
+member of the config class (including nested objects such as <code>filterSet</code> or <code>notification</code>) is a validation error,
+so a misspelled key fails registration instead of being ignored. A node <code>clientRef</code> is at most
+<code>FlowEngine.MaxClientRefLength</code> (127); when the registry validates clients, an unknown <code>clientRef</code> fails with
+<code>CLIENT_NOT_REGISTERED</code> and a client that does not implement the interface the node type needs fails with
+<code>CLIENT_TYPE_MISMATCH</code>.</p>
 <h3>FilterNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class FilterNodeConfig
 {
     /// &lt;summary&gt;
-    /// JSONPath to the value in context to filter against.
+    /// JSONPath to the JSON object to filter against.
     /// Defaults to &quot;$.entity&quot; (filter the primary entity).
+    ///   &quot;$.entity&quot;                    - filter the primary entity
+    ///   &quot;$.context.enrichedCustomer&quot;  - filter a stored context object
+    ///   &quot;$.params.criteria&quot;           - filter an invocation parameter object
     ///
-    /// Supports all four namespaces:
-    ///   &quot;$.entity&quot;                    — filter the primary entity
-    ///   &quot;$.context.enrichedCustomer&quot;  — filter a stored context object
-    ///   &quot;$.engine&quot;                    — filter engine metadata (e.g. visit counts)
-    ///
-    /// When targeting &quot;$.engine&quot;, the FilterSet property paths are resolved
-    /// against the engine metadata object, enabling visit-count-based filters:
-    ///   { &quot;propertyPath&quot;: &quot;visits.n-review&quot;, &quot;operation&quot;: &quot;ge&quot;, &quot;testValue&quot;: 3 }
-    /// This checks whether n-review has been visited 3 or more times,
-    /// equivalent to ctx.GetVisitCount(&quot;n-review&quot;) &gt;= 3.
+    /// FilterSet property paths are dot-separated paths into that object.
+    /// A scalar or array target has no properties: each property reads as null, so
+    /// comparisons are false except isnull, and an empty FilterSet matches.
+    /// $.engine.* values are scalars; branch on visit counts with an edge
+    /// &quot;when&quot; such as
+    ///   ((Dictionary&lt;string,int&gt;)Engine[&quot;visits&quot;]).GetValueOrDefault(&quot;n-review&quot;) &gt;= 3
     /// &lt;/summary&gt;
     public string Target { get; init; } = &quot;$.entity&quot;;
 
@@ -383,7 +422,7 @@ definition deserializer, so <code>assignedTo</code>, <code>eventName</code> and 
     public FilterSet FilterSet { get; init; }
 }
 </code></pre>
-<p>Outcomes: <code>Match</code>, <code>NoMatch</code>, <code>Unknown</code> (null target path), <code>Error</code></p>
+<p>Outcomes: <code>Match</code>, <code>NoMatch</code>, <code>Unknown</code> (target path missing, explicitly null, or not JSON)</p>
 <hr />
 <h3>DecisionNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class DecisionNodeConfig
@@ -395,12 +434,13 @@ definition deserializer, so <code>assignedTo</code>, <code>eventName</code> and 
     public string Target { get; init; } = string.Empty;
 
     // Branching is entirely in EdgeDefinition.When — no cases here.
-    // The decision node simply resolves the value and emits Match.
+    // The decision node resolves the value and emits Match (NoMatch for an
+    // explicitly null value).
     // Edges use When predicates to branch on the resolved value.
     // This keeps DecisionNode trivially simple and fully general.
 }
 </code></pre>
-<p>Outcomes: <code>Match</code> (always — branching done by edge When predicates), <code>Unknown</code> (path not found), <code>Error</code></p>
+<p>Outcomes: <code>Match</code> (value resolved; branch with edge <code>when</code> predicates), <code>NoMatch</code> (value is explicitly null), <code>Unknown</code> (path not found)</p>
 <hr />
 <h3>StoreNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class StoreNodeConfig
@@ -412,43 +452,44 @@ definition deserializer, so <code>assignedTo</code>, <code>eventName</code> and 
 
     /// &lt;summary&gt;
     /// JSONPath expression or literal value to write.
-    /// If the string starts with &quot;$.&quot; it is treated as a JSONPath
-    /// and resolved against the current context.
-    /// Otherwise it is treated as a literal string value.
+    /// The value is first resolved as a JSONPath against the current context;
+    /// if it does not resolve (a literal, or a path that is not found), the
+    /// string itself is stored as a literal value.
     /// For computed values use ComputeNodeConfig instead.
     /// &lt;/summary&gt;
     public string Value { get; init; }
 }
 </code></pre>
-<p>Outcomes: <code>Match</code> (always), <code>Error</code></p>
+<p>Outcomes: <code>Match</code> (always)</p>
 <hr />
 <h3>ComputeNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class ComputeNodeConfig
 {
     /// &lt;summary&gt;
     /// A C# expression string evaluated by the Roslyn expression evaluator.
-    /// Two variables are in scope:
+    /// The same four globals as EdgeDefinition.When are in scope (see section 3):
     ///
-    ///   Context  — IReadOnlyDictionary&amp;lt;string, object&amp;gt; of $.context values
-    ///   Engine   — IReadOnlyDictionary&amp;lt;string, object&amp;gt; of $.engine metadata
+    ///   Context  - IReadOnlyDictionary&lt;string, ContextVal&gt; of $.context values;
+    ///              ContextVal offers only a string indexer and ToString(), so
+    ///              parse numbers: decimal.Parse(Context[&quot;x&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture)
+    ///   Entity   - IReadOnlyDictionary&lt;string, object?&gt; (values are JsonElement)
+    ///   Params   - IReadOnlyDictionary&lt;string, object?&gt; (unwrapped CLR values)
+    ///   Engine   - IReadOnlyDictionary&lt;string, object?&gt;
     ///              Keys: &quot;instanceId&quot;, &quot;workflowId&quot;, &quot;currentNodeId&quot;, &quot;status&quot;,
-    ///                    &quot;createdAt&quot;, &quot;correlationId&quot;, &quot;parentInstanceId&quot;,
-    ///                    &quot;visits&quot; (Dictionary&amp;lt;string,int&amp;gt; keyed by nodeId)
-    ///              To get total visits: ((Dictionary&amp;lt;string,int&amp;gt;)Engine[&quot;visits&quot;]).Values.Sum()
-    ///              (Canonical path: $.engine.visits._total — same value)
+    ///                    &quot;visits&quot; (Dictionary&lt;string,int&gt; keyed by nodeId),
+    ///                    &quot;totalVisits&quot; (int; same value as the path $.engine.visits._total)
     ///
     /// Examples:
-    ///   &quot;Context[\&quot;subtotal\&quot;] * 1.08&quot;
-    ///   &quot;((DateTime)Context[\&quot;dueDate\&quot;] - DateTime.UtcNow).TotalDays&quot;
-    ///   &quot;((IEnumerable&amp;lt;decimal&amp;gt;)Context[\&quot;lineAmounts\&quot;]).Sum()&quot;
-    ///   &quot;(int)Engine[\&quot;visits\&quot;][\&quot;n-review\&quot;]&quot;                  ← visit count
-    ///   &quot;((Dictionary&amp;lt;string,int&amp;gt;)Engine[\&quot;visits\&quot;])[\&quot;n-review\&quot;] &gt;= 3&quot;
-    ///   &quot;(Context.ContainsKey(\&quot;reworkCount\&quot;) ? (int)Context[\&quot;reworkCount\&quot;] : 0) + 1&quot;
+    ///   &quot;decimal.Parse(Context[\&quot;subtotal\&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture) * 1.08m&quot;
+    ///   &quot;(DateTime.Parse(Context[\&quot;dueDate\&quot;].ToString()) - DateTime.UtcNow).TotalDays&quot;
+    ///   &quot;((Dictionary&lt;string,int&gt;)Engine[\&quot;visits\&quot;]).GetValueOrDefault(\&quot;n-review\&quot;)&quot;
+    ///   &quot;(int)Engine[\&quot;totalVisits\&quot;]&quot;
+    ///   &quot;(Context.ContainsKey(\&quot;reworkCount\&quot;) ? int.Parse(Context[\&quot;reworkCount\&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture) : 0) + 1&quot;
     /// &lt;/summary&gt;
     public string Expression { get; init; }
 }
 </code></pre>
-<p>Outcomes: <code>Match</code> (expression produced a value), <code>Unknown</code> (expression returned null), <code>Error</code></p>
+<p>Outcomes: <code>Match</code> (expression produced a value), <code>Unknown</code> (empty expression or null result), <code>Error</code> (compile or evaluation failure)</p>
 <hr />
 <h3>TransformNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class TransformNodeConfig
@@ -468,14 +509,12 @@ definition deserializer, so <code>assignedTo</code>, <code>eventName</code> and 
     public Dictionary&lt;string, string&gt; Mapping { get; init; } = new();
 }
 </code></pre>
-<p>Outcomes: <code>Match</code>, <code>Unknown</code> (any source path missing), <code>Error</code></p>
+<p>Outcomes: <code>Match</code>, <code>Unknown</code> (any source path missing)</p>
 <hr />
 <h3>IntegrationNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
 /// Typed external API call. References a named IRequestResponseClient registered
-/// in the IClientRegistry. IntegrationDefinition provides optional schema
-/// validation and named field mapping — but the client owns all connection
-/// config and auth. Retries are owned by the node RetryPolicy (or the workflow
+/// in the IClientRegistry. The client owns all connection config and auth. Retries are owned by the node RetryPolicy (or the workflow
 /// DefaultRetryPolicy); HTTP adapters never retry.
 /// &lt;/summary&gt;
 public sealed class IntegrationNodeConfig
@@ -514,7 +553,8 @@ public sealed class IntegrationNodeConfig
     /// &lt;summary&gt;
     /// Idempotency key forwarded to the client as metadata only; it does
     /// not enable HTTP deduplication. Use IdempotencyKeyHeader for writes.
-    /// Example: &quot;$.entity.OrderId + '-payment'&quot;
+    /// A JSONPath (resolved to a string) or a literal; expressions are not
+    /// evaluated. Example: &quot;$.entity.OrderId&quot;
     /// &lt;/summary&gt;
     public string? IdempotencyKey { get; init; }
 
@@ -543,8 +583,7 @@ public sealed class IntegrationNodeConfig
     public TimeSpan? RetryAfterMaxDelay { get; init; }
 }
 </code></pre>
-<p>Outcomes: mapped from HTTP status via <code>IntegrationDefinition.Outcomes</code> if defined,<br />
-otherwise <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</code> (other 4xx/5xx/timeout).</p>
+<p>Outcomes (fixed mapping from the HTTP status): <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</code> (any other status, timeout, or client failure).</p>
 <hr />
 <h3>FetchNodeConfig (low-level HTTP — use IntegrationNode when possible)</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class FetchNodeConfig
@@ -579,7 +618,7 @@ otherwise <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</cod
     public int                         TimeoutMs     { get; init; } = 10_000;
 }
 </code></pre>
-<p>Outcomes: <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</code> (other 4xx/5xx/timeout)</p>
+<p>Outcomes: <code>Match</code> (2xx), <code>NoMatch</code> (any 4xx), <code>Error</code> (5xx, other statuses, timeout)</p>
 <hr />
 <h3>LoopNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class LoopNodeConfig
@@ -636,8 +675,10 @@ otherwise <code>Match</code> (2xx), <code>NoMatch</code> (404), <code>Error</cod
     public int MaxConcurrency { get; init; } = 10;
 
     /// &lt;summary&gt;
-    /// How to aggregate child outputs back into the parent context.
-    /// Key = parent context key. Value = aggregation strategy.
+    /// How to aggregate child outputs into the loop node's output object, which
+    /// is written to context via the node's storeAs.
+    /// Key = field name in that output object. Value = aggregation strategy.
+    /// If null or empty, the output is an array of all child outputs.
     /// &lt;/summary&gt;
     public Dictionary&lt;string, AggregationStrategy&gt;? Aggregate { get; init; }
 
@@ -661,13 +702,21 @@ public enum LoopErrorBehavior { StopOnError, ContinueOnError }
 public sealed class AggregationStrategy
 {
     /// &lt;summary&gt;
-    /// collect   — build an array of all child outputs
-    /// sum       — numeric sum of a named field: &quot;sum:$.output.amount&quot;
-    /// count     — count of completed/matched children
-    /// first     — first non-null child output
+    /// collect - array of the selected values (also the fallback for any
+    ///           unrecognized strategy name)
+    /// first   - first selected value
+    /// last    - last selected value
+    /// count   - number of children with a JSON output
+    /// sum     - numeric sum of the selected values (non-numbers count as 0)
     /// &lt;/summary&gt;
-    public string Strategy { get; init; }
-    public string? SourcePath { get; init; }  // JSONPath into child output
+    public string Strategy { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;
+    /// Dot-separated property path into each child output selecting the value
+    /// to aggregate, e.g. &quot;amount&quot; or &quot;totals.net&quot; (a leading &quot;$.&quot; is
+    /// ignored). Null = the entire output.
+    /// &lt;/summary&gt;
+    public string? SourcePath { get; init; }
 }
 </code></pre>
 <p>Outcomes: <code>Match</code> (all iterations complete per ErrorBehavior), <code>Error</code></p>
@@ -718,8 +767,9 @@ public sealed class AggregationStrategy
 }
 </code></pre>
 <p>Outcomes:<br />
-- Local (clientRef null): <code>Match</code> (child Completed), <code>NoMatch</code> (child Completed, no output), <code>Error</code> (child Faulted/TimedOut/Cancelled)<br />
-- Remote (clientRef set): same outcomes, determined by <code>RemoteInstanceRef.Outcome</code></p>
+- Local (clientRef null): <code>Match</code> (child Completed; its output is the node output), <code>Error</code> (child Faulted/TimedOut/Cancelled)<br />
+- Remote (clientRef set): <code>Match</code> when <code>RemoteInstanceRef.Outcome</code> is <code>Match</code>, otherwise <code>Error</code><br />
+- <code>fireAndForget: true</code>: <code>Match</code> immediately after the child is started</p>
 <hr />
 <h3>ParallelNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class ParallelNodeConfig
@@ -761,27 +811,31 @@ public sealed class AggregationStrategy
     public Dictionary&lt;string, Dictionary&lt;string, string&gt;&gt;? BranchParams { get; init; }
 
     /// &lt;summary&gt;
-    /// How to aggregate branch outputs into the parent context.
-    /// Each completed branch's Output is available as a child instance.
-    /// If null, branch outputs are accessible via GetChildrenAsync but
-    /// are NOT automatically merged into the parent's $.context.
+    /// How to aggregate branch outputs into the parallel node's output object,
+    /// which is written to context via the node's storeAs.
+    /// If null or empty, the output is an array of all branch outputs.
+    /// With ErrorBehavior = ContinueWithPartial and at least one failed branch,
+    /// the output is instead an array of per-branch envelopes
+    /// { branchId, workflowId, status, output, error } and Aggregate is not applied.
     ///
     /// Aggregation strategies per key:
-    ///   collect — array of all branch output values for this field
-    ///   first   — value from the first branch to complete
-    ///   merge   — shallow merge of all branch output objects
+    ///   collect - array of the selected values (also the fallback for any
+    ///             unrecognized strategy name)
+    ///   first   - first selected value
+    ///   last    - last selected value
+    ///   count   - number of branches with a JSON output
     ///
     /// Example: aggregate: { &quot;checkResults&quot;: { &quot;strategy&quot;: &quot;collect&quot; } }
-    /// → $.context.checkResults = [ branch1Output, branch2Output, ... ]
+    /// with storeAs &quot;checks&quot; -&gt; $.context.checks.checkResults = [ branch1Output, ... ]
     /// &lt;/summary&gt;
     public Dictionary&lt;string, ParallelAggregationSpec&gt;? Aggregate { get; init; }
 }
 
 public sealed class ParallelAggregationSpec
 {
-    /// &lt;summary&gt;&quot;collect&quot; | &quot;first&quot; | &quot;merge&quot;&lt;/summary&gt;
+    /// &lt;summary&gt;&quot;collect&quot; | &quot;first&quot; | &quot;last&quot; | &quot;count&quot;&lt;/summary&gt;
     public string Strategy { get; init; } = &quot;collect&quot;;
-    /// &lt;summary&gt;JSONPath into each branch's output object. Null = entire output.&lt;/summary&gt;
+    /// &lt;summary&gt;Dot-separated property path into each branch's output (a leading &quot;$.&quot; is ignored). Null = entire output.&lt;/summary&gt;
     public string? SourcePath { get; init; }
 }
 
@@ -789,9 +843,9 @@ public enum ParallelJoinStrategy  { All, FirstOf, Threshold }
 public enum ParallelErrorBehavior { StopAll, ContinueWithPartial }
 </code></pre>
 <p><strong>Parallel output aggregation:</strong></p>
-<p>Branch outputs land in the parent context only if <code>Aggregate</code> is configured.<br />
-Without it, outputs are queryable via <code>IExecutionStateStore.GetChildrenAsync</code><br />
-but are not automatically available as context keys.</p>
+<p>Branch outputs become the parallel node's output, stored under its <code>storeAs</code> key:<br />
+an object shaped by <code>Aggregate</code> when it is configured, otherwise an array of branch outputs.<br />
+Child instances also remain queryable via <code>IExecutionStateStore.GetChildrenAsync</code>.</p>
 <pre><span class="lang-tag">json</span><code class="language-json">{
   &quot;type&quot;: &quot;parallel&quot;,
   &quot;storeAs&quot;: &quot;checks&quot;,
@@ -868,6 +922,8 @@ flowEngineBuilder.AddClient(sp =&gt;
     ///   → produces &quot;role:senior-counsel&quot;
     ///
     /// Interpolation uses {{...}} syntax, same as the Title field.
+    /// The resolved assignee is at most FlowEngine.MaxAssignedToLength (256)
+    /// UTF-16 code units; a longer one fails the node with ASSIGNEE_TOO_LONG.
     /// &lt;/summary&gt;
     public string AssignedTo { get; init; }
 
@@ -897,8 +953,10 @@ flowEngineBuilder.AddClient(sp =&gt;
 
     /// &lt;summary&gt;
     /// Node to jump to when the task deadline elapses before quorum is reached.
-    /// When null, the instance transitions to ExecStatus.TimedOut instead.
-    /// Enables graceful timeout routing without relying on the global deadline handler.
+    /// Must exist in Nodes (checked at registration). When null, the timeout
+    /// follows the wait-timeout rules: GlobalOnDeadlineNodeId if the deadline
+    /// handler has not been entered yet, otherwise the instance ends TimedOut
+    /// with WAIT_TIMEOUT (with EnableCompensation, the saga unwinds first).
     /// Example: route to an auto-approved fallback node when manager doesn't respond in time.
     /// &lt;/summary&gt;
     public string? OnTimeoutNodeId { get; init; }
@@ -906,7 +964,7 @@ flowEngineBuilder.AddClient(sp =&gt;
     public EscalationConfig? Escalation { get; init; }
 }
 </code></pre>
-<p>Outcomes: the HumanNode always emits <code>Match</code> when Quorum is reached.<br />
+<p>Outcomes: <code>Match</code> when Quorum is reached; <code>Error</code> when the node cannot create the task (for example <code>ASSIGNEE_TOO_LONG</code>).<br />
 Edge <code>When</code> predicates branch on the submitted values.</p>
 <p><strong>Response context keys written on resumption:</strong></p>
 <div class="table-wrap"><table>
@@ -925,78 +983,87 @@ Edge <code>When</code> predicates branch on the submitted values.</p>
 </tr>
 <tr>
 <td><code>$.context._humanTaskResponses</code></td>
-<td><code>Quorum &gt; 1</code> only</td>
+<td>Always</td>
 <td>Array of all respondents' form values</td>
 </tr>
 <tr>
 <td><code>$.context._humanTaskConsensus</code></td>
-<td><code>Quorum &gt; 1</code> only</td>
+<td>Always (null when <code>Quorum</code> is 1)</td>
 <td><code>"unanimous"</code> / <code>"majority"</code> / <code>"any-denied"</code> / <code>"split"</code></td>
 </tr>
 </tbody>
 </table></div>
 <p><strong>Quorum &gt; 1 edge pattern:</strong></p>
-<pre><span class="lang-tag">json</span><code class="language-json">{ &quot;label&quot;: &quot;All approved&quot;,     &quot;when&quot;: &quot;$.context._humanTaskConsensus == 'unanimous'&quot;,  &quot;nextNodeId&quot;: &quot;n-approve&quot; },
-{ &quot;label&quot;: &quot;Any denied&quot;,       &quot;when&quot;: &quot;$.context._humanTaskConsensus == 'any-denied'&quot;, &quot;nextNodeId&quot;: &quot;n-deny&quot;   },
-{ &quot;label&quot;: &quot;Split — escalate&quot;, &quot;when&quot;: &quot;$.context._humanTaskConsensus == 'split'&quot;,      &quot;nextNodeId&quot;: &quot;n-escalate&quot; }
+<pre><span class="lang-tag">json</span><code class="language-json">&quot;edges&quot;: [
+  { &quot;label&quot;: &quot;All approved&quot;,     &quot;on&quot;: [&quot;Match&quot;], &quot;when&quot;: &quot;Context[\&quot;_humanTaskConsensus\&quot;].ToString() == \&quot;unanimous\&quot; &amp;&amp; Context[\&quot;_humanTaskResponse\&quot;][\&quot;decision\&quot;].ToString() == \&quot;approved\&quot;&quot;, &quot;nextNodeId&quot;: &quot;n-approve&quot; },
+  { &quot;label&quot;: &quot;All rejected&quot;,     &quot;on&quot;: [&quot;Match&quot;], &quot;when&quot;: &quot;Context[\&quot;_humanTaskConsensus\&quot;].ToString() == \&quot;unanimous\&quot;&quot;,  &quot;nextNodeId&quot;: &quot;n-deny&quot; },
+  { &quot;label&quot;: &quot;Any denied&quot;,       &quot;on&quot;: [&quot;Match&quot;], &quot;when&quot;: &quot;Context[\&quot;_humanTaskConsensus\&quot;].ToString() == \&quot;any-denied\&quot;&quot;, &quot;nextNodeId&quot;: &quot;n-deny&quot; },
+  { &quot;label&quot;: &quot;Split - escalate&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;when&quot;: &quot;Context[\&quot;_humanTaskConsensus\&quot;].ToString() == \&quot;split\&quot;&quot;,      &quot;nextNodeId&quot;: &quot;n-escalate&quot; },
+  { &quot;label&quot;: &quot;Majority&quot;,         &quot;on&quot;: [&quot;Match&quot;],                                                                       &quot;nextNodeId&quot;: &quot;n-approve&quot; }
+]
 </code></pre>
+<p><code>when</code> is a Roslyn C# expression (section 3), not JSONPath. <code>Context</code> values are <code>ContextVal</code>, so compare their <code>ToString()</code>.</p>
+<p><code>"unanimous"</code> means only that every response is identical, so a unanimous rejection is also <code>"unanimous"</code>. The approve edge therefore checks the decision value as well (the first response, <code>_humanTaskResponse</code>, equals every other one when the label is unanimous), and the next edge sends a unanimous non-approval to <code>n-deny</code> before the fallback can route it to approval.</p>
 <hr />
 <h3>WaitNodeConfig</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public sealed class WaitNodeConfig
 {
     /// &lt;summary&gt;
-    /// Name of the event/signal to wait for.
+    /// Name of the event/signal to wait for. At most FlowEngine.MaxEventNameLength
+    /// (256) UTF-16 code units (validated at registration).
     /// Example: &quot;payment.confirmed&quot;, &quot;document.signed&quot;, &quot;inventory.restocked&quot;
     /// &lt;/summary&gt;
-    public string EventName { get; init; }
+    public string EventName { get; init; } = string.Empty;
 
     /// &lt;summary&gt;
-    /// JSONPath expression evaluated against context at suspend time.
-    /// Use for simple field lookups: &quot;$.entity.OrderId&quot;
-    /// Mutually exclusive with CorrelationKeyExpression.
-    /// One of CorrelationKeyPath or CorrelationKeyExpression must be set.
+    /// Optional JSONPath evaluated against context at suspend time; the resolved
+    /// value must be a JSON string. Use for simple field lookups: &quot;$.entity.OrderId&quot;
+    /// Takes precedence over CorrelationKeyExpression when both are set.
     /// &lt;/summary&gt;
     public string? CorrelationKeyPath { get; init; }
 
     /// &lt;summary&gt;
-    /// Roslyn C# expression evaluated against context at suspend time.
-    /// Use for computed keys that cannot be a simple JSONPath lookup.
-    /// Mutually exclusive with CorrelationKeyPath.
+    /// Optional Roslyn C# expression evaluated at suspend time (used only when
+    /// CorrelationKeyPath is not set). Use for computed keys.
     ///
-    /// Variables in scope: Context, Engine, Entity, Params (same as WhenEvaluator).
-    /// Must evaluate to a non-null string.
+    /// Variables in scope: Context, Engine, Entity, Params (same as EdgeDefinition.When).
     ///
     /// Example (employee training correlation):
     ///   Entity[&quot;EmployeeId&quot;] + &quot;-&quot; + Context[&quot;currentItem&quot;][&quot;CourseId&quot;]
-    ///   → &quot;EMP-001-COURSE-42&quot;
+    ///   -&gt; &quot;EMP-001-COURSE-42&quot;
+    ///
+    /// If neither is set, or the key resolves to null or fails to evaluate, the
+    /// correlation key defaults to the instance id. A resolved key longer than
+    /// FlowEngine.MaxCorrelationKeyLength (256) fails the node with RUNTIME_KEY_TOO_LONG.
     /// &lt;/summary&gt;
     public string? CorrelationKeyExpression { get; init; }
 
     /// &lt;summary&gt;
     /// Minimum signals to accumulate before resuming. Default 1.
     /// Use &gt; 1 for &quot;wait until N lab readings received&quot; pattern.
-    /// All received payloads available in $.context._signals after resume.
+    /// Only the threshold-reaching payload is written to $.context._signal and appended to
+    /// $.context._signals; earlier signals stay in PendingWait.ReceivedSignals.
     /// &lt;/summary&gt;
     public int MinSignalCount { get; init; } = 1;
 
     /// &lt;summary&gt;
-    /// ISO 8601 duration. If elapsed with no signal, take the Error/timeout edge.
-    /// Example: &quot;PT24H&quot;, &quot;P7D&quot;
+    /// Optional ISO 8601 duration or calendar expression (resolved via
+    /// ICalendarProvider), e.g. &quot;PT24H&quot;, &quot;P7D&quot;. Routing on timeout: see below.
     /// &lt;/summary&gt;
     public string? Timeout { get; init; }
+
+    /// &lt;summary&gt;Node to jump to when Timeout elapses before the signal arrives.&lt;/summary&gt;
+    public string? OnTimeoutNodeId { get; init; }
 }
 </code></pre>
-<p><strong>Correlation key resolution in wait node executor:</strong></p>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">var correlationKey = config.CorrelationKeyExpression != null
-    ? await WhenEvaluator.EvaluateAsStringAsync(config.CorrelationKeyExpression, ctx, ct)
-    : ctx.ResolveAs&lt;string&gt;(config.CorrelationKeyPath!)
-      ?? throw new InvalidOperationException(
-          $&quot;Wait node '{node.Id}': CorrelationKeyPath resolved to null. &quot; +
-          &quot;Use CorrelationKeyExpression for computed keys.&quot;);
-</code></pre>
-<p>Add <code>EvaluateAsStringAsync</code> to <code>WhenEvaluator</code> — same pattern as <code>EvaluateAsync</code><br />
-but returns <code>state.ReturnValue?.ToString()</code> instead of a bool.</p>
-<p>Outcomes: <code>Match</code> (signal received), <code>Error</code> (timed out — take edge with <code>On: [Error]</code>)</p>
+<p><strong>Timeout routing</strong> (wait, human, and message request-reply waits): when the wait times out, the instance goes to
+<code>OnTimeoutNodeId</code> if set; otherwise to the workflow's <code>GlobalOnDeadlineNodeId</code>, but only if the deadline handler
+has not been entered yet (it runs at most once per instance); otherwise the instance ends <code>TimedOut</code> with error code
+<code>WAIT_TIMEOUT</code>. With <code>EnableCompensation</code>, the saga unwinds before the instance ends <code>TimedOut</code>.
+A timeout does not produce an <code>Error</code> outcome on the node's edges. While the instance <code>Deadline</code> is unhandled,
+a wait that would outlast it is capped at the deadline.</p>
+<p><code>WhenEvaluator.EvaluateAsStringAsync</code> evaluates <code>CorrelationKeyExpression</code> and returns the result's <code>ToString()</code>.</p>
+<p>Outcomes: <code>Match</code> (signal received). Timeouts route as described above.</p>
 <hr />
 <h3>QueryNodeConfig — FilterBuilder query against a named data source</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
@@ -1005,7 +1072,7 @@ but returns <code>state.ReturnValue?.ToString()</code> instead of a bool.</p>
 /// Use a filter node immediately after to branch on the query results.
 ///
 /// For any/count checks that don't need the data, resultMode = &quot;any&quot; or &quot;count&quot;
-/// emits Match/NoMatch/match directly so a filter node is not needed.
+/// lets the client report Match/NoMatch directly so a filter node is not needed.
 /// &lt;/summary&gt;
 public sealed class QueryNodeConfig
 {
@@ -1051,10 +1118,9 @@ public sealed class QueryNodeConfig
     public Dictionary&lt;string, string&gt;? Params { get; init; }
 }
 </code></pre>
-<p>Outcomes:<br />
-- <code>ResultMode = Any</code>: <code>Match</code> (any found), <code>NoMatch</code> (none found), <code>Error</code><br />
-- <code>ResultMode = Count/First/All/Page</code>: <code>Match</code> (query executed), <code>Error</code><br />
-  Use a subsequent <code>filter</code> node to branch on the stored results.</p>
+<p>Outcomes: the node returns the <code>QueryResult.Outcome</code> reported by the <code>IQueryClient</code>
+(<code>Match</code>, <code>NoMatch</code> or <code>Error</code>), or <code>Error</code> if the client call fails.
+Use a subsequent <code>filter</code> node to branch on the stored results.</p>
 <hr />
 <h3>AgentNodeConfig — call an AI agent, LLM, or agent workflow</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
@@ -1066,32 +1132,58 @@ public sealed class QueryNodeConfig
 public sealed class AgentNodeConfig
 {
     /// &lt;summary&gt;Name of a registered IAgentClient in the IClientRegistry.&lt;/summary&gt;
-    public string ClientRef { get; init; }
+    public string ClientRef { get; init; } = string.Empty;
 
     /// &lt;summary&gt;
-    /// Prompt template. Supports {{$.context.x}} and {{$.entity.x}} interpolation.
-    /// Interpolation is resolved by the engine before passing to the client.
+    /// Optional system prompt / instructions sent as a distinct system message,
+    /// separate from PromptTemplate. Supports {{$.path}} interpolation.
     /// &lt;/summary&gt;
-    public string PromptTemplate { get; init; }
+    public string? Instructions { get; init; }
 
     /// &lt;summary&gt;
-    /// Named values passed as structured input to the agent.
-    /// Key = input field name. Value = JSONPath expression or literal.
-    /// Available in prompt template as {{fieldName}}.
+    /// Prompt template (the user message). Supports {{$.path}} placeholders
+    /// ($.context.x, $.entity.x, $.params.x, $.engine.x) resolved by the engine
+    /// before passing to the client.
+    /// &lt;/summary&gt;
+    public string PromptTemplate { get; init; } = string.Empty;
+
+    /// &lt;summary&gt;
+    /// Named values passed as structured input to the agent (AgentRequest.Input).
+    /// Key = input field name. Value = JSONPath expression.
+    /// They are not interpolated into PromptTemplate; reference the source
+    /// path there instead ({{$.entity.name}}).
     /// &lt;/summary&gt;
     public Dictionary&lt;string, string&gt;? Input { get; init; }
 
     /// &lt;summary&gt;
-    /// Optional JSON Schema for the expected response structure.
-    /// If set, the IAgentClient validates the response before returning.
-    /// Validation failure produces an Error outcome.
+    /// Optional JSON Schema for the expected response structure (model-side
+    /// guidance). Set NodeDefinition.OutputSchema to enforce it engine-side.
     /// &lt;/summary&gt;
     public string? OutputSchema { get; init; }
 
     public int TimeoutMs { get; init; } = 60_000;
+
+    /// &lt;summary&gt;
+    /// Optional idempotency key forwarded to the client to prevent duplicate
+    /// invocations on retry. A JSONPath (e.g. $.entity.DocumentId) or a literal.
+    /// When unset, GetWarnings reports AGENT_IDEMPOTENCY_KEY_MISSING.
+    /// &lt;/summary&gt;
+    public string? IdempotencyKey { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional name of a registered IContentFilter applied to the prompt
+    /// before the call and to the response after it. Null = no filtering.
+    /// &lt;/summary&gt;
+    public string? ContentFilterPolicy { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional prompt version label (e.g. &quot;v2.1&quot;) recorded in the node
+    /// execution history for prompt-version tracking and A/B analysis.
+    /// &lt;/summary&gt;
+    public string? PromptVersion { get; init; }
 }
 </code></pre>
-<p>Outcomes: <code>Match</code> (agent responded successfully), <code>Error</code> (timeout, validation failed, provider error)<br />
+<p>Outcomes: <code>Match</code> (agent responded successfully), <code>Error</code> (timeout, content filter block, provider error)<br />
 Output stored via <code>storeAs</code> as a <code>JsonContextValue</code> — the agent's structured response.</p>
 <hr />
 <h3>MessageNodeConfig — publish to a message bus</h3>
@@ -1131,20 +1223,31 @@ public sealed class MessageNodeConfig
     public MessageDeliveryMode DeliveryMode { get; init; } = MessageDeliveryMode.FireAndForget;
 
     /// &lt;summary&gt;
-    /// For RequestReply: event name to wait for on resume.
+    /// For RequestReply: event name to wait for on resume. At most
+    /// FlowEngine.MaxEventNameLength (256), validated at registration.
     /// For FireAndForget: ignored.
     /// &lt;/summary&gt;
     public string? ReplyEventName { get; init; }
 
     /// &lt;summary&gt;
-    /// For RequestReply: ISO 8601 timeout duration.
+    /// For RequestReply: ISO 8601 duration or calendar expression (e.g. &quot;PT5M&quot;).
     /// &lt;/summary&gt;
     public string? ReplyTimeout { get; init; }
+
+    /// &lt;summary&gt;
+    /// Optional idempotency key forwarded to the client for safe retry
+    /// deduplication. A JSONPath (e.g. $.entity.OrderId) or a literal.
+    /// Strongly recommended on all sends; required when IOutboxStore is enabled.
+    /// When unset, GetWarnings reports MESSAGE_IDEMPOTENCY_KEY_MISSING.
+    /// &lt;/summary&gt;
+    public string? IdempotencyKey { get; init; }
 }
 </code></pre>
 <p>Outcomes:<br />
-- <code>FireAndForget</code>: <code>Match</code> (published), <code>Error</code> (publish failed)<br />
-- <code>RequestReply</code>: suspends after publish; <code>Match</code> on reply, <code>Error</code> on timeout</p>
+- <code>FireAndForget</code>: the outcome reported by the client (<code>Match</code> when published), <code>Error</code> when the publish fails<br />
+- <code>RequestReply</code>: suspends after publish and resumes with <code>Match</code> on reply. A reply timeout has no
+  <code>OnTimeoutNodeId</code>, so it follows the wait-timeout rules: <code>GlobalOnDeadlineNodeId</code> once, else
+  <code>TimedOut</code> with <code>WAIT_TIMEOUT</code> (see WaitNodeConfig).</p>
 <hr />
 <h3>TimerNodeConfig — pure delay</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
@@ -1157,9 +1260,9 @@ public sealed class MessageNodeConfig
 ///
 /// Implementation: builds a WaitDescriptor with a synthetic event name
 /// (&quot;timer.{instanceId}.{nodeId}&quot;) and a TimeoutAt resolved from Delay.
-/// The timer node executor sets OnTimeoutNodeId = null on the descriptor,
-/// so the sweep service resumes with Match (not Error) when TimeoutAt fires.
-/// This is distinct from wait node timeout semantics (which emit Error).
+/// When TimeoutAt fires, the sweep service recognizes the timer node and
+/// follows its Match edge. This is distinct from wait node timeout routing
+/// (OnTimeoutNodeId / GlobalOnDeadlineNodeId / TimedOut).
 /// &lt;/summary&gt;
 public sealed class TimerNodeConfig
 {
@@ -1221,10 +1324,12 @@ delay with no external dependency, <code>timer</code> is cleaner and requires ze
 </code></pre>
 <p>This is a terminal node. No edges. Instance transitions to <code>Completed</code>.</p>
 <hr />
-<h3>CheckpointNodeConfig — force mid-chain state persistence</h3>
+<h3>checkpoint node - force mid-chain state persistence</h3>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
+/// Built-in &quot;checkpoint&quot; node (CheckpointNodeExecutor).
 /// Forces an immediate SaveAsync before the engine advances to the next node.
-/// The only node type that triggers a mid-loop save.
+/// The only node type that triggers a mid-loop save (unless the workflow sets
+/// PersistAfterEveryNode, which saves after every node).
 ///
 /// Use before chains of expensive or non-idempotent nodes to bound the
 /// re-execution window on crash recovery. Without a checkpoint, a crash
@@ -1236,9 +1341,11 @@ delay with no external dependency, <code>timer</code> is cleaner and requires ze
 /// After saving, CurrentNodeId is updated to the next node — so crash recovery
 /// resumes from AFTER the checkpoint, not before it.
 ///
-/// CheckpointNodeConfig has no configuration fields.
+/// There is no CheckpointNodeConfig class: the node reads no configuration,
+/// and because it is not one of the 18 config-checked types, any config keys
+/// are ignored rather than rejected.
 /// &lt;/summary&gt;
-public sealed class CheckpointNodeConfig { }
+public sealed class CheckpointNodeExecutor : INodeExecutor { /* NodeType = &quot;checkpoint&quot; */ }
 </code></pre>
 <pre><span class="lang-tag">json</span><code class="language-json">{
   &quot;id&quot;:    &quot;n-checkpoint-1&quot;,
@@ -1303,137 +1410,40 @@ public enum DocumentOperation { Write, Read }
 await using var stream = await ctx.GetDocumentAsync(docRef, ct);
 </code></pre>
 <hr />
-<h2>5. IntegrationDefinition — optional schema overlay</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Optional schema overlay for an IRequestResponseClient.
-/// Provides named field vocabulary, request/response schema validation,
-/// and outcome mapping for workflow nodes — but does NOT own connection
-/// config, auth, or retry policy (those belong to the registered client).
-///
-/// When an IntegrationDefinition is registered for an IntegrationNodeConfig.ClientRef,
-/// the engine validates the assembled request against RequestSchema before calling
-/// the client, and maps outcomes from HTTP status via the Outcomes list.
-///
-/// When no IntegrationDefinition is registered for a ClientRef, the integration
-/// node still works — it just skips schema validation and uses default outcome
-/// mapping (2xx=Match, 404=NoMatch, other=Error).
-/// &lt;/summary&gt;
-public sealed class IntegrationDefinition
-{
-    /// &lt;summary&gt;Matches ClientRef of the underlying IRequestResponseClient.&lt;/summary&gt;
-    public string  Ref         { get; init; }
-    public string  Label       { get; init; }
-    public string? Description { get; init; }
-
-    /// &lt;summary&gt;JSON Schema for the assembled request. Validated before calling client.&lt;/summary&gt;
-    public string? RequestSchema  { get; init; }
-    /// &lt;summary&gt;JSON Schema describing the response body shape. Used by workflow builder agents for discoverability.&lt;/summary&gt;
-    public string? ResponseSchema { get; init; }
-
-    /// &lt;summary&gt;
-    /// Maps HTTP status code patterns to DecisionOutcome.
-    /// Patterns: exact (&quot;200&quot;), range (&quot;2xx&quot;), wildcard (&quot;4xx&quot;), &quot;timeout&quot;.
-    /// Evaluated in order — first match wins.
-    /// &lt;/summary&gt;
-    public List&lt;OutcomeMapping&gt; Outcomes { get; init; } = new();
-}
-
-public sealed class OutcomeMapping
-{
-    /// &lt;summary&gt;&quot;200&quot;, &quot;2xx&quot;, &quot;404&quot;, &quot;4xx&quot;, &quot;5xx&quot;, &quot;timeout&quot;&lt;/summary&gt;
-    public string          Pattern { get; init; }
-    public DecisionOutcome Outcome { get; init; }
-}
-</code></pre>
-<hr />
-<h2>5.1. IIntegrationRegistry</h2>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Registry of named IntegrationDefinition overlays.
-/// Optional — integration nodes work without a registered definition
-/// (they skip schema validation and use default outcome mapping).
-///
-/// Populated at startup via FlowEngineBuilder.AddIntegration().
-/// The integration node executor resolves by definition Ref (= ClientRef).
-/// &lt;/summary&gt;
-public interface IIntegrationRegistry
-{
-    /// &lt;summary&gt;
-    /// Find an IntegrationDefinition by its Ref string.
-    /// Returns null if no definition is registered for this ref —
-    /// caller must handle and proceed with default outcome mapping.
-    /// &lt;/summary&gt;
-    IntegrationDefinition? Get(string integrationRef);
-
-    /// &lt;summary&gt;Register a definition at startup.&lt;/summary&gt;
-    void Register(IntegrationDefinition definition);
-
-    /// &lt;summary&gt;All registered definitions — used by workflow builder agents for discoverability.&lt;/summary&gt;
-    IReadOnlyList&lt;IntegrationDefinition&gt; All { get; }
-}
-
-/// &lt;summary&gt;Default in-memory implementation.&lt;/summary&gt;
-public sealed class IntegrationRegistry : IIntegrationRegistry
-{
-    private readonly ConcurrentDictionary&lt;string, IntegrationDefinition&gt; _store = new();
-
-    public IntegrationDefinition? Get(string integrationRef)
-        =&gt; _store.GetValueOrDefault(integrationRef);
-
-    public void Register(IntegrationDefinition definition)
-        =&gt; _store[definition.Ref] = definition;
-
-    public IReadOnlyList&lt;IntegrationDefinition&gt; All
-        =&gt; _store.Values.ToList();
-}
-</code></pre>
-<p>Add to <code>FlowEngineBuilder</code>:</p>
-<pre><span class="lang-tag">csharp</span><code class="language-csharp">/// &lt;summary&gt;
-/// Register a typed schema overlay for a named IRequestResponseClient.
-/// Optional — integration nodes work without a definition.
-/// &lt;/summary&gt;
-public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
-{
-    _services.AddSingleton&lt;IntegrationDefinition&gt;(sp =&gt;
-    {
-        var registry = sp.GetRequiredService&lt;IntegrationRegistry&gt;();
-        registry.Register(definition);
-        return definition;
-    });
-    return this;
-}
-</code></pre>
-<hr />
-<h2>6. Complete workflow example — Order Fulfillment (JSON)</h2>
+<h2>5. Complete workflow example - Order Fulfillment (JSON)</h2>
 <pre><span class="lang-tag">json</span><code class="language-json">{
   &quot;id&quot;:      &quot;order-fulfillment&quot;,
   &quot;version&quot;: &quot;1.0.0&quot;,
   &quot;label&quot;:   &quot;Order Fulfillment&quot;,
   &quot;status&quot;:  &quot;Active&quot;,
   &quot;entryNodeId&quot;: &quot;n-check-stock&quot;,
+  &quot;globalOnFailureNodeId&quot;: &quot;n-failed&quot;,
   &quot;defaultRetryPolicy&quot;: {
-    &quot;maxAttempts&quot;: 3,
-    &quot;backoff&quot;:     &quot;Exponential&quot;,
-    &quot;initialDelayMs&quot;: 1000
+    &quot;maxAttempts&quot;:  3,
+    &quot;backoff&quot;:      &quot;Exponential&quot;,
+    &quot;initialDelay&quot;: &quot;00:00:01&quot;
   },
   &quot;nodes&quot;: {
     &quot;n-check-stock&quot;: {
-      &quot;id&quot;:    &quot;n-check-stock&quot;,
-      &quot;type&quot;:  &quot;loop&quot;,
-      &quot;label&quot;: &quot;Check stock for each line item&quot;,
+      &quot;id&quot;:      &quot;n-check-stock&quot;,
+      &quot;type&quot;:    &quot;loop&quot;,
+      &quot;label&quot;:   &quot;Check stock for each line item&quot;,
+      &quot;storeAs&quot;: &quot;stock&quot;,
       &quot;config&quot;: {
-        &quot;over&quot;:         &quot;$.entity.LineItems&quot;,
-        &quot;itemAs&quot;:       &quot;currentItem&quot;,
-        &quot;subWorkflowId&quot;:&quot;check-line-item-stock&quot;,
-        &quot;mode&quot;:         &quot;Parallel&quot;,
+        &quot;items&quot;:          &quot;$.entity.LineItems&quot;,
+        &quot;itemAs&quot;:         &quot;currentItem&quot;,
+        &quot;subWorkflowId&quot;:  &quot;check-line-item-stock&quot;,
+        &quot;mode&quot;:           &quot;Parallel&quot;,
         &quot;maxConcurrency&quot;: 10,
         &quot;aggregate&quot;: {
-          &quot;reservedItems&quot;:   { &quot;strategy&quot;: &quot;collect&quot; },
-          &quot;backorderedItems&quot;:{ &quot;strategy&quot;: &quot;collect&quot; }
+          &quot;reservedItems&quot;:    { &quot;strategy&quot;: &quot;collect&quot;, &quot;sourcePath&quot;: &quot;reserved&quot; },
+          &quot;backorderedItems&quot;: { &quot;strategy&quot;: &quot;collect&quot;, &quot;sourcePath&quot;: &quot;backordered&quot; },
+          &quot;backorderedQty&quot;:   { &quot;strategy&quot;: &quot;sum&quot;,     &quot;sourcePath&quot;: &quot;backorderedQty&quot; }
         }
       },
       &quot;edges&quot;: [
-        { &quot;label&quot;: &quot;All checked&quot;, &quot;on&quot;: [&quot;Match&quot;],        &quot;nextNodeId&quot;: &quot;n-any-backorder&quot; },
-        { &quot;label&quot;: &quot;Stock error&quot;, &quot;on&quot;: [&quot;Error&quot;],        &quot;nextNodeId&quot;: &quot;n-stock-error&quot;   }
+        { &quot;label&quot;: &quot;All checked&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-any-backorder&quot; },
+        { &quot;label&quot;: &quot;Stock error&quot;, &quot;on&quot;: [&quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-failed&quot; }
       ]
     },
     &quot;n-any-backorder&quot;: {
@@ -1441,45 +1451,43 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
       &quot;type&quot;:  &quot;filter&quot;,
       &quot;label&quot;: &quot;Any backordered items?&quot;,
       &quot;config&quot;: {
-        &quot;target&quot;: &quot;$.context.backorderedItems&quot;,
+        &quot;target&quot;: &quot;$.context.stock&quot;,
         &quot;filterSet&quot;: { &quot;operator&quot;: &quot;AND&quot;, &quot;filters&quot;: [
-          { &quot;propertyPath&quot;: &quot;length&quot;, &quot;operation&quot;: &quot;gt&quot;, &quot;testValue&quot;: 0 }
+          { &quot;propertyPath&quot;: &quot;backorderedQty&quot;, &quot;operation&quot;: &quot;gt&quot;, &quot;testValue&quot;: 0 }
         ]}
       },
       &quot;edges&quot;: [
         { &quot;label&quot;: &quot;Has backorders&quot;, &quot;on&quot;: [&quot;Match&quot;],   &quot;nextNodeId&quot;: &quot;n-human-backorder&quot; },
-        { &quot;label&quot;: &quot;Fully in stock&quot;, &quot;on&quot;: [&quot;NoMatch&quot;], &quot;nextNodeId&quot;: &quot;n-calc-shipping&quot;   }
+        { &quot;label&quot;: &quot;Fully in stock&quot;, &quot;on&quot;: [&quot;NoMatch&quot;], &quot;nextNodeId&quot;: &quot;n-calc-shipping&quot; }
       ]
     },
     &quot;n-human-backorder&quot;: {
-      &quot;id&quot;:      &quot;n-human-backorder&quot;,
-      &quot;type&quot;:    &quot;human&quot;,
-      &quot;label&quot;:   &quot;Ask customer about partial shipment&quot;,
+      &quot;id&quot;:        &quot;n-human-backorder&quot;,
+      &quot;type&quot;:      &quot;human&quot;,
+      &quot;label&quot;:     &quot;Ask customer about partial shipment&quot;,
       &quot;maxVisits&quot;: 5,
       &quot;config&quot;: {
-        &quot;title&quot;:       &quot;Order {{$.entity.OrderId}}: some items are backordered (ask {{$.engine.visits.n-human-backorder}} of 3)&quot;,
-        &quot;assignedTo&quot;:  &quot;$.entity.CustomerEmail&quot;,
-        &quot;channel&quot;:     &quot;External&quot;,
+        &quot;title&quot;:      &quot;Order {{$.entity.OrderId}}: some items are backordered (ask {{$.engine.visits.n-human-backorder}} of 3)&quot;,
+        &quot;assignedTo&quot;: &quot;$.entity.CustomerEmail&quot;,
+        &quot;channel&quot;:    &quot;External&quot;,
         &quot;notification&quot;: { &quot;via&quot;: &quot;email&quot;, &quot;to&quot;: &quot;$.entity.CustomerEmail&quot;,
                           &quot;template&quot;: &quot;backorder-notification&quot; },
-        &quot;formSchema&quot;:  &quot;{ \&quot;proceed\&quot;: { \&quot;type\&quot;: \&quot;string\&quot;, \&quot;enum\&quot;: [\&quot;ship-partial\&quot;, \&quot;wait\&quot;, \&quot;cancel\&quot;] } }&quot;,
-        &quot;visibleContext&quot;: [&quot;$.context.backorderedItems&quot;, &quot;$.context.reservedItems&quot;],
-        &quot;dueIn&quot;: &quot;P3D&quot;
+        &quot;formSchema&quot;: &quot;{ \&quot;type\&quot;: \&quot;object\&quot;, \&quot;required\&quot;: [\&quot;proceed\&quot;], \&quot;properties\&quot;: { \&quot;proceed\&quot;: { \&quot;type\&quot;: \&quot;string\&quot;, \&quot;enum\&quot;: [\&quot;ship-partial\&quot;, \&quot;wait\&quot;, \&quot;cancel\&quot;] } } }&quot;,
+        &quot;visibleContext&quot;:  [&quot;$.context.stock&quot;],
+        &quot;dueIn&quot;:           &quot;P3D&quot;,
+        &quot;onTimeoutNodeId&quot;: &quot;n-cancel&quot;
       },
       &quot;edges&quot;: [
         { &quot;label&quot;: &quot;Ship partial&quot;,
-          &quot;on&quot;: [&quot;Match&quot;], &quot;when&quot;: &quot;$.context._humanTaskResponse.proceed == 'ship-partial'&quot;,
+          &quot;on&quot;: [&quot;Match&quot;],
+          &quot;when&quot;: &quot;Context[\&quot;_humanTaskResponse\&quot;][\&quot;proceed\&quot;].ToString() == \&quot;ship-partial\&quot;&quot;,
           &quot;nextNodeId&quot;: &quot;n-calc-shipping&quot; },
-        { &quot;label&quot;: &quot;Wait — under limit&quot;,
+        { &quot;label&quot;: &quot;Wait - under limit&quot;,
           &quot;on&quot;: [&quot;Match&quot;],
-          &quot;when&quot;: &quot;$.context._humanTaskResponse.proceed == 'wait' &amp;&amp; $.engine.visits.n-human-backorder &lt; 3&quot;,
+          &quot;when&quot;: &quot;Context[\&quot;_humanTaskResponse\&quot;][\&quot;proceed\&quot;].ToString() == \&quot;wait\&quot; &amp;&amp; ((Dictionary&lt;string,int&gt;)Engine[\&quot;visits\&quot;]).GetValueOrDefault(\&quot;n-human-backorder\&quot;) &lt; 3&quot;,
           &quot;nextNodeId&quot;: &quot;n-wait-restock&quot; },
-        { &quot;label&quot;: &quot;Wait — limit reached, force cancel&quot;,
+        { &quot;label&quot;: &quot;Cancel, or wait limit reached&quot;,
           &quot;on&quot;: [&quot;Match&quot;],
-          &quot;when&quot;: &quot;$.context._humanTaskResponse.proceed == 'wait' &amp;&amp; $.engine.visits.n-human-backorder &gt;= 3&quot;,
-          &quot;nextNodeId&quot;: &quot;n-cancel&quot; },
-        { &quot;label&quot;: &quot;Cancel order&quot;,
-          &quot;on&quot;: [&quot;Match&quot;], &quot;when&quot;: &quot;$.context._humanTaskResponse.proceed == 'cancel'&quot;,
           &quot;nextNodeId&quot;: &quot;n-cancel&quot; }
       ]
     },
@@ -1490,45 +1498,49 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
       &quot;config&quot;: {
         &quot;eventName&quot;:          &quot;inventory.restocked&quot;,
         &quot;correlationKeyPath&quot;: &quot;$.entity.OrderId&quot;,
-        &quot;timeout&quot;:            &quot;P14D&quot;
+        &quot;timeout&quot;:            &quot;P14D&quot;,
+        &quot;onTimeoutNodeId&quot;:    &quot;n-cancel&quot;
       },
       &quot;edges&quot;: [
-        { &quot;label&quot;: &quot;Restocked&quot;,   &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-check-stock&quot; },
-        { &quot;label&quot;: &quot;Timed out&quot;,   &quot;on&quot;: [&quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-cancel&quot;      }
+        { &quot;label&quot;: &quot;Restocked&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-check-stock&quot; }
       ]
     },
     &quot;n-calc-shipping&quot;: {
-      &quot;id&quot;:    &quot;n-calc-shipping&quot;,
-      &quot;type&quot;:  &quot;integration&quot;,
-      &quot;label&quot;: &quot;Calculate shipping cost&quot;,
+      &quot;id&quot;:      &quot;n-calc-shipping&quot;,
+      &quot;type&quot;:    &quot;integration&quot;,
+      &quot;label&quot;:   &quot;Calculate shipping cost&quot;,
       &quot;storeAs&quot;: &quot;shippingQuote&quot;,
       &quot;config&quot;: {
-        &quot;integration&quot;: &quot;shipping-calculator&quot;,
-        &quot;request&quot;: {
-          &quot;fromZip&quot;:    &quot;$.context.warehouseZip&quot;,
-          &quot;toZip&quot;:      &quot;$.entity.ShippingAddress.ZipCode&quot;,
-          &quot;weightKg&quot;:   &quot;$.context.totalWeightKg&quot;
+        &quot;clientRef&quot;: &quot;shipping-calculator&quot;,
+        &quot;method&quot;:    &quot;POST&quot;,
+        &quot;path&quot;:      &quot;/quotes&quot;,
+        &quot;body&quot;: {
+          &quot;fromZip&quot;:  &quot;$.context.warehouseZip&quot;,
+          &quot;toZip&quot;:    &quot;$.entity.ShippingAddress.ZipCode&quot;,
+          &quot;weightKg&quot;: &quot;$.context.totalWeightKg&quot;
         },
         &quot;responseMapping&quot;: {
-          &quot;shippingCost&quot;:    &quot;$.standardCost&quot;,
-          &quot;deliveryDays&quot;:    &quot;$.standardDays&quot;
+          &quot;shippingCost&quot;: &quot;$.standardCost&quot;,
+          &quot;deliveryDays&quot;: &quot;$.standardDays&quot;
         }
       },
       &quot;edges&quot;: [
-        { &quot;label&quot;: &quot;Got quote&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-calc-tax&quot;   },
-        { &quot;label&quot;: &quot;API error&quot;, &quot;on&quot;: [&quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-ship-error&quot; }
+        { &quot;label&quot;: &quot;Got quote&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-calc-tax&quot; },
+        { &quot;label&quot;: &quot;API error&quot;, &quot;on&quot;: [&quot;NoMatch&quot;, &quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-failed&quot; }
       ]
     },
     &quot;n-calc-tax&quot;: {
-      &quot;id&quot;:    &quot;n-calc-tax&quot;,
-      &quot;type&quot;:  &quot;integration&quot;,
-      &quot;label&quot;: &quot;Calculate tax&quot;,
+      &quot;id&quot;:      &quot;n-calc-tax&quot;,
+      &quot;type&quot;:    &quot;integration&quot;,
+      &quot;label&quot;:   &quot;Calculate tax&quot;,
       &quot;storeAs&quot;: &quot;taxResult&quot;,
       &quot;config&quot;: {
-        &quot;integration&quot;: &quot;tax-service&quot;,
-        &quot;request&quot;: {
-          &quot;amount&quot;:   &quot;$.context.subtotal&quot;,
-          &quot;state&quot;:    &quot;$.entity.ShippingAddress.State&quot;
+        &quot;clientRef&quot;: &quot;tax-service&quot;,
+        &quot;method&quot;:    &quot;POST&quot;,
+        &quot;path&quot;:      &quot;/tax&quot;,
+        &quot;body&quot;: {
+          &quot;amount&quot;: &quot;$.context.subtotal&quot;,
+          &quot;state&quot;:  &quot;$.entity.ShippingAddress.State&quot;
         },
         &quot;responseMapping&quot;: {
           &quot;taxAmount&quot;: &quot;$.taxAmount&quot;,
@@ -1536,16 +1548,17 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
         }
       },
       &quot;edges&quot;: [
-        { &quot;label&quot;: &quot;Tax calculated&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-calc-total&quot; }
+        { &quot;label&quot;: &quot;Tax calculated&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-calc-total&quot; },
+        { &quot;label&quot;: &quot;Tax error&quot;, &quot;on&quot;: [&quot;NoMatch&quot;, &quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-failed&quot; }
       ]
     },
     &quot;n-calc-total&quot;: {
-      &quot;id&quot;:    &quot;n-calc-total&quot;,
-      &quot;type&quot;:  &quot;compute&quot;,
-      &quot;label&quot;: &quot;Calculate order total&quot;,
+      &quot;id&quot;:      &quot;n-calc-total&quot;,
+      &quot;type&quot;:    &quot;compute&quot;,
+      &quot;label&quot;:   &quot;Calculate order total&quot;,
       &quot;storeAs&quot;: &quot;orderTotal&quot;,
       &quot;config&quot;: {
-        &quot;expression&quot;: &quot;Context[\&quot;subtotal\&quot;] + Context[\&quot;shippingCost\&quot;] + Context[\&quot;taxAmount\&quot;]&quot;
+        &quot;expression&quot;: &quot;decimal.Parse(Context[\&quot;subtotal\&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture) + decimal.Parse(Context[\&quot;shippingCost\&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture) + decimal.Parse(Context[\&quot;taxAmount\&quot;].ToString(), System.Globalization.CultureInfo.InvariantCulture)&quot;
       },
       &quot;edges&quot;: [
         { &quot;label&quot;: &quot;Total ready&quot;, &quot;on&quot;: [&quot;Match&quot;], &quot;nextNodeId&quot;: &quot;n-charge&quot; }
@@ -1556,18 +1569,19 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
       &quot;type&quot;:  &quot;integration&quot;,
       &quot;label&quot;: &quot;Charge payment&quot;,
       &quot;config&quot;: {
-        &quot;integration&quot;:    &quot;payment-api&quot;,
-        &quot;idempotencyKey&quot;: &quot;$.entity.OrderId + '-charge'&quot;,
-        &quot;request&quot;: {
-          &quot;amount&quot;:   &quot;$.context.orderTotal&quot;,
-          &quot;currency&quot;: &quot;USD&quot;,
+        &quot;clientRef&quot;:            &quot;payment-api&quot;,
+        &quot;method&quot;:               &quot;POST&quot;,
+        &quot;path&quot;:                 &quot;/charges&quot;,
+        &quot;idempotencyKeyHeader&quot;: &quot;Idempotency-Key&quot;,
+        &quot;body&quot;: {
+          &quot;amount&quot;:     &quot;$.context.orderTotal&quot;,
+          &quot;currency&quot;:   &quot;USD&quot;,
           &quot;customerId&quot;: &quot;$.entity.CustomerId&quot;
         }
       },
       &quot;edges&quot;: [
-        { &quot;label&quot;: &quot;Charged&quot;,   &quot;on&quot;: [&quot;Match&quot;],   &quot;nextNodeId&quot;: &quot;n-allocate&quot; },
-        { &quot;label&quot;: &quot;Declined&quot;,  &quot;on&quot;: [&quot;NoMatch&quot;], &quot;nextNodeId&quot;: &quot;n-payment-declined&quot; },
-        { &quot;label&quot;: &quot;Pay error&quot;, &quot;on&quot;: [&quot;Error&quot;],   &quot;nextNodeId&quot;: &quot;n-payment-error&quot;    }
+        { &quot;label&quot;: &quot;Charged&quot;,   &quot;on&quot;: [&quot;Match&quot;],            &quot;nextNodeId&quot;: &quot;n-allocate&quot; },
+        { &quot;label&quot;: &quot;Pay error&quot;, &quot;on&quot;: [&quot;NoMatch&quot;, &quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-failed&quot; }
       ]
     },
     &quot;n-allocate&quot;: {
@@ -1575,7 +1589,7 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
       &quot;type&quot;:  &quot;loop&quot;,
       &quot;label&quot;: &quot;Allocate stock and create pick tickets&quot;,
       &quot;config&quot;: {
-        &quot;over&quot;:          &quot;$.context.reservedItems&quot;,
+        &quot;items&quot;:         &quot;$.context.stock.reservedItems&quot;,
         &quot;itemAs&quot;:        &quot;currentItem&quot;,
         &quot;subWorkflowId&quot;: &quot;allocate-line-item&quot;,
         &quot;mode&quot;:          &quot;Sequential&quot;
@@ -1589,8 +1603,10 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
       &quot;type&quot;:  &quot;integration&quot;,
       &quot;label&quot;: &quot;Send order confirmation&quot;,
       &quot;config&quot;: {
-        &quot;integration&quot;: &quot;notification-api&quot;,
-        &quot;request&quot;: {
+        &quot;clientRef&quot;: &quot;notification-api&quot;,
+        &quot;method&quot;:    &quot;POST&quot;,
+        &quot;path&quot;:      &quot;/notifications&quot;,
+        &quot;body&quot;: {
           &quot;to&quot;:       &quot;$.entity.CustomerEmail&quot;,
           &quot;template&quot;: &quot;order-confirmation&quot;,
           &quot;orderId&quot;:  &quot;$.entity.OrderId&quot;,
@@ -1598,7 +1614,7 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
         }
       },
       &quot;edges&quot;: [
-        { &quot;label&quot;: &quot;Notified&quot;, &quot;on&quot;: [&quot;Match&quot;, &quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-output&quot; }
+        { &quot;label&quot;: &quot;Notified&quot;, &quot;on&quot;: [&quot;Match&quot;, &quot;NoMatch&quot;, &quot;Error&quot;], &quot;nextNodeId&quot;: &quot;n-output&quot; }
       ]
     },
     &quot;n-output&quot;: {
@@ -1624,13 +1640,27 @@ public FlowEngineBuilder AddIntegration(IntegrationDefinition definition)
           &quot;status&quot;:  &quot;cancelled&quot;
         }
       }
+    },
+    &quot;n-failed&quot;: {
+      &quot;id&quot;:    &quot;n-failed&quot;,
+      &quot;type&quot;:  &quot;output&quot;,
+      &quot;label&quot;: &quot;Order failed&quot;,
+      &quot;config&quot;: {
+        &quot;outputMapping&quot;: {
+          &quot;orderId&quot;: &quot;$.entity.OrderId&quot;,
+          &quot;status&quot;:  &quot;failed&quot;
+        }
+      }
     }
   }
 }
 </code></pre>
+<p>This definition passes <code>WorkflowDefinitionValidator.Validate</code>. Notes: the stock loop's aggregate lands under
+<code>$.context.stock</code> (its <code>storeAs</code>); integration <code>responseMapping</code> writes top-level context keys
+(<code>shippingCost</code>, <code>deliveryDays</code>, <code>taxAmount</code>); the human and wait timeouts route through
+<code>onTimeoutNodeId</code>; and <code>n-charge</code> sets <code>idempotencyKeyHeader</code> so the payment server can deduplicate retries.</p>
 <hr />
-<hr />
-<h2>7. Workflow versioning and migration guidance</h2>
+<h2>6. Workflow versioning and migration guidance</h2>
 <h3>Core invariant</h3>
 <p>A <code>WorkflowDefinition</code> is <strong>immutable once published</strong> (status = Active).<br />
 Running instances pin to the exact version at creation via <code>WorkflowVersion</code><br />
@@ -1710,15 +1740,15 @@ Use the built-in migration API:</p>
     {
         ["n-old-approval"] = "n-manager-approval"   // renamed node
     },
-    ct);
-// Instance is now pinned to v2.0.0 — resume normally
+    ct: ct);   // positional 4th argument would be bool dryRun
+// Instance is now pinned to v2.0.0; resume normally
 await engine.ResumeByInstanceIdAsync(instanceId, ct: ct);
 </code></pre>
-<p><code>MigrateInstanceAsync</code> validates the remap, updates <code>WorkflowVersion</code> and <code>CurrentNodeId</code>, appends a migration history record, and saves state — without replaying history. It throws if the instance is in a terminal state or if the remapped node does not exist in the target definition. To cancel an instance that cannot be safely migrated, use <code>engine.CancelAsync(instanceId, ct)</code>.</p>
+<p><code>MigrateInstanceAsync</code> validates the remap, updates <code>WorkflowVersion</code> and <code>CurrentNodeId</code>, appends a migration history record, and saves state - without replaying history. It throws if the instance is in a terminal state or if the remapped node does not exist in the target definition. Pass <code>dryRun: true</code> to run the same validation without saving. To cancel an instance that cannot be safely migrated, use <code>engine.CancelAsync(instanceId, "reason", ct)</code>.</p>
 <h3>Testing version compatibility</h3>
 <p>Before deploying a new version:<br />
 1. Register the new definition in a test environment with <code>status: Draft</code><br />
-2. Start representative instances against it<br />
+2. Start representative instances against it with <code>StartRequest.AllowDraft = true</code> (a Draft definition is otherwise rejected)<br />
 3. Walk instances through all node types including suspend/resume paths<br />
 4. Confirm all <code>$.engine.visits.*</code> and <code>when</code> predicates resolve correctly<br />
 5. Promote to <code>Active</code> only after all paths are validated</p>

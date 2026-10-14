@@ -129,6 +129,10 @@ builder.Services.AddFlowEngine()
 
 <p>Uses the same <code>clientRef</code> naming convention as all other FlowEngine clients — reference it in workflow nodes as <code>"clientRef": "payment-api"</code>.</p>
 
+<div class="callout callout-amber">
+  <strong>Base address boundary:</strong> both HTTP clients pass every request URL through <code>BaseAddressBoundary.Resolve</code>. When the named client has a <code>BaseAddress</code>, the resolved URL must keep its scheme, host, effective port and user info (same origin), stay under its path prefix (up to and including the last <code>/</code>), and contain no encoded <code>.</code>, <code>/</code>, <code>\</code>, <code>;</code> or <code>%</code> and no <code>..;</code> segment; otherwise the call fails with <code>ArgumentException</code> before anything is sent. This keeps a named client's credential handlers from being pointed at another host by an absolute URL in a node config. Redirects are not checked: disable <code>AllowAutoRedirect</code> on named clients that add credential headers other than <code>Authorization</code>. A custom <code>IRequestResponseClient</code> over a named client should call <code>BaseAddressBoundary.Resolve</code> too.
+</div>
+
 <p>For a plain client without the resilience pipeline, register <code>DirectHttpFlowClient</code> instead. It creates the named client from <code>IHttpClientFactory</code> on each request, never at registration or container build, so a workflow can call the API of the host that runs it (self-call). <code>new DirectHttpFlowClient(clientRef, httpClient)</code> remains for a caller-owned <code>HttpClient</code>; <code>new DirectHttpFlowClient(clientRef, factory, namedClient)</code> resolves per request.</p>
 <pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
     .AddDirectHttpClient(clientRef: "payment-api");   // optional namedClient parameter
@@ -150,21 +154,23 @@ builder.Services.AddFlowEngine()
 
 <h2 id="clients-servicebus">Service Bus Client</h2>
 <p>Package: <code>EF.FlowEngine.Clients.ServiceBus</code></p>
-<p><code>ServiceBusMessageClient</code> implements <code>IMessageClient</code> and <code>IFlowClient</code>. Supports <code>FireAndForget</code> and <code>RequestReply</code> delivery modes. <code>RequestReply</code> uses <code>PendingWait</code> (correlation ID on the reply queue) to suspend and resume the workflow instance.</p>
+<p><code>ServiceBusMessageClient</code> implements <code>IMessageClient</code> and <code>IFlowClient</code>. Sends to one queue or topic. Supports <code>FireAndForget</code> and <code>RequestReply</code> delivery modes. For <code>RequestReply</code> the <code>message</code> node suspends on <code>replyEventName</code> with the message's correlation id (the instance <code>CorrelationId</code>, else the instance id) as correlation key; the package has no reply-queue listener, so the reply consumer calls <code>IFlowEngine.ResumeAsync</code> with that event name and key.</p>
 
 <h3>Registration</h3>
-<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine()
-    // Simple — resolves ServiceBusClient from DI
-    .AddServiceBusClient(
-        clientRef:        "order-events",
-        topicOrQueueName: "orders");
+<pre><span class="lang-tag">csharp</span><code>// Resolves ServiceBusClient from DI
+builder.Services.AddFlowEngine()
+    .AddServiceBusClient(clientRef: "order-events", queueOrTopic: "orders");
 
-    // Or provide the ServiceBusClient directly
+// Connection string
+builder.Services.AddFlowEngine()
+    .AddServiceBusClient(clientRef: "order-events", connectionString: connectionString, queueOrTopic: "orders");
+
+// ServiceBusClient factory
+builder.Services.AddFlowEngine()
     .AddServiceBusClient(
-        clientRef:         "order-events",
-        serviceBusClient:  new ServiceBusClient(connectionString),
-        topicOrQueueName:  "orders",
-        replyQueueName:    "orders-reply");   // required for RequestReply
+        clientRef:     "order-events",
+        clientFactory: sp =&gt; new ServiceBusClient(connectionString),
+        queueOrTopic:  "orders");
 </code></pre>
 
 <h3>Workflow usage</h3>
@@ -232,15 +238,16 @@ builder.Services.AddFlowEngine()
 </code></pre>
 
 <h3>How prompts are built</h3>
-<p>The executor renders <code>AgentNodeConfig.promptTemplate</code> by resolving <code>{{key}}</code> tokens against the node's <code>input</code> mapping (JSONPath → value), then constructs a <code>UserChatMessage</code>. The <code>IChatClient</code> receives:</p>
+<p>The executor renders <code>AgentNodeConfig.promptTemplate</code> (and <code>instructions</code>) by replacing <code>{{$.path}}</code> tokens with values resolved from the workflow context; a token that does not resolve is left as written. The node's <code>input</code> mapping (key -&gt; JSONPath) is resolved separately into <code>AgentRequest.Input</code> and is not interpolated into the prompt; <code>ChatClientAgentClient</code> does not read it. The <code>IChatClient</code> receives:</p>
 <ul>
-  <li>A <code>UserChatMessage</code> with the rendered prompt text</li>
+  <li>A <code>ChatMessage(ChatRole.System, ...)</code> with the rendered <code>instructions</code>, when set</li>
+  <li>A <code>ChatMessage(ChatRole.User, ...)</code> with the rendered prompt text</li>
   <li><code>ChatOptions.ResponseFormat = ChatResponseFormat.ForJsonSchema(...)</code> when <code>outputSchema</code> is set (<code>ChatResponseFormat.Json</code> if the schema cannot be parsed)</li>
   <li>A cancellation token governed by <code>AgentNodeConfig.timeoutMs</code></li>
 </ul>
 
 <h3>Token usage</h3>
-<p>After each call, <code>ChatClientAgentClient</code> reads <code>ChatResponse.Usage</code> and emits input/output/total token counts via <code>IFlowEngineTelemetry</code>. These appear as tags on the <code>flow.agent.completed</code> event. Configure per-model rates in <code>FlowEngineOptions.AgentModelRates</code> to get <code>estimatedCostUsd</code> in telemetry.</p>
+<p>After each call, <code>ChatClientAgentClient</code> reads <code>ChatResponse.Usage</code> and emits a <code>flow.agent.invoked</code> event via <code>IFlowEngineTelemetry</code> with tags <code>clientRef</code>, <code>tokensUsed</code>, <code>promptTokens</code>, <code>outputTokens</code> and <code>model</code>. The agent node then emits <code>flow.agent.completed</code> with the total <code>tokensUsed</code> from <code>AgentResponse.TokensUsed</code>; configure a rate for the client in <code>FlowEngineOptions.AgentModelRates</code> (keyed by <code>clientRef</code>) to add <code>estimatedCostUsd</code> to that event.</p>
 
 <div class="callout callout-teal">
   <strong>ME.AI 10.0 API notes:</strong> Uses <code>IChatClient.GetResponseAsync</code>. Token counts are typed as <code>long?</code> from <code>ChatResponse.Usage</code>. Model name is passed at registration time.
@@ -249,8 +256,8 @@ builder.Services.AddFlowEngine()
 <hr>
 
 <h2 id="clients-sql">SQL Query Clients</h2>
-<p>Package: <code>EF.FlowEngine.Clients.Sql</code></p>
-<p>Two implementations of <code>IQueryClient</code> for SQL Server data sources. Both translate a <code>FilterSet</code> into a query against a relational database — one via EF Core (typed, startup-registered), the other via raw ADO.NET (dynamic, UI-configurable).</p>
+<p>Packages: <code>EF.FlowEngine.Clients.Sql</code> (<code>EfQueryClient&lt;TContext&gt;</code>) and <code>EF.FlowEngine.Clients.SqlServer</code> (<code>AdHocSqlQueryClient</code>)</p>
+<p>Two implementations of <code>IQueryClient</code> for relational data sources. Both translate a <code>FilterSet</code> into a query against a relational database: one via EF Core (typed, startup-registered), the other via raw ADO.NET (dynamic, UI-configurable).</p>
 
 <h3>EfQueryClient&lt;TContext&gt;</h3>
 <p>Typed EF Core client. Use when you have a <code>DbContext</code> for the target database and want compile-time safety and full EF Core feature support. Must be registered in code at startup — it requires a compile-time generic type parameter.</p>
@@ -300,6 +307,7 @@ public static IReadOnlyDictionary&lt;string, Type&gt; EntityTypeMap =
 </div>
 
 <h3>AdHocSqlQueryClient</h3>
+<p>Package: <code>EF.FlowEngine.Clients.SqlServer</code> (namespace <code>EF.FlowEngine.Clients.SqlServer</code>)</p>
 <p>Dynamic SQL client for ad-hoc access to any SQL Server table by connection string and an entity-name → <code>schema.Table</code> map. Translates <code>FilterSet</code> predicates to parameterized SQL WHERE clauses at runtime. No EF Core or compile-time types required — results are returned as <code>Dictionary&lt;string, object?&gt;</code> rows.</p>
 <pre><span class="lang-tag">csharp</span><code>// Registered in code:
 flowEngineBuilder.AddClient(
@@ -330,7 +338,7 @@ flowEngineBuilder.AddAdHocSqlQueryClient(
 <hr>
 
 <h2 id="custom-clients">Custom Client Patterns</h2>
-<p>All FlowEngine client interfaces are simple to implement. Register via <code>.AddClient(name, instance)</code> or <code>.AddClient&lt;T&gt;()</code> (DI-resolved).</p>
+<p>All FlowEngine client interfaces are simple to implement. Register via <code>.AddClient(instance)</code>, <code>.AddClient&lt;T&gt;(sp =&gt; ...)</code> (factory) or <code>.AddClient&lt;T&gt;()</code> (DI-resolved). The client's own <code>ClientRef</code> property is the name nodes reference.</p>
 
 <h3>IQueryClient</h3>
 <pre><span class="lang-tag">csharp</span><code>public class MyQueryClient : IQueryClient
@@ -357,9 +365,10 @@ flowEngineBuilder.AddAdHocSqlQueryClient(
 
         return new QueryResult
         {
+            Mode       = query.ResultMode,     // selects which fields the node stores
             Items      = results.Items,
             TotalCount = results.Total,
-            Outcome    = DecisionOutcome.Match
+            Outcome    = DecisionOutcome.Match // the query node's outcome is taken from here
         };
     }
 }
@@ -372,18 +381,21 @@ flowEngineBuilder.AddAdHocSqlQueryClient(
 
     public Task ValidateAsync(CancellationToken ct = default)
     {
-        // Called before the first workflow execution that uses this client
-        // Throw to fail fast with a clear message
+        // Called on every StartAsync of a workflow that references this client;
+        // an exception fails the start with ClientValidationException
         return Task.CompletedTask;
     }
 
     public async Task&lt;AgentResponse&gt; InvokeAsync(AgentRequest request, CancellationToken ct)
     {
-        // request.Prompt          — rendered prompt template
-        // request.IdempotencyKey  — forwarded from AgentNodeConfig
-        // request.OutputSchema    — JSON Schema string (if set)
+        // request.PromptTemplate  - rendered prompt ({{$.path}} tokens already replaced)
+        // request.Instructions    - rendered system instructions (if set)
+        // request.Input           - resolved AgentNodeConfig.input values (if set)
+        // request.IdempotencyKey  - forwarded from AgentNodeConfig
+        // request.OutputSchema    - JSON Schema string (if set)
+        // request.TimeoutMs       - from AgentNodeConfig.timeoutMs
 
-        var result = await MyAiService.CallAsync(request.Prompt, ct);
+        var result = await MyAiService.CallAsync(request.PromptTemplate, ct);
 
         return new AgentResponse
         {
@@ -397,7 +409,7 @@ flowEngineBuilder.AddAdHocSqlQueryClient(
 
 // Register
 builder.Services.AddFlowEngine()
-    .AddClient("my-agent", new MyCustomAgentClient());
+    .AddClient(new MyCustomAgentClient());
 </code></pre>
 
 <h3>IMessageClient</h3>
@@ -407,17 +419,22 @@ builder.Services.AddFlowEngine()
 
     public Task ValidateAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-    public Task SendAsync(MessageRequest request, CancellationToken ct)
+    // One method for both delivery modes (request.DeliveryMode).
+    public async Task&lt;MessageResult&gt; SendAsync(MessageRequest request, CancellationToken ct)
     {
-        // FireAndForget — publish and return
-        return MyBusClient.PublishAsync(request.Subject, request.Body, ct);
-    }
+        var messageId = await MyBusClient.PublishAsync(
+            request.Subject, request.Body, request.CorrelationId, ct);
 
-    public Task&lt;string&gt; SendAndWaitAsync(MessageRequest request, CancellationToken ct)
-    {
-        // RequestReply — return a correlation key that identifies the pending reply
-        // Engine suspends the instance; harness calls engine.ResumeAsync when reply arrives
-        return MyBusClient.PublishWithCorrelationAsync(request.Subject, request.Body, ct);
+        // For RequestReply with replyEventName set, the node suspends on that event with
+        // CorrelationKey = CorrelationId (else the instance id); the reply consumer calls
+        // engine.ResumeAsync. Returning PendingWait instead replaces that default wait.
+        return new MessageResult
+        {
+            Sent          = true,
+            MessageId     = messageId,
+            CorrelationId = request.CorrelationId,
+            Outcome       = DecisionOutcome.Match
+        };
     }
 }
 </code></pre>
@@ -429,10 +446,14 @@ builder.Services.AddFlowEngine()
 
     public Task ValidateAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-    public async Task&lt;IntegrationResponse&gt; CallAsync(IntegrationRequest request, CancellationToken ct)
+    // integration nodes map StatusCode: 2xx Match, 404 NoMatch, anything else Error.
+    // fetch nodes map 2xx Match, any 4xx NoMatch, anything else Error.
+    public async Task&lt;ClientResponse&gt; ExecuteAsync(ClientRequest request, CancellationToken ct)
     {
-        var httpResponse = await _http.PostAsJsonAsync("/api/call", request.Body, ct);
-        return new IntegrationResponse
+        using var message = new HttpRequestMessage(new HttpMethod(request.Method), request.Url);
+        if (request.Body is { } body) message.Content = JsonContent.Create(body);
+        var httpResponse = await _http.SendAsync(message, ct);
+        return new ClientResponse
         {
             StatusCode = (int)httpResponse.StatusCode,
             Body       = await httpResponse.Content.ReadFromJsonAsync&lt;JsonElement&gt;(ct)
@@ -451,7 +472,8 @@ builder.Services.AddFlowEngine()
 <h3>IContentFilter contract</h3>
 <pre><span class="lang-tag">csharp</span><code>public interface IContentFilter
 {
-    string Name { get; }
+    // Matched case-insensitively against AgentNodeConfig.contentFilterPolicy
+    string PolicyName { get; }
 
     // Called before the LLM — receives the rendered prompt
     Task&lt;ContentFilterResult&gt; FilterInputAsync(string prompt, CancellationToken ct = default);
@@ -463,8 +485,8 @@ builder.Services.AddFlowEngine()
 public sealed class ContentFilterResult
 {
     public bool    IsAllowed           { get; init; }
-    public string? ReplacementContent  { get; init; }  // stored as output if IsAllowed = false
-    public string? Reason              { get; init; }  // recorded in NodeExecutionRecord.Error
+    public string? ReplacementContent  { get; init; }  // input filter only, when IsAllowed: replaces the prompt sent
+    public string? Reason              { get; init; }  // when rejected: the node's ExecutionError.Message
 }
 </code></pre>
 
@@ -473,7 +495,7 @@ public sealed class ContentFilterResult
 {
     private readonly ContentSafetyClient _client;
 
-    public string Name => "azure-content-safety";
+    public string PolicyName => "azure-content-safety";
 
     public AzureContentSafetyFilter(ContentSafetyClient client) => _client = client;
 
@@ -494,9 +516,8 @@ public sealed class ContentFilterResult
         var blocked  = analysis.Value.CategoriesAnalysis.Any(c => c.Severity &gt;= 4);
         return new ContentFilterResult
         {
-            IsAllowed          = !blocked,
-            ReplacementContent = blocked ? "[Content filtered]" : null,
-            Reason             = blocked ? "Response flagged by Azure Content Safety" : null
+            IsAllowed = !blocked,
+            Reason    = blocked ? "Response flagged by Azure Content Safety" : null
         };
     }
 }
@@ -518,14 +539,14 @@ builder.Services.AddSingleton&lt;IContentFilter, AzureContentSafetyFilter&gt;();
 
 <h3>Filter execution flow</h3>
 <ol>
-  <li>Engine resolves the named <code>IContentFilter</code> from DI by <code>Name</code></li>
-  <li><code>FilterInputAsync(renderedPrompt)</code> — if <code>IsAllowed: false</code>, node short-circuits with <code>DecisionOutcome.Error</code>. <code>ReplacementContent</code> (if set) is stored as the node output.</li>
+  <li>The agent node takes the first <code>IContentFilter</code> registered in DI whose <code>PolicyName</code> matches <code>contentFilterPolicy</code> (case-insensitive)</li>
+  <li><code>FilterInputAsync(renderedPrompt)</code>: if <code>IsAllowed: false</code>, the node returns <code>Error</code> with code <code>CONTENT_FILTER_INPUT_REJECTED</code> (message = <code>Reason</code>) and the LLM is not called. If allowed and <code>ReplacementContent</code> is set, that text is sent as the prompt instead.</li>
   <li>LLM call proceeds normally</li>
-  <li><code>FilterOutputAsync(responseText)</code> — if <code>IsAllowed: false</code>, same short-circuit applies. Blocked response text is not stored.</li>
+  <li><code>FilterOutputAsync(responseText)</code>: if <code>IsAllowed: false</code>, the node returns <code>Error</code> with code <code>CONTENT_FILTER_OUTPUT_REJECTED</code>; the response is not stored. <code>ReplacementContent</code> is ignored for output.</li>
 </ol>
 
 <div class="callout callout-amber">
-  <strong>Registration required:</strong> If <code>contentFilterPolicy</code> names a filter that is not registered in DI, the node faults at execution time with a descriptive error. Register all referenced filters before the application starts.
+  <strong>Unregistered policy fails open:</strong> if <code>contentFilterPolicy</code> names a policy that no registered filter provides, no filtering happens and the call proceeds unfiltered, with no error or warning. Register every referenced filter, and check the <code>PolicyName</code> spelling.
 </div>
 
 <hr>
@@ -545,12 +566,12 @@ builder.Services.AddSingleton&lt;IContentFilter, AzureContentSafetyFilter&gt;();
 
 <p>Query execution history grouped by <code>promptVersion</code> to compare outcomes, latency, and token usage across prompt iterations:</p>
 <pre><span class="lang-tag">csharp</span><code>var records = instance.History
-    .Where(r => r.NodeId == "n-classify-risk" &amp;&amp; r.Metadata.ContainsKey("promptVersion"))
-    .GroupBy(r => r.Metadata["promptVersion"])
+    .Where(r => r.NodeId == "n-classify-risk" &amp;&amp; r.Metadata?.ContainsKey("promptVersion") == true)
+    .GroupBy(r => r.Metadata!["promptVersion"])
     .Select(g => new
     {
         PromptVersion = g.Key,
-        AvgLatencyMs  = g.Average(r => int.Parse(r.Metadata.GetValueOrDefault("latencyMs", "0"))),
+        AvgLatencyMs  = g.Average(r => long.Parse(r.Metadata!.GetValueOrDefault("latencyMs", "0"))),
         SuccessRate   = g.Count(r => r.Outcome == DecisionOutcome.Match) / (double)g.Count()
     });
 </code></pre>
@@ -569,21 +590,22 @@ builder.Services.AddSingleton&lt;IContentFilter, AzureContentSafetyFilter&gt;();
   <tr><td><code>latencyMs</code></td><td><code>long</code></td><td>End-to-end call latency in milliseconds</td></tr>
   <tr><td><code>tokensUsed</code></td><td><code>int?</code></td><td>Total tokens consumed (input + output)</td></tr>
   <tr><td><code>promptVersion</code></td><td><code>string?</code></td><td>Value of <code>AgentNodeConfig.promptVersion</code></td></tr>
-  <tr><td><code>estimatedCostUsd</code></td><td><code>decimal?</code></td><td>Computed from <code>FlowEngineOptions.AgentModelRates</code> × token counts</td></tr>
+  <tr><td><code>estimatedCostUsd</code></td><td><code>decimal?</code></td><td><code>tokensUsed</code> × (<code>InputCostPerToken</code> + <code>OutputCostPerToken</code>) from <code>FlowEngineOptions.AgentModelRates[clientRef]</code>; absent when no rate or no token count</td></tr>
 </table></div>
 
-<p>These same tags are written to <code>NodeResult.Metadata</code> and persisted in <code>NodeExecutionRecord.Metadata</code> — queryable in the history without an OTel collector.</p>
+<p>A subset is written to <code>NodeResult.Metadata</code> and persisted in <code>NodeExecutionRecord.Metadata</code> (string values), queryable in the history without an OTel collector: <code>clientRef</code>, <code>promptHash</code>, <code>latencyMs</code>, <code>promptVersion</code> (when set) and <code>tokensUsed</code> (when reported). <code>nodeId</code> and <code>estimatedCostUsd</code> are telemetry-only.</p>
 
 <h3>Per-model cost rates</h3>
 <pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngine(options =>
 {
-    options.AgentModelRates["gpt-4o"] = new ModelCostRate
+    // Keyed by clientRef, not by model name
+    options.AgentModelRates["gpt4o"] = new AgentModelRate
     {
         InputCostPerToken  = 0.000005m,   // $5.00 / 1M input tokens
         OutputCostPerToken = 0.000015m    // $15.00 / 1M output tokens
     };
 
-    options.AgentModelRates["gpt-4o-mini"] = new ModelCostRate
+    options.AgentModelRates["local-llm"] = new AgentModelRate
     {
         InputCostPerToken  = 0.00000015m,
         OutputCostPerToken = 0.00000060m
@@ -591,7 +613,7 @@ builder.Services.AddSingleton&lt;IContentFilter, AzureContentSafetyFilter&gt;();
 });
 </code></pre>
 
-<p>The model name is set at client registration time via <code>modelName</code> parameter on <code>AddChatClientAgentClient</code> / <code>AddAzureOpenAIAgentClient</code>. If a model name has no entry in <code>AgentModelRates</code>, <code>estimatedCostUsd</code> is emitted as <code>null</code>.</p>
+<p>Rates are looked up by the node's <code>clientRef</code>; the <code>modelName</code> given to <code>AddChatClientAgentClient</code> / <code>AddAzureOpenAIAgentClient</code> is only the <code>model</code> tag on <code>flow.agent.invoked</code>. Only the total token count reaches the node, so the estimate charges every token at input rate plus output rate (an upper bound). If the <code>clientRef</code> has no entry, or the client reports no tokens, <code>estimatedCostUsd</code> is omitted.</p>
 
 <h3>Custom IFlowEngineTelemetry</h3>
 <pre><span class="lang-tag">csharp</span><code>public class MyTelemetry : IFlowEngineTelemetry
@@ -605,7 +627,7 @@ builder.Services.AddSingleton&lt;IContentFilter, AzureContentSafetyFilter&gt;();
         _meters = meters;
     }
 
-    public void RecordEvent(string eventName, IReadOnlyDictionary&lt;string, object?&gt; tags)
+    public void Emit(string eventName, Dictionary&lt;string, object?&gt; tags)
     {
         if (eventName == "flow.agent.completed")
         {

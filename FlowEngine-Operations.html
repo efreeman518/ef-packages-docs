@@ -56,47 +56,83 @@ app.MapFlowEngineAdmin(prefix: "/api/flowengine");
 </code></pre>
 
 <h3>Authorization Policies</h3>
-<p><code>AddFlowEngineAdminPolicies()</code> registers two named policies. Configure them to match your identity provider:</p>
-<pre><span class="lang-tag">csharp</span><code>builder.Services.AddAuthorization(o =>
-{
-    o.AddPolicy("FlowEngine.Admin", p =>
-        p.RequireClaim("role", "flowengine-admin"));
-
-    o.AddPolicy("FlowEngine.HumanTask", p =>
-        p.RequireClaim("role", "task-worker"));
-});
+<p><code>AddFlowEngineAdminPolicies()</code> registers two named policies, each requiring an authenticated user with a <code>scope</code> claim, and a request-scoped <code>FlowEngineTenantContext</code>:</p>
+<pre><span class="lang-tag">csharp</span><code>// What AddFlowEngineAdminPolicies() registers (FlowEngineAdminApiExtensions)
+services.AddAuthorizationBuilder()
+    .AddPolicy("FlowEngine.Admin",
+        p =&gt; p.RequireAuthenticatedUser().RequireClaim("scope", "FlowEngine.Admin"))
+    .AddPolicy("FlowEngine.HumanTask",
+        p =&gt; p.RequireAuthenticatedUser().RequireClaim("scope", "FlowEngine.HumanTask"));
+services.AddScoped&lt;FlowEngineTenantContext&gt;();
 </code></pre>
-<p>All admin endpoints require <code>FlowEngine.Admin</code>. Human-task endpoints accept either policy.</p>
+<p>To match a different identity provider, register your own policies with the same two names instead of calling <code>AddFlowEngineAdminPolicies()</code>, and register <code>FlowEngineTenantContext</code> as scoped yourself. Every route under the prefix requires <code>FlowEngine.Admin</code> except the <code>/human-tasks</code> routes, which are a separate group requiring <code>FlowEngine.HumanTask</code> only (an Admin-only caller cannot use them).</p>
+
+<h3>Tenant scoping</h3>
+<p>Every route runs <code>TenantPolicyExtensions.ResolveTenantFilter</code>. When a <code>FlowEngineTenantContext</code> is registered, the filter reads the tenant from the claim <code>FlowEngineTenantPolicyOptions.TenantClaimType</code> (default <code>tid</code>), then from <code>FallbackHeader</code> if one is configured. The header is caller-controlled and is used whenever the claim is absent, so any caller can choose its tenant with it: enable it only behind a trusted gateway that sets or strips the header on every request. With no tenant and <code>RequireTenant = true</code> (the default) the request is refused with <code>403</code>; set <code>RequireTenant = false</code> to allow unscoped (all-tenant) access. Configure the options with <code>AddFlowEngineAdminTenantPolicy(o =&gt; ...)</code> or <code>Configure&lt;FlowEngineTenantPolicyOptions&gt;</code>.</p>
+<ul>
+  <li>A caller with a tenant sees only its own tenant's instances: an instance in another tenant reads as <code>404</code> on get, retry, terminate, resume, and the human-task routes.</li>
+  <li><code>GET /instances</code> always filters by the caller's tenant.</li>
+  <li><code>POST /instances/start</code> starts in the caller's tenant; a body <code>tenantId</code> naming a different tenant returns <code>403</code>. The body <code>tenantId</code> is honoured only for a caller without a tenant.</li>
+  <li>Workflow-registry, compatibility, and circuit-breaker routes are not tenant-scoped.</li>
+  <li>Human tasks carry no tenant; they are scoped through the instance that owns them. For a tenant caller, <code>respond</code> fails closed (<code>404</code>) when no <code>IHumanTaskStore</code> is registered.</li>
+</ul>
 
 <h3>Endpoint Reference</h3>
+<p>Matches the route map in <code>MapFlowEngineAdmin</code>. Paths are relative to the prefix (default <code>/api/flowengine</code>). <code>401</code>/<code>403</code> from the authorization policies and the tenant filter apply to every route and are not repeated below. Exceptions not listed (for example from publish, unpublish, or delete) are not mapped and surface as <code>500</code>.</p>
 <div class="table-wrap"><table>
-  <tr><th>Method</th><th>Path (relative to prefix)</th><th>Policy</th><th>Description</th></tr>
-  <tr><td><code>GET</code></td><td><code>/instances</code></td><td>Admin</td><td>Query instances — filter by status, workflow ID, date range, tags</td></tr>
-  <tr><td><code>GET</code></td><td><code>/instances/{id}</code></td><td>Admin</td><td>Load a single instance with full history</td></tr>
-  <tr><td><code>POST</code></td><td><code>/instances/{id}/retry</code></td><td>Admin</td><td>Retry a <code>Faulted</code> instance from its last checkpoint</td></tr>
-  <tr><td><code>POST</code></td><td><code>/instances/{id}/terminate</code></td><td>Admin</td><td>Immediately terminate a <code>Running</code> or <code>Suspended</code> instance</td></tr>
-  <tr><td><code>POST</code></td><td><code>/instances/{id}/resume</code></td><td>Admin</td><td>Resume a <code>Suspended</code> instance with an optional signal payload</td></tr>
-  <tr><td><code>GET</code></td><td><code>/circuit-breakers</code></td><td>Admin</td><td>List all circuit breaker keys and their current state</td></tr>
-  <tr><td><code>POST</code></td><td><code>/circuit-breakers/{key}/reset</code></td><td>Admin</td><td>Manually close an open circuit</td></tr>
-  <tr><td><code>GET</code></td><td><code>/human-tasks</code></td><td>Admin or HumanTask</td><td>List pending human tasks with optional assignee filter</td></tr>
-  <tr><td><code>GET</code></td><td><code>/workflows/{id}/compatibility</code></td><td>Admin</td><td>Analyze breaking changes between two versions of a workflow</td></tr>
-  <tr><td><code>POST</code></td><td><code>/workflows/{id}/copy</code></td><td>Admin</td><td>Copy a workflow definition to a new ID and label; copy is saved as <code>Draft</code></td></tr>
+  <tr><th>Method</th><th>Path</th><th>Policy</th><th>Tenant behavior</th><th>Description and status codes</th></tr>
+  <tr><td><code>GET</code></td><td><code>/instances</code></td><td>Admin</td><td>Filtered to caller's tenant</td><td>Query instances. Query params: <code>workflowId</code>, <code>workflowVersion</code>, <code>correlationId</code>, <code>status</code>, <code>skip</code> (default 0), <code>take</code> (default 50). <code>200</code> <code>ExecutionQueryResult</code>.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/instances/{instanceId}</code></td><td>Admin</td><td>Other tenant: 404</td><td>Instance with full history. <code>200</code>, <code>404</code>.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/instances/{instanceId}/retry</code></td><td>Admin</td><td>Other tenant: 404</td><td>Re-drive a <code>Suspended</code> instance (for example a stuck wait) from its current node, in the background, with no payload. Any other status is returned unchanged: a <code>Faulted</code> instance is not re-run. <code>200</code> <code>ExecutionInstance</code>.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/instances/{instanceId}/terminate</code></td><td>Admin</td><td>Other tenant: 404</td><td>Cancel a running or suspended instance. Body <code>TerminateRequest { reason }</code> (required). <code>200</code> <code>ExecutionInstance</code>.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/instances/{instanceId}/resume</code></td><td>Admin</td><td>Other tenant: 404</td><td>Resume a suspended instance in the background. Optional body <code>ResumeRequest { payload }</code>. <code>200</code> <code>ExecutionInstance</code>.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/instances/start</code></td><td>Admin</td><td>Starts in caller's tenant; body tenant mismatch: 403</td><td>Start a workflow in the background. Body <code>StartWorkflowRequest { workflowId, entity, params, correlationId, tags, allowDraft, tenantId }</code>. <code>200</code> <code>ExecutionInstance</code>; <code>400</code> on definition validation errors (structured), unknown workflow, missing or invalid client, or an argument error (for example an over-long identifier or tag); <code>403</code>.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/circuit-breakers/{key}</code></td><td>Admin</td><td>Not scoped</td><td>Status of one circuit: <code>CircuitBreakerStatus { key, isOpen, openUntil }</code>. <code>200</code>.</td></tr>
+  <tr><td><code>DELETE</code></td><td><code>/circuit-breakers/{key}</code></td><td>Admin</td><td>Not scoped</td><td>Force the circuit closed. <code>204</code>.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/workflows/{workflowId}/compatibility</code></td><td>Admin</td><td>Not scoped</td><td>Compatibility report; query params <code>fromVersion</code> and <code>toVersion</code> (both required). <code>200</code> <code>WorkflowCompatibilityReport</code>.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/workflows</code></td><td>Admin</td><td>Not scoped</td><td>List definitions, optional <code>status</code> filter. <code>200</code>.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/workflows/{workflowId}</code></td><td>Admin</td><td>Not scoped</td><td>One definition; optional <code>version</code> (omit for latest). <code>200</code>, <code>404</code>.</td></tr>
+  <tr><td><code>PUT</code></td><td><code>/workflows</code></td><td>Admin</td><td>Not scoped</td><td>Create or update a Draft definition. <code>200</code>; <code>400</code> with structured validation errors <code>{ workflowId, version, errors: [{ code, nodeId, message }] }</code>; <code>409</code> when the save would overwrite an <code>Active</code> definition.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/workflows/{workflowId}/{version}/publish</code></td><td>Admin</td><td>Not scoped</td><td>Transition to <code>Active</code>. <code>204</code>.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/workflows/{workflowId}/{version}/unpublish</code></td><td>Admin</td><td>Not scoped</td><td>Transition to <code>Draft</code>. <code>204</code>.</td></tr>
+  <tr><td><code>DELETE</code></td><td><code>/workflows/{workflowId}/{version}</code></td><td>Admin</td><td>Not scoped</td><td>Delete a Draft definition. <code>204</code>.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/workflows/{workflowId}/copy</code></td><td>Admin</td><td>Not scoped</td><td>Copy to a new ID and label, saved as <code>Draft</code>. Body <code>CopyWorkflowRequest</code>. <code>201</code> (Location <code>/workflows/{id}/{version}</code>, not prefixed); <code>400</code> structured validation errors; <code>404</code> source not found.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/human-tasks?assignee=&amp;status=</code></td><td>HumanTask</td><td>Filtered to tasks whose instance is in caller's tenant</td><td>Tasks for an assignee. <code>assignee</code> is required, <code>status</code> optional. <code>200</code>.</td></tr>
+  <tr><td><code>GET</code></td><td><code>/human-tasks/instance/{instanceId}</code></td><td>HumanTask</td><td>Other tenant: 404</td><td>All tasks created for one instance. <code>200</code>, <code>404</code>.</td></tr>
+  <tr><td><code>POST</code></td><td><code>/human-tasks/{taskId}/respond</code></td><td>HumanTask</td><td>Task's instance in other tenant, or no task store: 404</td><td>Submit a response. Body <code>HumanTaskResponseRequest { formValues, respondedBy, responseToken }</code>. When quorum is reached the instance resumes in the background. <code>200</code> updated <code>HumanTask</code>; <code>400</code> invalid argument; <code>403</code> responder not authorized; <code>404</code> task not found; <code>409</code> task already closed.</td></tr>
 </table></div>
 
 <h3>IFlowEngineAdminApi contract</h3>
-<p>The underlying service abstraction — implement it to expose engine operations through any transport:</p>
+<p>The underlying service abstraction (<code>EF.FlowEngine.Abstractions</code>), implemented by <code>FlowEngineAdminService</code> and registered by <code>AddFlowEngine()</code>. Implement it to expose engine operations through any transport:</p>
 <pre><span class="lang-tag">csharp</span><code>public interface IFlowEngineAdminApi
 {
-    Task&lt;ExecutionQueryResult&gt; QueryInstancesAsync(ExecutionQuery query, CancellationToken ct = default);
     Task&lt;ExecutionInstance?&gt;   GetInstanceAsync(string instanceId, CancellationToken ct = default);
-    Task                       RetryInstanceAsync(string instanceId, CancellationToken ct = default);
-    Task                       TerminateInstanceAsync(string instanceId, CancellationToken ct = default);
-    Task                       ResumeInstanceAsync(string instanceId, JsonElement? payload, CancellationToken ct = default);
-    Task&lt;IReadOnlyList&lt;CircuitBreakerStatus&gt;&gt; GetCircuitBreakerStatusAsync(CancellationToken ct = default);
+    Task&lt;ExecutionQueryResult&gt; QueryInstancesAsync(ExecutionQuery query, CancellationToken ct = default);
+    Task&lt;ExecutionInstance&gt;    RetryInstanceAsync(string instanceId, CancellationToken ct = default);
+    Task&lt;ExecutionInstance&gt;    TerminateInstanceAsync(string instanceId, string reason, CancellationToken ct = default);
+    Task&lt;ExecutionInstance&gt;    ResumeInstanceAsync(string instanceId, JsonElement? signalPayload = null, CancellationToken ct = default);
+
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetHumanTasksAsync(string assignee, HumanTaskStatus? status = null, CancellationToken ct = default);
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetHumanTasksByInstanceAsync(string instanceId, CancellationToken ct = default);
+    Task&lt;HumanTask&gt; SubmitHumanTaskResponseAsync(string taskId, JsonElement formValues, string respondedBy,
+                                                string? responseToken = null, CancellationToken ct = default);
+
+    Task&lt;CircuitBreakerStatus&gt; GetCircuitBreakerStatusAsync(string key, CancellationToken ct = default);
     Task                       ResetCircuitAsync(string key, CancellationToken ct = default);
-    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetHumanTasksAsync(string? assignee, CancellationToken ct = default);
+
     Task&lt;WorkflowCompatibilityReport&gt; AnalyzeCompatibilityAsync(string workflowId, string fromVersion, string toVersion, CancellationToken ct = default);
-    Task&lt;WorkflowDefinition&gt; CopyWorkflowAsync(string sourceWorkflowId, string? sourceVersion, string newWorkflowId, string newLabel, string newVersion = "1.0.0", CancellationToken ct = default);
+
+    // Workflow registry
+    Task&lt;IReadOnlyList&lt;WorkflowDefinition&gt;&gt; ListWorkflowsAsync(DefinitionStatus? status = null, CancellationToken ct = default);
+    Task&lt;WorkflowDefinition?&gt; GetWorkflowAsync(string workflowId, string? version = null, CancellationToken ct = default);
+    Task&lt;WorkflowDefinition&gt;  SaveWorkflowAsync(WorkflowDefinition definition, CancellationToken ct = default);
+    Task TransitionWorkflowStatusAsync(string workflowId, string version, DefinitionStatus newStatus, CancellationToken ct = default);
+    Task DeleteWorkflowAsync(string workflowId, string version, CancellationToken ct = default);
+    Task&lt;WorkflowDefinition&gt;  CopyWorkflowAsync(string sourceWorkflowId, string? sourceVersion, string newWorkflowId,
+                                              string newLabel, string newVersion = "1.0.0", CancellationToken ct = default);
+
+    // Instance start (background; returns immediately)
+    Task&lt;ExecutionInstance&gt; StartWorkflowAsync(StartRequest request, CancellationToken ct = default);
 }
 </code></pre>
 
@@ -110,8 +146,11 @@ app.MapFlowEngineAdmin(prefix: "/api/flowengine");
 <pre><span class="lang-tag">csharp</span><code>// Program.cs
 builder.Services.AddFlowEngineDashboard(
     adminApiBaseUrl: builder.Configuration["FlowEngine:AdminApiBaseUrl"]!
-    // e.g. "https://your-api-host/api/flowengine"
+    // the Admin API host root, e.g. "https://your-api-host" (no path)
 );
+
+// The Refit client calls fixed /flowengine/admin/... paths, so map the Admin API under that prefix
+app.MapFlowEngineAdmin("/flowengine/admin");
 
 // Blazor Server wiring (add alongside your existing Blazor registration)
 builder.Services.AddServerSideBlazor();
@@ -128,7 +167,7 @@ app.MapFallbackToPage("/_Host");
   <tr><td><strong>Workflow Registry</strong></td><td><code>/workflows/registry</code></td><td>All registered definitions with version history and compatibility diff between any two versions.</td></tr>
   <tr><td><strong>Workflow Designer</strong></td><td><code>/workflows/new</code></td><td>Visual drag-and-drop workflow builder. Design nodes, wire transitions, set properties inline. Export or import JSON. Supports all built-in node types.</td></tr>
   <tr><td><strong>Run Workflow</strong></td><td><code>/workflows/run</code></td><td>Manually trigger a workflow definition against a selected registry entry with optional input JSON.</td></tr>
-  <tr><td><strong>Circuit Breaker Status</strong></td><td><code>/circuit-breakers</code></td><td>Live circuit state table — key, state (open/closed), trip count, last tripped. Reset action per circuit.</td></tr>
+  <tr><td><strong>Circuit Breaker Status</strong></td><td><code>/circuit-breakers</code></td><td>Look up one circuit by key: shows key, open or closed (<code>IsOpen</code>), and <code>OpenUntil</code>. Reset button when the circuit is open.</td></tr>
   <tr><td><strong>Client Registry</strong></td><td><code>/clients</code></td><td>All registered <code>IFlowClient</code> instances with type and source badges. Add HTTP, Service Bus, or SQL query clients at runtime (persisted across restarts). Read-only view for startup-registered clients.</td></tr>
 </table></div>
 
@@ -137,14 +176,14 @@ app.MapFallbackToPage("/_Host");
 </div>
 
 <h3>IFlowEngineAdminClient</h3>
-<p>The dashboard uses a Refit-generated typed client. You can also use it directly in your own code to call the Admin API:</p>
+<p>The dashboard uses a Refit-generated typed client whose routes are fixed at <code>/flowengine/admin/...</code>. Point its base address at the Admin API host root and map the Admin API with <code>MapFlowEngineAdmin("/flowengine/admin")</code>; the default <code>/api/flowengine</code> prefix will not match. You can also use the client directly:</p>
 <pre><span class="lang-tag">csharp</span><code>// Registered by AddFlowEngineDashboard — or register manually:
 builder.Services.AddRefitClient&lt;IFlowEngineAdminClient&gt;()
     .ConfigureHttpClient(c => c.BaseAddress = new Uri(adminApiBaseUrl));
 </code></pre>
 
 <div class="callout callout-amber">
-  <strong>Authentication:</strong> The dashboard does not configure authentication itself. Mount it behind your existing auth middleware and ensure the user's JWT or cookie includes the <code>FlowEngine.Admin</code> or <code>FlowEngine.HumanTask</code> claim required by the Admin API policies.
+  <strong>Authentication:</strong> The dashboard does not configure authentication itself. Mount it behind your existing auth middleware and ensure the user's JWT or cookie includes the <code>scope</code> claim value (<code>FlowEngine.Admin</code> or <code>FlowEngine.HumanTask</code>) required by the default Admin API policies, plus a <code>tid</code> tenant claim unless <code>RequireTenant</code> is off.
 </div>
 
 <hr>
@@ -178,18 +217,29 @@ builder.Services.AddRefitClient&lt;IFlowEngineAdminClient&gt;()
 <h3>OutboxEntry model</h3>
 <div class="table-wrap"><table>
   <tr><th>Field</th><th>Type</th><th>Description</th></tr>
-  <tr><td><code>EntryId</code></td><td><code>string</code></td><td>Unique entry identifier (ULID)</td></tr>
-  <tr><td><code>ClientRef</code></td><td><code>string</code></td><td>Name of the registered <code>IFlowClient</code> to publish to</td></tr>
-  <tr><td><code>Payload</code></td><td><code>JsonElement</code></td><td>Serialized request payload</td></tr>
-  <tr><td><code>IdempotencyKey</code></td><td><code>string?</code></td><td>Forwarded to the client — provider-side deduplication</td></tr>
-  <tr><td><code>CreatedAt</code></td><td><code>DateTimeOffset</code></td><td>When the entry was enqueued</td></tr>
+  <tr><td><code>EntryId</code></td><td><code>Guid</code></td><td>Unique entry identifier (new GUID by default)</td></tr>
+  <tr><td><code>InstanceId</code></td><td><code>string</code></td><td>Owning workflow instance (at most 64 UTF-16 code units)</td></tr>
+  <tr><td><code>NodeId</code></td><td><code>string</code></td><td>Node that produced the entry (at most 64)</td></tr>
+  <tr><td><code>Type</code></td><td><code>OutboxEntryType</code></td><td><code>Message</code> or <code>Integration</code></td></tr>
+  <tr><td><code>ClientRef</code></td><td><code>string</code></td><td>Name of the registered client to publish to (at most 127)</td></tr>
+  <tr><td><code>Payload</code></td><td><code>string</code></td><td>Serialized request payload</td></tr>
+  <tr><td><code>IdempotencyKey</code></td><td><code>string?</code></td><td>Forwarded to the client for provider-side deduplication (at most 512)</td></tr>
+  <tr><td><code>EnqueuedAt</code></td><td><code>DateTimeOffset</code></td><td>When the entry was enqueued</td></tr>
+  <tr><td><code>NextRetryAt</code></td><td><code>DateTimeOffset?</code></td><td>Earliest time of the next publish attempt after a failure</td></tr>
+  <tr><td><code>AttemptCount</code></td><td><code>int</code></td><td>Publish attempts so far</td></tr>
+  <tr><td><code>LastError</code></td><td><code>string?</code></td><td>Error from the most recent failed attempt</td></tr>
+  <tr><td><code>PublishedAt</code></td><td><code>DateTimeOffset?</code></td><td>Set when published; <code>null</code> while pending</td></tr>
 </table></div>
+<p><strong>Length limits:</strong> the limits above match the SQL outbox columns (<code>FlowEngine.MaxInstanceIdLength</code>, <code>MaxNodeIdLength</code>, <code>MaxClientRefLength</code>, <code>MaxOutboxIdempotencyKeyLength</code>). A node <code>clientRef</code> over 127 is rejected by <code>WorkflowDefinitionValidator</code> at registration. Values resolved at run time (for example an <code>idempotencyKey</code> expression) are checked before the save: an over-long one fails the node with <code>RUNTIME_KEY_TOO_LONG</code> and its outbox entries are dropped with it.</p>
 
 <h3>IOutboxStore interface</h3>
 <pre><span class="lang-tag">csharp</span><code>public interface IOutboxStore
 {
     Task EnqueueAsync(OutboxEntry entry, CancellationToken ct = default);
-    Task&lt;IReadOnlyList&lt;OutboxEntry&gt;&gt; DequeueAsync(int batchSize, CancellationToken ct = default);
+    Task&lt;IReadOnlyList&lt;OutboxEntry&gt;&gt; DequeuePendingAsync(int batchSize = 50, CancellationToken ct = default);
+    Task MarkPublishedAsync(Guid entryId, CancellationToken ct = default);
+    Task MarkFailedAsync(Guid entryId, string error, CancellationToken ct = default);
+    Task&lt;OutboxMetrics&gt; GetMetricsAsync(CancellationToken ct = default);
 }
 </code></pre>
 
@@ -225,6 +275,7 @@ builder.Services.AddRefitClient&lt;IFlowEngineAdminClient&gt;()
 }
 </code></pre>
 <p>For <code>integration</code> nodes <code>idempotencyKey</code> is client metadata only. Set <code>idempotencyKeyHeader</code> to have the engine send a generated key (stable across retries and lease recovery of one node execution) in that header; the server must deduplicate on it.</p>
+<p>An outbox entry's resolved <code>IdempotencyKey</code> is at most 512 UTF-16 code units and its <code>clientRef</code> at most 127 (see the length limits above).</p>
 
 <div class="callout callout-teal">
   <strong>Validation warning:</strong> <code>WorkflowDefinitionValidator</code> emits a warning when <code>idempotencyKey</code> is absent from an agent/message/integration node (not for an integration node that sets <code>idempotencyKeyHeader</code>), and <code>UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER</code> when an unsafe-method integration node lists 408/500/502/504 in <code>retryOnStatusCodes</code> without <code>idempotencyKeyHeader</code>. <code>GetWarnings(definition)</code> returns structured <code>WorkflowDefinitionWarning { Code, NodeId, Message }</code>. Warnings do not block registration — treat them as an at-least-once delivery risk.
@@ -240,6 +291,7 @@ builder.Services.AddRefitClient&lt;IFlowEngineAdminClient&gt;()
   <tr><td><em>(built-in)</em></td><td><code>InMemoryCircuitBreakerStore</code></td><td>In-process only — single replica</td></tr>
   <tr><td><code>EF.FlowEngine.CircuitBreaker.Redis</code></td><td><code>RedisCircuitBreakerStore</code></td><td>Redis sorted sets — shared across all replicas</td></tr>
   <tr><td><code>EF.FlowEngine.CircuitBreaker.Sql</code></td><td><code>SqlCircuitBreakerStore</code></td><td>EF Core SQL table — shared across all replicas</td></tr>
+  <tr><td><code>EF.FlowEngine.CircuitBreaker.Cosmos</code></td><td><code>CosmosCircuitBreakerStore</code></td><td>Cosmos DB container - shared across all replicas</td></tr>
 </table></div>
 
 <h3>Registration</h3>
@@ -264,8 +316,10 @@ builder.Services.AddFlowEngine()
     Task&lt;bool&gt; IsOpenAsync(string key, CancellationToken ct = default);
     Task        RecordFailureAsync(string key, CircuitBreakerPolicy policy, CancellationToken ct = default);
     Task&lt;bool&gt;  RecordSuccessAsync(string key, CancellationToken ct = default); // true: this success closed a tripped circuit
+    Task&lt;IReadOnlyList&lt;string&gt;&gt; GetOpenCircuitsAsync(CancellationToken ct = default);
 }
 </code></pre>
+<p>Circuit breaker policy keys (node and <code>DefaultCircuitBreakerPolicy</code>) are at most 240 UTF-16 code units so the reopen wait event <code>circuit.{key}.reopen</code> fits the 256-unit event name limit; <code>WorkflowDefinitionValidator</code> rejects longer keys.</p>
 
 <h3>Circuit behavior</h3>
 <div class="table-wrap"><table>
@@ -277,7 +331,7 @@ builder.Services.AddFlowEngine()
   <tr><td><code>OpenDuration</code> elapses</td><td>Circuit transitions to <strong>HalfOpen</strong> — exactly one probe attempt is let through; all other callers are blocked during the probe window. Probe success → Closed (failures counter reset). Probe failure → re-Open with timer reset.</td></tr>
 </table></div>
 
-<p><strong>InMemoryCircuitBreakerStore — HalfOpen behavior:</strong> after <code>OpenDuration</code> elapses, the store transitions to <code>HalfOpen</code> state. Exactly one call is permitted as a probe; all concurrent callers are blocked. A successful probe result (via <code>RecordSuccessAsync</code>) transitions to <code>Closed</code>. A failed probe result (via <code>RecordFailureAsync</code>) transitions back to <code>Open</code> and resets the open timer. This is enforced by a semaphore in the in-memory implementation — no additional configuration is required.</p>
+<p><strong>InMemoryCircuitBreakerStore - HalfOpen behavior:</strong> after <code>OpenDuration</code> elapses, the store transitions to <code>HalfOpen</code> state. Exactly one call is permitted as a probe; all concurrent callers are blocked. A successful probe result (via <code>RecordSuccessAsync</code>) transitions to <code>Closed</code>. A failed probe result (via <code>RecordFailureAsync</code>) transitions back to <code>Open</code> and resets the open timer. This is enforced by a <code>lock</code> on the per-key state with a <code>ProbeAvailable</code> flag in the in-memory implementation; no additional configuration is required.</p>
 
 <div class="callout callout-amber">
   <strong>InMemoryCircuitBreakerStore in production:</strong> circuit state is not persisted — a process restart resets all circuits. If you restart a replica while circuits are open, instances may retry a still-degraded service. Use a distributed store for any multi-replica or container-based deployment.
@@ -320,7 +374,7 @@ if (report.Findings.Any(f => f.Severity == FindingSeverity.Breaking))
 <p>For the complete finding catalogue (including <code>ContextRequirements</code>, <code>StoreAs</code> rename, <code>CompensationNodeId</code> checks) and the full promotion checklist, see <a href="FlowEngine-Design-Doc.html#compat">FlowEngine Design Doc → CompatibilityAnalyzer</a>.</p>
 
 <h3>Via Admin API</h3>
-<pre><span class="lang-tag">http</span><code>GET /api/flowengine/workflows/{workflowId}/compatibility?from=1.0.0&amp;to=2.0.0
+<pre><span class="lang-tag">http</span><code>GET /api/flowengine/workflows/{workflowId}/compatibility?fromVersion=1.0.0&amp;toVersion=2.0.0
 </code></pre>
 <p>Returns a <code>WorkflowCompatibilityReport</code> JSON object. Safe to call in automated pre-migration pipelines.</p>
 
@@ -394,7 +448,7 @@ if (preview.Failed.Count == 0)
 <p>Each firing starts the workflow with an idempotency key of <code>{scheduleId}:{occurrence}</code>. If the scheduler runs on multiple replicas, engine start idempotency (below) ensures each occurrence launches exactly one instance — so no shared schedule store or leader election is required. <code>UseScheduler()</code> registers an in-memory <code>IWorkflowScheduleStore</code> unless a durable one is registered first; schedules can also be managed at runtime by resolving <code>IWorkflowScheduleStore</code>.</p>
 
 <h3>Start idempotency</h3>
-<p>Set <code>IdempotencyKey</code> on a <code>StartRequest</code> to make starts safe to retry. When the key matches an instance that already exists, the engine returns that existing instance instead of creating a duplicate; the key is stored as the well-known <code>__idempotency</code> tag and looked up via a tag query. This gives exactly-once starts under client retries, at-least-once queue redelivery, and multi-replica schedulers.</p>
+<p>Set <code>IdempotencyKey</code> (at most 512 UTF-16 code units, the tag value limit; a longer key throws <code>ArgumentException</code>) on a <code>StartRequest</code> to make starts safe to retry. When the key matches an instance that already exists, the engine returns that existing instance instead of creating a duplicate; the key is stored as the well-known <code>__idempotency</code> tag and looked up via a tag query. This de-duplicates client retries and queue redelivery that arrive after the first start was saved. The check is a lookup before the insert, not an atomic reservation: two starts with the same key that run concurrently (both lookups before either save) can each create an instance. A retry after the first start was saved returns the existing instance.</p>
 <pre><span class="lang-tag">csharp</span><code>var instance = await engine.StartAsync(new StartRequest
 {
     WorkflowId     = "process-order",
@@ -418,7 +472,7 @@ Content-Type: application/json
   "sourceVersion": "2.1.0"   // omit to copy the latest version
 }
 </code></pre>
-<p>Returns <code>201 Created</code> with the new <code>WorkflowDefinition</code> in the response body. Returns <code>404 Not Found</code> if the source workflow or version does not exist.</p>
+<p>Returns <code>201 Created</code> with the new <code>WorkflowDefinition</code> in the response body. Returns <code>404 Not Found</code> if the source workflow or version does not exist, and <code>400</code> with structured errors if the copy fails validation.</p>
 
 <h3>Via <code>IFlowEngineAdminApi</code></h3>
 <pre><span class="lang-tag">csharp</span><code>var copy = await adminApi.CopyWorkflowAsync(
@@ -449,7 +503,10 @@ await adminApi.TransitionWorkflowStatusAsync(copy.Id, copy.Version, DefinitionSt
   <tr><td><code>FaultingStateStoreTests</code></td><td>State store <code>SaveAsync</code> exception propagates out of the engine (at-least-once guarantee)</td></tr>
 </table></div>
 
-<p>Run with: <code>dotnet test EF.Test.Integration.FlowEngine</code> (no external infrastructure required for these tests).</p>
+<p>These tests need no external infrastructure. Run them with a filter so the assembly starts no fixtures for other tests (see <code>tests/README.md</code>):</p>
+<pre><span class="lang-tag">bash</span><code>dotnet test EF.Test.Integration.FlowEngine --results-directory tests/TestResults/failure-modes \
+  --filter "FullyQualifiedName~CircuitBreakerTripsTests|FullyQualifiedName~CircuitBreakerResetTests|FullyQualifiedName~RetryExhaustionTests|FullyQualifiedName~IdempotencyKeyForwardingTests|FullyQualifiedName~FaultingStateStoreTests"
+</code></pre>
 
 <h3>Performance benchmarks</h3>
 <p>Project <code>EF.Test.Performance</code> provides BenchmarkDotNet benchmarks (single-instance and concurrent 100/500/1000) for linear and branching workflows against InMemory stores.</p>
@@ -472,17 +529,17 @@ dotnet run -c Release
     .UseStateStoreSql&lt;AppDbContext&gt;()
     .UseRetentionPolicy(new RetentionPolicy
     {
-        RetainFor  = TimeSpan.FromDays(90),           // keep instances for 90 days after terminal
-        Statuses   = [ExecStatus.Completed,
-                      ExecStatus.Cancelled],          // which terminal statuses to archive
-        RunEvery   = TimeSpan.FromHours(6)            // how often InstanceRetentionService runs
+        MaxAge      = TimeSpan.FromDays(90),          // default 90 days
+        Statuses    = [ExecStatus.Completed,
+                       ExecStatus.Cancelled],         // default: Completed, Faulted, Cancelled
+        RunInterval = TimeSpan.FromHours(6)           // default 6 hours; how often InstanceRetentionService runs
     });
 </code></pre>
 
 <p><code>InstanceRetentionService</code> is a background <code>IHostedService</code> registered automatically by <code>UseRetentionPolicy</code>. On each run it calls:</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">// Called by InstanceRetentionService — not called directly in normal usage
 await stateStore.ArchiveAsync(
-    olderThan: DateTimeOffset.UtcNow - policy.RetainFor,
+    olderThan: DateTimeOffset.UtcNow - policy.MaxAge,
     statuses:  policy.Statuses,
     ct);
 </code></pre>
@@ -491,8 +548,9 @@ await stateStore.ArchiveAsync(
 <p>When an instance reaches <code>Faulted</code> status and no recovery path (GlobalOnFailureNodeId, retry policy) is available, the engine automatically enqueues the instance to the dead-letter store if one is registered. Register a dead-letter store implementation:</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">builder.Services.AddFlowEngine()
     .UseStateStoreSql&lt;AppDbContext&gt;()
-    .UseDeadLetterStore&lt;SqlDeadLetterStore&gt;();   // or RedisDeadLetterStore, etc.
+    .UseDeadLetterStore&lt;MyDeadLetterStore&gt;();   // your IDeadLetterStore; or UseDeadLetterStore(sp =&gt; ...)
 </code></pre>
+<p>No production dead-letter store package ships (there is no SQL or Redis dead-letter store). <code>EF.FlowEngine.Testing</code> provides <code>InMemoryDeadLetterStore</code> for tests; implement <code>IDeadLetterStore</code> (<code>EnqueueAsync(ExecutionInstance, string reason)</code>, <code>ListAsync</code>, <code>RemoveAsync(instanceId)</code>) for production. Only <code>Faulted</code> instances are dead-lettered; <code>TimedOut</code> and <code>CycleDetected</code> are not.</p>
 
 <p>The engine resolves <code>IDeadLetterStore</code> optionally from DI (<code>services.GetService&lt;IDeadLetterStore&gt;()</code>). When present, after <code>EmitFinalEvent</code> for a <code>Faulted</code> instance the engine calls <code>IDeadLetterStore.EnqueueAsync</code>. Instances without a registered dead-letter store simply fault and stay in the state store.</p>
 
@@ -509,6 +567,7 @@ await engine.ReplayFromDeadLetterAsync(instanceId, ct);
   <tr><td><code>InstanceId</code></td><td><code>string</code></td><td>The faulted instance ID</td></tr>
   <tr><td><code>WorkflowId</code></td><td><code>string</code></td><td>Workflow definition ID</td></tr>
   <tr><td><code>WorkflowVersion</code></td><td><code>string</code></td><td>Pinned version at the time of fault</td></tr>
+  <tr><td><code>TenantId</code></td><td><code>string?</code></td><td>Tenant of the faulted instance, if any</td></tr>
   <tr><td><code>Reason</code></td><td><code>string</code></td><td>Human-readable fault reason</td></tr>
   <tr><td><code>EnqueuedAt</code></td><td><code>DateTimeOffset</code></td><td>When the entry was created</td></tr>
   <tr><td><code>LastError</code></td><td><code>ExecutionError?</code></td><td>The error from <code>ExecutionInstance.Error</code> at enqueue time</td></tr>
@@ -523,7 +582,7 @@ await engine.ReplayFromDeadLetterAsync(instanceId, ct);
 
 <div class="table-wrap"><table>
   <tr><th>Metric name</th><th>Type</th><th>Description</th></tr>
-  <tr><td><code>flowengine.instances.active</code></td><td>Gauge (<code>int</code>)</td><td>Count of instances currently in Running state on this process</td></tr>
+  <tr><td><code>flowengine.instances.active</code></td><td>Gauge (<code>int</code>)</td><td>Instances started or queued on this process that have not reached a terminal state (Suspended instances included)</td></tr>
   <tr><td><code>flowengine.instances.completed_total</code></td><td>Counter (<code>long</code>)</td><td>Cumulative count of instances that reached Completed</td></tr>
   <tr><td><code>flowengine.instances.failed_total</code></td><td>Counter (<code>long</code>)</td><td>Cumulative count of instances that reached Faulted, TimedOut, or CycleDetected</td></tr>
   <tr><td><code>flowengine.instance.duration_ms</code></td><td>Histogram (<code>double</code>)</td><td>End-to-end instance duration in milliseconds (recorded at terminal state)</td></tr>
@@ -531,6 +590,7 @@ await engine.ReplayFromDeadLetterAsync(instanceId, ct);
 </table></div>
 
 <p>The counters and histograms carry low-cardinality dimensional tags — <code>workflowId</code>, <code>tenantId</code> (when set), and <code>nodeType</code> (node histogram only) — so dashboards can slice completions/failures/durations by workflow or tenant. Instance ids are deliberately not emitted as tags to keep series count bounded.</p>
+<p><code>failed_total</code> increments on the <code>flow.instance.faulted</code> and <code>flow.instance.timed_out</code> events; a <code>CycleDetected</code> instance emits <code>flow.instance.faulted</code>, so it is counted too. Cancelled instances record duration only. Other engine events, such as <code>flow.humantask.response_discarded</code> (a human task response was accepted by the store but discarded because the instance had already left the wait), reach the telemetry sink without driving a metric; the default <code>LoggerFlowEngineTelemetry</code> logs them at Debug level.</p>
 
 <p>To emit metrics <em>and</em> distributed-trace spans from the same engine, call <code>UseMetricsAndTracing()</code> instead of <code>UseMetrics()</code>. It registers a composite telemetry sink over both <code>MeterFlowEngineTelemetry</code> and <code>ActivitySourceFlowEngineTelemetry</code> (the individual <code>UseMetrics()</code>/<code>UseActivitySourceTelemetry()</code> calls are otherwise mutually exclusive). Configure exporters for both the meter and the activity source named <code>"EF.FlowEngine"</code>.</p>
 
