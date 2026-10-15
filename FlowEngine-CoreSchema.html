@@ -2448,6 +2448,11 @@ public enum DefinitionStatus
 // Default registry: EF.FlowEngine/Impl/InMemoryWorkflowRegistry.cs (thread-safe, lost on restart).
 // SaveAsync validates with WorkflowDefinitionValidator.ValidateAndThrow; it also implements
 // TransitionStatusAsync and DeleteAsync. Exact versions, "1.*" prefixes and latest Active lookups.
+// Every registry makes each guard and its write atomic (the File and JSON-file registries within one
+// process only): a concurrent save or delete that finds the version Active or Archived, or a
+// transition the rules refuse from the status it finds, throws the guard's exception
+// (WorkflowDefinitionMutationException for a save, InvalidOperationException for a transition or
+// delete) instead of overwriting it.
 
 // ── INodeExecutorRegistry ──────────────────────────────────────────────────────
 
@@ -2760,14 +2765,14 @@ use a persistent registry so workflow definitions survive restarts.</p>
 <code>modelBuilder.ApplyFlowEngineState()</code> (both in <code>EF.FlowEngine.StateStore.Sql</code>). The table is
 <code>FlowEngineWorkflowRow</code> (<code>EF.FlowEngine.StateStore.Sql/FlowEngineRows.cs</code>): <code>CompositeKey</code>
 (primary key, <code>{id}@{version}</code>, max 256), <code>WorkflowId</code> (max 128), <code>Status</code> (integer
-<code>DefinitionStatus</code>) and <code>Data</code> (the full definition as JSON).</p>
+<code>DefinitionStatus</code>), <code>Data</code> (the full definition as JSON) and <code>Revision</code> (<code>bigint</code>, incremented by every write; the optimistic concurrency token).</p>
 <h3>Behaviour</h3>
 <ul>
 <li><code>SqlWorkflowRegistry&lt;TContext&gt;</code> takes an <code>IDbContextFactory&lt;TContext&gt;</code>.</li>
 <li><code>GetAsync</code>: an exact version matches <code>CompositeKey</code> in any status; <code>null</code> or a <code>"2.*"</code> prefix loads the Active rows for the id and picks the highest <code>Version</code> string in application code (there is no version sort column).
 Versions are ordered by <code>WorkflowVersionComparer</code> (numeric segments, a numeric segment below a text one, prerelease below release), so <code>"1.10.0"</code> is newer than <code>"1.9.0"</code>.</li>
-<li><code>SaveAsync</code> validates with <code>WorkflowDefinitionValidator.ValidateAndThrow</code>, inserts or updates the row, and throws <code>WorkflowDefinitionMutationException</code> when the existing row is Active or Archived.</li>
-<li><code>TransitionStatusAsync</code> follows <code>WorkflowStatusTransitions</code> (Draft &lt;-&gt; Active, Active &lt;-&gt; Archived, Archived -&gt; Draft) and rewrites the status inside the JSON too; <code>DeleteAsync</code> refuses an Active or Archived row.</li>
+<li><code>SaveAsync</code> validates with <code>WorkflowDefinitionValidator.ValidateAndThrow</code>, inserts or updates the row, and throws <code>WorkflowDefinitionMutationException</code> when the existing row is Active or Archived. The update is one statement whose <code>WHERE</code> excludes Active and Archived rows. When it matches no row, the save throws only if the row is Active or Archived, inserts if the row is absent, and otherwise retries; an insert that loses to a concurrent insert (primary key violation) retries against the winner's row.</li>
+<li><code>TransitionStatusAsync</code> follows <code>WorkflowStatusTransitions</code> (Draft &lt;-&gt; Active, Active &lt;-&gt; Archived, Archived -&gt; Draft) and rewrites the status inside the JSON too; the update is conditioned on the <code>Revision</code> as read, and a lost race re-reads and re-validates. <code>DeleteAsync</code> refuses an Active or Archived row with a conditional <code>DELETE</code>, retrying when a concurrent save inserted the row after it.</li>
 <li><code>EnsureCreatedAsync</code> (<code>IFlowEngineInitializable</code>) calls <code>Database.EnsureCreatedAsync</code>.</li>
 </ul>
 <h3>Registration</h3>

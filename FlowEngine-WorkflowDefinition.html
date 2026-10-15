@@ -174,6 +174,11 @@ public sealed class WorkflowDefinition
 ///
 /// Transitions (WorkflowStatusTransitions): Draft &lt;-&gt; Active, Active &lt;-&gt; Archived,
 /// Archived -&gt; Draft. Draft -&gt; Archived is refused.
+/// Every registry applies each guard and its write atomically (SQL conditional statements,
+/// Cosmos and Azure Table ETags, Redis conditional transactions, a per-directory lock in the
+/// File and JSON-file registries, which covers one process only, a lock in memory), so a concurrent
+/// save or delete that finds the version Active or Archived, or a transition the rules refuse from
+/// the status it finds, throws the guard's own exception instead of overwriting it.
 /// Active definitions are immutable — transition back to Draft to edit.
 /// Only Active definitions can be started via IFlowEngine.StartAsync, unless
 /// StartRequest.AllowDraft is true (dashboard test runs and admin tooling).
