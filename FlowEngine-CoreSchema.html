@@ -465,7 +465,7 @@ public sealed class WaitDescriptor
 
     /// &lt;summary&gt;
     /// Whether the most recently accumulated signal included a payload. False preserves payload-free
-    /// resume semantics during sweep recovery; null denotes legacy records without this information.
+    /// resume semantics during sweep recovery; null (not set) is treated like true.
     /// &lt;/summary&gt;
     public bool? LastSignalHasPayload { get; set; }
 }
@@ -2331,7 +2331,7 @@ public interface IWorkflowRegistry
     /// Throws &lt;see cref="Exceptions.WorkflowDefinitionMutationException"/&gt; if the key already exists
     /// with &lt;see cref="DefinitionStatus.Active"/&gt; or &lt;see cref="DefinitionStatus.Archived"/&gt; status -
     /// use &lt;see cref="TransitionStatusAsync"/&gt; to move it back to &lt;see cref="DefinitionStatus.Draft"/&gt;
-    /// before editing (note: Archived -&gt; Draft is not permitted; Unarchive to Active first).
+    /// before editing.
     /// &lt;/summary&gt;
     /// &lt;param name="definition"&gt;The workflow definition to save.&lt;/param&gt;
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
@@ -2356,6 +2356,7 @@ public interface IWorkflowRegistry
     ///   &lt;item&gt;&lt;see cref="DefinitionStatus.Draft"/&gt; &lt;-&gt; &lt;see cref="DefinitionStatus.Active"/&gt; (Publish / Unpublish)&lt;/item&gt;
     ///   &lt;item&gt;&lt;see cref="DefinitionStatus.Active"/&gt; -&gt; &lt;see cref="DefinitionStatus.Archived"/&gt; (Archive)&lt;/item&gt;
     ///   &lt;item&gt;&lt;see cref="DefinitionStatus.Archived"/&gt; -&gt; &lt;see cref="DefinitionStatus.Active"/&gt; (Unarchive)&lt;/item&gt;
+    ///   &lt;item&gt;&lt;see cref="DefinitionStatus.Archived"/&gt; -&gt; &lt;see cref="DefinitionStatus.Draft"/&gt; (back to editable, never passing through Active)&lt;/item&gt;
     /// &lt;/list&gt;
     /// Archiving prevents new instances from being started; any in-flight instances continue normally.
     /// Throws &lt;see cref="InvalidOperationException"/&gt; for disallowed transitions or missing definitions.
@@ -2436,7 +2437,8 @@ public enum DefinitionStatus
     /// Retired; no new instances may be started against this definition.
     /// Any in-flight instances that were already running when the definition was archived
     /// will continue to completion normally - archiving only gates the creation of new instances.
-    /// An Archived definition is immutable and cannot be deleted.
+    /// An Archived definition is immutable and cannot be deleted directly; move it to Draft first
+    /// (IFlowEngine.DeleteWorkflowVersionAsync does this for a guarded delete).
     /// Use &lt;see cref="IWorkflowRegistry.TransitionStatusAsync"/&gt; to return it to
     /// &lt;see cref="Active"/&gt; if re-activation is needed.
     /// &lt;/summary&gt;
@@ -2763,9 +2765,9 @@ use a persistent registry so workflow definitions survive restarts.</p>
 <ul>
 <li><code>SqlWorkflowRegistry&lt;TContext&gt;</code> takes an <code>IDbContextFactory&lt;TContext&gt;</code>.</li>
 <li><code>GetAsync</code>: an exact version matches <code>CompositeKey</code> in any status; <code>null</code> or a <code>"2.*"</code> prefix loads the Active rows for the id and picks the highest <code>Version</code> string in application code (there is no version sort column).
-<strong>Warning:</strong> the comparison is plain string order (<code>OrderByDescending(d =&gt; d.Version)</code>), not semantic-version order, so <code>"1.9.0"</code> sorts above <code>"1.10.0"</code> and stays the "latest" Active version. Until this is fixed, use versions whose string order matches their release order, for example zero-padded segments (<code>"1.09.0"</code>, <code>"1.10.0"</code>).</li>
-<li><code>SaveAsync</code> validates with <code>WorkflowDefinitionValidator.ValidateAndThrow</code>, inserts or updates the row, and throws <code>WorkflowDefinitionMutationException</code> when the existing row is Active.</li>
-<li><code>TransitionStatusAsync</code> allows Draft &lt;-&gt; Active only and rewrites the status inside the JSON too; <code>DeleteAsync</code> refuses an Active row.</li>
+Versions are ordered by <code>WorkflowVersionComparer</code> (numeric segments, a numeric segment below a text one, prerelease below release), so <code>"1.10.0"</code> is newer than <code>"1.9.0"</code>.</li>
+<li><code>SaveAsync</code> validates with <code>WorkflowDefinitionValidator.ValidateAndThrow</code>, inserts or updates the row, and throws <code>WorkflowDefinitionMutationException</code> when the existing row is Active or Archived.</li>
+<li><code>TransitionStatusAsync</code> follows <code>WorkflowStatusTransitions</code> (Draft &lt;-&gt; Active, Active &lt;-&gt; Archived, Archived -&gt; Draft) and rewrites the status inside the JSON too; <code>DeleteAsync</code> refuses an Active or Archived row.</li>
 <li><code>EnsureCreatedAsync</code> (<code>IFlowEngineInitializable</code>) calls <code>Database.EnsureCreatedAsync</code>.</li>
 </ul>
 <h3>Registration</h3>

@@ -562,7 +562,7 @@ processor.ProcessMessageAsync += async args =>
     public string? CreatedBy   { get; init; }
 
     // Status
-    public DefinitionStatus Status { get; set; }  // Draft | Active | Archived  (transitions: Draft ↔ Active, Active ↔ Archived)
+    public DefinitionStatus Status { get; set; }  // Draft | Active | Archived  (transitions: Draft &lt;-&gt; Active, Active &lt;-&gt; Archived, Archived -&gt; Draft)
 
     // Graph
     public string EntryNodeId { get; init; }
@@ -1975,14 +1975,14 @@ bool safe = report.Findings.All(f => f.Severity != CompatibilityFindingSeverity.
   <tr><td><code>AzureTableWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.AzureTable</td><td>Azure Table Storage — partitioned by workflow id</td></tr>
   <tr><td><code>FileWorkflowRegistry</code></td><td>EF.FlowEngine.WorkflowRegistry.File</td><td>Dev / test — JSON files on disk</td></tr>
 </table></div>
-<p><strong>Status lifecycle:</strong> All registries enforce the same transitions: <code>Draft ↔ Active</code>, <code>Active → Archived</code>, <code>Archived → Active</code>. <code>GetAsync(id, null)</code> always returns the latest <code>Active</code> version — <code>Draft</code> and <code>Archived</code> are excluded from null-version resolution.</p>
+<p><strong>Status lifecycle:</strong> All registries enforce the same transitions (<code>WorkflowStatusTransitions</code>): <code>Draft &lt;-&gt; Active</code>, <code>Active &lt;-&gt; Archived</code>, <code>Archived -&gt; Draft</code>. <code>GetAsync(id, null)</code> returns the latest <code>Active</code> version by numeric version order (<code>WorkflowVersionComparer</code>: 1.10.0 is newer than 1.9.0) - <code>Draft</code> and <code>Archived</code> are excluded from null-version resolution.</p>
 <div class="table-wrap"><table>
   <tr><th>Status</th><th>New instances</th><th>Editable</th><th>Deletable</th><th>Meaning</th></tr>
   <tr><td><code>Draft</code></td><td>No</td><td>Yes</td><td>Yes</td><td>Under construction. Transition to <code>Active</code> to publish.</td></tr>
   <tr><td><code>Active</code></td><td>Yes</td><td>No</td><td>No</td><td>Published and immutable. Transition back to <code>Draft</code> to edit, or to <code>Archived</code> to retire.</td></tr>
   <tr><td><code>Archived</code></td><td>No</td><td>No</td><td>No</td><td>Retired. No new instances may start; in-flight instances continue normally. Unarchive to <code>Active</code> if re-activation is needed.</td></tr>
 </table></div>
-<p><strong>Safe deletion:</strong> Only <code>Draft</code> definitions can be deleted directly. Use <code>IFlowEngine.DeleteWorkflowVersionAsync(workflowId, version)</code> — it verifies no live instances are running before removing the definition. <code>Active</code> definitions are auto-demoted to <code>Draft</code> on deletion; <code>Archived</code> definitions must be unarchived to <code>Active</code> first.</p>
+<p><strong>Safe deletion:</strong> Only <code>Draft</code> definitions can be deleted directly. Use <code>IFlowEngine.DeleteWorkflowVersionAsync(workflowId, version)</code> — it verifies no live instances are running before removing the definition. <code>Active</code> and <code>Archived</code> definitions are moved to <code>Draft</code> (directly, never through <code>Active</code>) before the delete.</p>
 
 
 <h2 id="lifecycle">Workflow Authoring Lifecycle</h2>

@@ -169,10 +169,11 @@ public sealed class WorkflowDefinition
 ///   Draft  — under construction; cannot be started; excluded from GetAsync(id, null) results.
 ///   Active — published; new instances can be started; GetAsync(id, null) returns latest Active version.
 ///   Archived - retired; no new instances; in-flight instances run to completion; excluded from
-///              GetAsync(id, null); immutable and cannot be deleted.
+///              GetAsync(id, null); immutable and cannot be deleted directly
+///              (IFlowEngine.DeleteWorkflowVersionAsync moves it to Draft for a guarded delete).
 ///
-/// Transitions (RegistryStatusTransitions): Draft &lt;-&gt; Active and Active &lt;-&gt; Archived.
-/// Draft -&gt; Archived and Archived -&gt; Draft are refused.
+/// Transitions (WorkflowStatusTransitions): Draft &lt;-&gt; Active, Active &lt;-&gt; Archived,
+/// Archived -&gt; Draft. Draft -&gt; Archived is refused.
 /// Active definitions are immutable — transition back to Draft to edit.
 /// Only Active definitions can be started via IFlowEngine.StartAsync, unless
 /// StartRequest.AllowDraft is true (dashboard test runs and admin tooling).

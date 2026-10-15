@@ -1700,13 +1700,16 @@ edit, or create a new version</td>
 <td>No</td>
 <td>No</td>
 <td>Retired; no new instances may start. In-flight instances continue
-normally. Unarchive to <code>Active</code> if re-activation needed.</td>
+normally. Unarchive to <code>Active</code> if re-activation needed;
+<code>DeleteWorkflowVersionAsync</code> moves it to <code>Draft</code>
+for a guarded delete.</td>
 </tr>
 </tbody>
 </table>
-<p>Allowed transitions: <code>Draft ↔︎ Active</code>,
-<code>Active → Archived</code>, <code>Archived → Active</code>.
-<code>Draft → Archived</code> is not permitted (publish first).</p>
+<p>Allowed transitions: <code>Draft &lt;-&gt; Active</code>,
+<code>Active &lt;-&gt; Archived</code>,
+<code>Archived -&gt; Draft</code>. <code>Draft -&gt; Archived</code> is
+not permitted (publish first).</p>
 <h4 id="updating-a-workflow-in-conversation">Updating a workflow in
 conversation</h4>
 <p>When a user asks to change a running workflow:</p>

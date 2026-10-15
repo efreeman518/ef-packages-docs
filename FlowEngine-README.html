@@ -3024,8 +3024,8 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb81-1"><a href=
 <td><code>instances/{instanceId}/retry</code></td>
 <td>Re-drive a <code>Suspended</code> instance (for example a stuck
 wait) from its current node with no payload, in the background; any
-other status, including <code>Faulted</code>, is returned unchanged (a
-faulted instance is not re-run)</td>
+other status, including <code>Faulted</code>, returns 409 (a faulted
+instance is not re-run)</td>
 </tr>
 <tr class="odd">
 <td><code>POST</code></td>
