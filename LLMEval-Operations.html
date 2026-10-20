@@ -198,11 +198,12 @@ own cells.</li>
 exchange, which it does by default for a persona with no model cast for
 its role.</li>
 </ul>
-<p>None of it is money, and none of it is free. The judge is the Claude
-Code harness subagent draining the file exchange, there is no API judge
-to select, and judging is left out of the spend estimate rather than
-priced at zero - what it consumes instead is the tokens of the
-subscription running the harness.</p>
+<p>None of it is in the spend estimate, and none of it is free. With
+<code>LLMEVAL_JUDGE_API_KEY</code> set the judge model answers on the
+Anthropic API first, priced and reported apart from the spend; the
+Claude Code harness subagent draining the file exchange answers the
+rest, and what that consumes is the tokens of the subscription running
+the harness rather than a price of zero.</p>
 <p><strong>Cost is reported as outside the eval's spend, charged to the
 harness subscription, never as zero:</strong> the summary reads
 <code>Judge: Claude Code harness subagent (outside the eval's spend, charged to the harness subscription).</code>
@@ -230,8 +231,9 @@ A long sweep is a long agent session.</p>
 <h4 id="disagreeing-with-a-verdict">Disagreeing with a verdict</h4>
 <p>Delete the one reply file and re-run: that question is asked again.
 Delete the whole done folder and everything is re-asked. Request files
-are never deleted, so the pending folder remains the record of what was
-actually asked.</p>
+are never deleted, so the pending folder remains the record of what the
+drainer was asked; an answer the Anthropic API judge gave never went
+through it, and its done entry carries the request instead.</p>
 <h4 id="reproducibility">Reproducibility</h4>
 <p>There is no model pin behind a subscription agent. A run is
 reproducible only in the sense that its reply files were kept, which is

@@ -46,15 +46,19 @@ the application takes a dependency on the harness.</td>
 <tr class="even">
 <td>What runs the sweep</td>
 <td>A Claude Code session: the three skills the package installs on
-build, and a subagent draining the judge exchange. There is no other
-judge.</td>
+build, and a subagent draining the judge exchange. With
+<code>LLMEVAL_JUDGE_API_KEY</code> set, the judge model answers on the
+Anthropic API first and the drainer takes over when the credits run
+out.</td>
 </tr>
 <tr class="odd">
 <td>What it costs</td>
 <td>The candidate calls, capped by a spend ceiling priced before
-anything is sent, and the judge answers on top - outside that spend and
-charged to the harness subscription, about two per candidate cell,
-reported as a count beside the spend line and never as zero.</td>
+anything is sent, and the judge answers on top - outside that spend,
+about two per candidate cell: on the judge's API credits (priced apart)
+when <code>LLMEVAL_JUDGE_API_KEY</code> is set, otherwise and after
+those run out charged to the harness subscription, reported as counts
+beside the spend line and never as zero.</td>
 </tr>
 <tr class="even">
 <td>What comes out</td>
@@ -763,14 +767,18 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href=
 <span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    Selection <span class="op">=</span> <span class="kw">new</span> SelectionOptions <span class="op">{</span> MinSamples <span class="op">=</span> <span class="dv">6</span> <span class="op">},</span></span>
 <span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
 <h4 id="who-judges-and-who-pays">Who judges, and who pays</h4>
-<p>The judge is the Claude Code harness subagent, draining the file
-exchange, and there is nothing else to select: no API judge, no
-connection entry, no judge price. Judging is reported as <strong>outside
-the eval's spend, charged to the harness subscription</strong>, never as
-zero and never as free: it consumes that subscription's tokens, and both
-reports print the judge-answer count beside the spend line. With no
-drainer online the sweep stops with a reason rather than finding a paid
-endpoint to use instead. See <a
+<p>The judge is one model. With <code>SweepOptions.JudgeApiKey</code>
+set from <code>LLMEVAL_JUDGE_API_KEY</code> - a key from a dedicated
+credits-only Console organization, never <code>ANTHROPIC_API_KEY</code>
+- it answers on the Anthropic API first, and on credit exhaustion every
+later call latches onto the Claude Code harness subagent draining the
+file exchange; without a key the drainer answers everything. Judging is
+reported as <strong>outside the eval's spend</strong>: the API's share
+is priced apart from it, and the drainer's is <strong>charged to the
+harness subscription</strong>, never as zero and never as free, with the
+judge-answer count printed beside the spend line. With no drainer
+online, judging that reaches the exchange stops the sweep with a reason
+rather than finding a paid endpoint to use instead. See <a
 href="LLMEval-Design-Doc.html#8-the-judge-exchange">design doc section
 8</a>.</p>
 <p>Budget the drainer's time and that subscription's allowance before
@@ -1129,8 +1137,8 @@ that the heartbeat file is being written.</td>
 <tr class="odd">
 <td>"No judge agent is draining"</td>
 <td>Nobody is draining the exchange, or the heartbeat is stale</td>
-<td>Start the drainer. There is no other judge to fall back to, by
-design.</td>
+<td>Start the drainer. It is the judge without an API key and the
+fallback once the API credits run out.</td>
 </tr>
 <tr class="even">
 <td>Selection says insufficient samples</td>

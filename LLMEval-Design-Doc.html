@@ -242,10 +242,13 @@ count printed beside the spend line</td>
 </tr>
 </tbody>
 </table>
-<p>There is no second mode and no API judge to select. A sweep is run
-from a Claude Code session with a subagent draining the exchange, and a
-run started without one fails fast rather than quietly finding something
-to bill.</p>
+<p>With <code>SweepOptions.JudgeApiKey</code> set, the same judge model
+answers on the Anthropic API first, on a credits-only key, and the run
+latches onto the exchange once those credits are exhausted; a rejected
+key or any other API failure stops the run. A sweep is still run from a
+Claude Code session with a subagent draining the exchange, and judging
+that reaches it with nobody draining fails fast rather than quietly
+finding something to bill.</p>
 <h4 id="why-the-judge-dominates">Why the judge dominates</h4>
 <p>The judge answers for <strong>every cell of the matrix</strong>, and
 each of its calls is expensive in input tokens because of what it has to
@@ -287,9 +290,10 @@ with an incumbent and a rubric score attached:</p>
 <td>Judge calls, roughly 270 of them (two pairwise on each of the 90
 non-incumbent cells, plus one rubric score on all 120)</td>
 <td>Several dollars with a mid-priced API judge, tens of dollars with a
-frontier reasoning one - which is why there is no API judge here.
-Outside the eval's spend, and charged to the harness subscription as
-about 270 answers of its allowance</td>
+frontier reasoning one - which is why the API judge runs only on a
+credits-only key and the harness answers the rest. Outside the eval's
+spend either way: on the judge's API credits, or charged to the harness
+subscription as about 270 answers of its allowance</td>
 </tr>
 <tr class="odd">
 <td><strong>What the report says</strong></td>
@@ -2052,12 +2056,16 @@ alt="The judge exchange: the sweep writes requests to a folder, the harness suba
 harness subagent writes the reply to another, and the sweep reads it
 back. The judging is done by whoever drains the queue, on their
 subscription, and the account paying for the candidates pays nothing for
-the verdicts. The runner builds the client itself from two options - the
-exchange root and the name the drainer answers as - so there is no judge
-connection in the roster and nothing to select.</p>
-<p><strong>There is deliberately no fallback to a paid judge.</strong>
-Re-pointing the exchange at an endpoint would put a bill on somebody who
-never asked for one. When no drainer is online the sweep stops with a
+the verdicts. The runner builds the client itself from its options - the
+exchange root, the name the drainer answers as, and
+<code>JudgeApiKey</code> when the judge model answers on the Anthropic
+API first - so there is no judge connection in the roster.</p>
+<p><strong>Nothing falls back from the exchange to a paid
+endpoint.</strong> The API runner sits ahead of the exchange on a
+credits-only key and hands over, latched, when those credits are
+exhausted; the exchange itself never re-points anywhere, because that
+would put a bill on somebody who never asked for one. When judging
+reaches the exchange and no drainer is online, the sweep stops with a
 reason saying so.</p>
 <h4 id="81-four-kinds-of-request">8.1 Four kinds of request</h4>
 <p>Every request carries a <code>kind</code>, and the four want
@@ -2119,7 +2127,9 @@ variation is the experiment. The same question therefore always lands
 under the same name, which makes the done folder a cache: a second sweep
 over the same matrix finds every reply already on disk, queues nothing,
 and needs no agent running at all. Request files are never deleted, so
-the pending folder is the audit trail of what was actually asked.</p>
+the pending folder is the audit trail of what the drainer was asked; an
+answer the Anthropic API judge gave never went through it, and its done
+entry carries the request instead.</p>
 <p>That design makes disagreeing with a verdict a file operation: delete
 the one reply and re-run, and the question is asked again. Delete the
 folder and everything is re-asked.</p>
@@ -2156,15 +2166,17 @@ is queued, launch the sweep in the background, and keep draining in a
 bounded loop until the run's summary file exists.</p>
 <h4 id="84-what-the-reports-say-about-a-subscription-judge">8.4 What the
 reports say about a subscription judge</h4>
-<p>The cost is reported as <strong>outside the eval's spend, charged to
-the harness subscription</strong>, never as zero and never as free: the
-summary line names the runner and says so outright, the line beside it
-gives the judge-answer count, no judge price is reported at all, and the
-judge calls are left out of the estimate with a logged note instead of
-being priced at nothing. Quota is finite, and a thousand-cell round is
-about two thousand judge answers of somebody's allowance. The judge
-itself is named from the exchange's own documents (the model from the
-replies, the runner from the heartbeat), and a heartbeat that names
+<p>The cost is reported as <strong>outside the eval's spend</strong>,
+never as zero and never as free: the summary line names the runner that
+answered live and says so outright, and the line beside it gives the
+judge-answer count per runner. The drainer's answers are <strong>charged
+to the harness subscription</strong> and never priced; the API judge's,
+when a key put it first, are priced from the judge catalog as its own
+API spend. Neither is in the estimate, which carries a logged note
+instead of a price of nothing. Quota is finite, and a thousand-cell
+round is about two thousand judge answers of somebody's allowance. The
+judge itself is named from the exchange's own documents (the model from
+the replies, the runner from the heartbeat), and a heartbeat that names
 nobody is reported as a plain file exchange rather than as a subagent
 that may not have been one.</p>
 <p>The honest caveat: there is no model pin behind a subscription agent,
