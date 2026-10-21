@@ -100,10 +100,14 @@ short answer: find the shape of your workload on the left, and read
 across to what a sweep produces and what it is worth.</p>
 <p>"Optimal" here never means "cheapest that passes". The selection rule
 reports two answers, and which one to take is a judgement the report
-supports rather than makes: the <strong>parity pick</strong> is the
-cheapest candidate judged as good as the incumbent, and the
-<strong>upgrade pick</strong> is a clearly better candidate whose cost
-per pass is within a bounded multiple of it. See <a
+supports rather than makes: the <strong>parity pick</strong> is, of the
+candidates judged as good as the incumbent, the one with the higher win
+rate, then the lower cost, and the <strong>upgrade pick</strong> is a
+clearly better candidate - its cluster-level interval wholly above 0.5 -
+whose cost per pass is within a bounded multiple of the incumbent's. The
+parity pick has no cost limit, so it is the leading candidate at parity,
+not a decision to adopt it: adopting it is a decision the report does
+not make (that takes a cost gain or a functional reason). See <a
 href="#6-the-selection-rule">section 6</a>.</p>
 <table>
 <thead>
@@ -970,17 +974,23 @@ request it sends;</li>
 exceed it, because a matrix quietly shortened is a matrix nobody can
 read.</li>
 </ul>
-<p>It is a single-shot mechanism and is <strong>not supported for an
-episode sweep</strong>. A proposal is asked about one scenario's
-editable prompts and admitted as an extra variant for the models that
-ran it; an episode's prompts belong to a conversation across several
-roles, and which role's wording a comparison turned on is what a
-transcript cannot say. An episode sweep with the option on runs and
-charges nothing extra for it, and records a refused proposal saying so
-on the report and in <code>results.json</code> - on a dry run as well as
-a live one, since a log line in a background run is a silent no-op to
-whoever reads the report. Vary an episode's prompts with explicit prompt
-variants instead.</p>
+<p>An episode sweep asks <strong>per role</strong>. Its prompts belong
+to a conversation across several roles, and which role's wording a
+comparison turned on is what a transcript cannot say, so the episode
+declares it: <code>EvalEpisode.RolePrompts</code> maps each role whose
+wording may be edited to its keys in <code>EditablePrompts</code>, and
+the sweep refuses a map naming an undeclared role, a key not declared
+editable, or a key two roles claim. One request goes out per role and
+wording of that role's keys across the episodes, and its proposer is
+shown only the judged exchanges where that role was played by another
+model than the incumbent cast's, or under an edit to one of its keys -
+each with its win and the judge's reason - because a verdict on a cast
+that differs in another role says nothing about this one's wording. A
+proposal may override only that role's keys; its cells are priced per
+role exactly as the matrix was, and it runs on every episode of that
+wording. With the option on and no episode mapping a role, the sweep is
+refused before anything is spent, on a dry run as well as a live one,
+rather than recorded as a no-op afterwards.</p>
 <p>Admitted variants run for the same models and repeats as the baseline
 variant, in a second pair of batches under the same stop and the same
 running spend total, and are judged pairwise like any other cell. A
@@ -990,9 +1000,8 @@ incumbent's answer to the same request under the same variant every
 comparison in it reports n/a. Every decision becomes a
 <code>VariantProposal</code> in <code>results.json</code> and a row in
 the report.</p>
-<p>The round is single-shot only, and a sweep that had already stopped
-does not run it. Both are said out loud - a warning naming the episode,
-a recorded reason on the report - rather than being an option that
+<p>A sweep that had already stopped does not run the round, and says so
+in a recorded reason on the report rather than being an option that
 silently bought nothing.</p>
 <h4 id="the-boundary-and-how-it-is-held">The boundary, and how it is
 held</h4>
@@ -1016,22 +1025,31 @@ narrowing the field with what the last round learned</h4>
 <p>A broad first round buys a thin ranking over a wide field.
 <code>SweepOptions.SeedFrom</code> points at that round's
 <code>results.json</code> and turns the next run into round N+1: per
-role, the top <code>TopK</code> (3) by cost per pass among the
-candidates at or above the parity line, falling back to win rate when
-too few reached it and saying so, always keeping the incumbent. The
-prompts the last round earned come with it - admitted proposals, and
-hints concrete enough to carry a rewritten prompt - each bound through
-<code>PromptVariant.AppliesTo</code> to the model or family it was
-learned from, so an edit costs cells only where it might help. A
-multi-role round gets joint casts, and builds them with
+role, the top <code>TopK</code> (3) by win rate, then cost per pass,
+then id, among the candidates at or above the parity line - the order
+the parity pick is made in - falling back to win rate when too few
+reached it and saying so. The incumbent is kept outside the K, and so is
+its control - an identical copy of it under another id (the same wire
+model, connection, upstream pin, request settings and prompt cache),
+whose win rate is the round's noise floor - so neither takes a slot from
+a real candidate. On an episode round a copy runs only inside a control
+cast, one in which every role is the incumbent cast's model or a copy of
+it: every such cast given or measured is carried outside
+<code>TopK</code> and <code>MaxJointAssignments</code> and named, and a
+copy no such cast plays is left out of the ranking and named as left
+out. The prompts the last round earned come with it - admitted
+proposals, and hints concrete enough to carry a rewritten prompt - each
+bound through <code>PromptVariant.AppliesTo</code> to the model or
+family it was learned from, so an edit costs cells only where it might
+help. A multi-role round gets joint casts, and builds them with
 <code>AssignmentPlanner</code>'s own combination planner rather than a
 second one of its own (see 6.1): the incumbent cast and the best
-predicted cast first and never cut, the cheapest predicted casts filling
-the rest of <code>MaxJointAssignments</code> (9, the incumbent
-included), named as a joint verification names them. Two planners that
-ordered or named the same casts differently would produce a round whose
-assignment names did not line up with the joint selection report built
-from it.</p>
+predicted cast first and never cut, the best predicted of the rest
+filling the rest of <code>MaxJointAssignments</code>, predicted cost
+breaking ties (9, the incumbent included), named as a joint verification
+names them. Two planners that ordered or named the same casts
+differently would produce a round whose assignment names did not line up
+with the joint selection report built from it.</p>
 <p><code>SweepOptions.SeedContenders</code> is the one way into a seeded
 field the seed did not choose: roster entries it never judged, typically
 contenders added since. They are added on top of the shortlist, never in
@@ -1201,7 +1219,10 @@ aggregator:</p>
 <li><strong>An upstream pin</strong> fixes a candidate to one upstream
 and refuses fallback. Without it, an aggregator routes the same model id
 across upstreams whose prices differ, so the run measures a blend rather
-than a model.</li>
+than a model. Pinned or not, every aggregator request denies data
+collection, so a candidate is measured only on upstreams that do not
+retain prompts for training, as a production connection that denies it
+is served.</li>
 <li><strong>The served-by field</strong>, read off the response where
 the endpoint reports one, records which upstream actually answered, so
 the leaderboard shows the route rather than a bare id.</li>
@@ -1258,10 +1279,13 @@ length and output cap. Nothing about a sweep requires one; without a
 catalog every request goes out exactly as the application built it and
 every model is priced as unknown.</p>
 <p>Three implementations ship: an aggregator catalog that reads a public
-models endpoint (plus a per-upstream breakdown), a cloud retail-price
-catalog that matches meter names against a caller-supplied substring,
-and a static catalog wrapping a hand-built dictionary for deployments
-nothing publishes a price for.</p>
+models endpoint (plus a per-upstream breakdown, which prices a pinned
+candidate at its upstream and an unpinned one at the dearest upstream's
+rates, an upper bound because the listing does not say which upstreams a
+data-collection-denying request can reach), a cloud retail-price catalog
+that matches meter names against a caller-supplied substring, and a
+static catalog wrapping a hand-built dictionary for deployments nothing
+publishes a price for.</p>
 <p>The retail-price case is the awkward one and explains the shape of
 the API. Meter names are not one grammar, so the parser scans for
 keywords and classifies each meter's direction (input, output, cached
@@ -1777,16 +1801,22 @@ variant</strong>.</p>
 <p><img src="diagrams/05-selection-decision.svg"
 alt="Selection decision flow: pooled comparisons, minimum samples, parity pick, upgrade pick, dominators" /></p>
 <ul>
-<li><strong>Parity pick</strong>: the cheapest candidate whose win rate
-is at or above the parity threshold over at least the minimum number of
-pooled comparisons. The default threshold sits a little below even on
-purpose, because at a handful of comparisons a genuinely equal model
-routinely measures slightly under half.</li>
-<li><strong>Upgrade pick</strong>: the cheapest candidate at or above
-the upgrade threshold whose cost per pass is within a bounded multiple
-of the parity pick's, or of the incumbent's when there is no parity
-pick. This is the answer to "what would we buy if quality mattered more
-than price here".</li>
+<li><strong>Parity pick</strong>: of the candidates whose win rate is at
+or above the parity threshold over at least the minimum number of pooled
+comparisons, the one with the higher win rate, then the lower cost per
+pass. The default threshold sits a little below even on purpose, because
+at a handful of comparisons a genuinely equal model routinely measures
+slightly under half. It has no cost limit: it is the leading candidate
+at parity, and adopting it is a decision the report does not make (that
+takes a cost gain or a functional reason).</li>
+<li><strong>Upgrade pick</strong>: of the candidates whose cluster-level
+interval lies wholly above 0.5 and whose cost per pass is within a
+bounded multiple of the incumbent's, the one with the higher win rate,
+then the lower cost. A point estimate is not enough: the repeats of one
+fixture are not independent evidence, so the scenario-level interval
+decides, and a candidate judged on one scenario has none and is never an
+upgrade. This is the answer to "what would we buy if quality mattered
+more than price here", and it can be the parity pick itself.</li>
 <li><strong>Dominators</strong>: candidates both better than even and
 cheaper than the incumbent. There is rarely one, and when there is, it
 is the whole finding.</li>
@@ -1911,15 +1941,16 @@ sample count a pick needs, and the per-role view is a grouping of the
 result rather than a separate run.</p>
 <p><strong>Pass two measures the combinations that pass one
 implies.</strong> Each role brings its parity-qualified candidates,
-cheapest first, capped, with the model it casts today always on the
-shortlist - a role where nothing beat what ships keeps what ships, and
-dropping it would make every combination change every role. The
-combinations are ordered by predicted cost and cut from the dear end,
-because the question a second sweep answers is "can we buy the cheap
-combination". Two are taken before the cap rather than rescued after it:
-the incumbent, and the combined best, which is the cast a per-role
-leaderboard would have recommended on its own and therefore the one this
-pass exists to check.</p>
+highest win rate first with cost per pass breaking ties, capped, with
+the model it casts today always on the shortlist - a role where nothing
+beat what ships keeps what ships, and dropping it would make every
+combination change every role. The combinations are ordered quality
+first, by predicted win rate with predicted cost breaking ties, and cut
+from the weak end, so the budget measures the casts most likely to beat
+the incumbent, in the order the selection rule picks. Two are taken
+before the cap rather than rescued after it: the incumbent, and the
+combined best, which is the cast a per-role leaderboard would have
+picked on its own and therefore the one this pass exists to check.</p>
 <p>A pass two with nothing to verify is refused rather than returned: a
 plan holding only the incumbent prices a sweep that judges it against
 itself and can select nothing. The refusal names each role with its best
@@ -1931,9 +1962,9 @@ A plan over casts somebody names explicitly, with no prediction attached
 to any of them, exists for the one case the evidence rule should not
 block: pricing a pass two as a dry run before there is any evidence to
 plan one from. Such a plan is marked as what it is and <strong>refused
-on a live run</strong>, because run for real it produces a recommended
-cast and an upgrade pick that read exactly like measured ones over casts
-nothing selected.</p>
+on a live run</strong>, because run for real it produces a leading cast
+at parity and an upgrade pick that read exactly like measured ones over
+casts nothing selected.</p>
 <p><strong>The interaction effect is the output.</strong> Each
 combination carries a predicted win rate, computed from the per-role
 results as a product of independent odds. Odds rather than a mean of the
@@ -1948,21 +1979,26 @@ rather than predicting certainty from six samples.</p>
 <p>The verification sweep then measures those combinations for real, and
 the gap between measured and predicted is reported rather than assumed
 away. It is flagged when the prediction falls outside the measured 95
-percent interval, which is precisely the case where the per-role
-recommendation would have been wrong, and it is refused below the
-minimum sample count: subtracting a prediction from a win rate measured
-three times produces a number that looks exactly like a real interaction
-effect and carries none of the uncertainty that makes it
-meaningless.</p>
-<p><strong>One cast is recommended per workflow and prompt
-variant</strong>: the cheapest verified cast at or above the parity
-threshold, with the cheapest clearly better one named beside it as the
-upgrade, on the same cost multiple the single-model rule uses - the two
-reports must not recommend on different grounds. When nothing reaches
-parity the answer is to keep the incumbent cast, and the interaction
-count is stated on that refusal too, because a field where nothing
-reached parity although every role won on its own is the strongest
-interaction finding a run can produce.</p>
+percent interval, which is precisely the case where the per-role pick
+would have been wrong, and it is refused below the minimum sample count:
+subtracting a prediction from a win rate measured three times produces a
+number that looks exactly like a real interaction effect and carries
+none of the uncertainty that makes it meaningless.</p>
+<p><strong>One cast leads at parity per workflow and prompt
+variant</strong>: of the verified casts at or above the parity
+threshold, the one with the higher win rate, then the lower cost, with
+the clearly better one (its cluster-level interval wholly above 0.5,
+within the cost multiple of the incumbent cast) named beside it as the
+upgrade when it is a different cast - the single-model rules, because
+the two reports must not pick on different grounds. In a prompt round's
+non-baseline variant group no cast leads and no interaction is read, as
+the single-model selection makes no verdict there. Leading is not
+adopting: adopting it is a decision the report does not make (that takes
+a cost gain or a functional reason). When nothing reaches parity the
+answer is to keep the incumbent cast, and the interaction count is
+stated on that refusal too, because a field where nothing reached parity
+although every role won on its own is the strongest interaction finding
+a run can produce.</p>
 <hr />
 <h3 id="7-throttle-and-continue">7. Throttle and continue</h3>
 <p>A sweep is a burst of traffic from one account against endpoints that
@@ -2289,11 +2325,12 @@ parity and upgrade picks and the dominators in distinct shapes, the
 sweep's own <code>SelectionOptions</code> thresholds as reference lines,
 and the price-efficient frontier as a line. The axis goes logarithmic,
 and says so, when the field spans more than 20x. Under each chart, the
-three cheapest candidates at parity with the sample count, interval,
-cost multiple against the incumbent and any dropped setting or unmet
-requirement that qualifies them. An episode sweep gets one chart per
-role that varied and names the roles that were held fixed, because a
-chart of a column that never changed says nothing.</li>
+first three candidates at parity in pick order (higher win rate, then
+lower cost) with the sample count, interval, cost multiple against the
+incumbent and any dropped setting or unmet requirement that qualifies
+them. An episode sweep gets one chart per role that varied and names the
+roles that were held fixed, because a chart of a column that never
+changed says nothing.</li>
 <li><strong>How to read win rate</strong> - one paragraph for a reader
 who has not met the measure, defining the pooling, the two presentation
 orders, ties as halves, the interval, <code>MinSamples</code> and both
@@ -2529,33 +2566,39 @@ same suspicion, with nothing to settle it.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Selection</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>Judged by vendor-c/judge-1 (family vendor-c). Comparisons are pooled across scenarios. Parity at a</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>win rate of 0.45, upgrade at 0.65, at least 6 judged comparisons, and an upgrade may cost at most 3x</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>the parity pick.</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>Rubric: Answers the question asked, stays inside the supplied facts, names its uncertainty, and never pads.</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>win rate of 0.45, an upgrade needs its cluster-level interval wholly above 0.5, at least 6 judged</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>comparisons, each pick is the higher win rate then the lower cost, and an upgrade may cost at most 3x</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>the incumbent. The parity pick is the leading candidate at parity, not a decision to adopt it:</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>adopting it is a decision the report does not make (that takes a cost gain or a functional reason).</span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">### baseline (5 scenario(s): Interpretation.Explain, Interpretation.Summarise, ...)</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>Rubric: Answers the question asked, stays inside the supplied facts, names its uncertainty, and never pads.</span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>Selected: a parity pick and an upgrade pick both cleared their thresholds.</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">### baseline (5 scenario(s): Interpretation.Explain, Interpretation.Summarise, ...)</span></span>
 <span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Parity pick: **agg/beta**, win rate 0.47 (n=15 over 5 scenario(s), 95% 0.25 to 0.7), cost per pass 0.001140</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>Selected: Judged against &#39;agg/alpha&#39; over 5 candidate(s), pooled over 5 scenario(s), at least 6 comparisons each.</span>
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Upgrade pick: **agg/gamma** (same vendor family, vendor-c, as the judge vendor-c/judge-1), win rate 0.72 (n=15 over 5 scenario(s), 95% 0.47 to 0.88), cost per pass 0.002310</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Parity pick: **agg/gamma** (same vendor family, vendor-c, as the judge vendor-c/judge-1), win rate 0.72 (n=15 over 5 scenario(s), 95% per-comparison 0.47 to 0.88, cluster-level 0.49 to 0.89), cost per pass 0.002310</span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>| Candidate | n | Scenarios | Win rate | 95% interval | Cost per pass |</span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|</span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>| agg/gamma (same vendor family, vendor-c, as the judge vendor-c/judge-1) | 15 | 5 | 0.72 | 0.47 to 0.88 | 0.002310 |</span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 5 | 0.53 | 0.3 to 0.75 | 0.005121 |</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>| agg/beta | 15 | 5 | 0.47 | 0.25 to 0.7 | 0.001140 |</span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>| agg/delta | 15 | 5 | 0.28 | 0.12 to 0.52 | 0.000682 |</span></code></pre></div>
-<p>The same-family flag on the upgrade pick is the thing to act on here:
-the candidate about to be chosen shares a vendor family with the judge
-that chose it. Running both orderings cancels position bias but cannot
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Dominates the incumbent: **agg/gamma** (same vendor family, vendor-c, as the judge vendor-c/judge-1), win rate 0.72 (n=15 over 5 scenario(s), 95% per-comparison 0.47 to 0.88, cluster-level 0.49 to 0.89), cost per pass 0.002310</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>| Candidate | n | Scenarios | Win rate | 95% per-comparison (Wilson) | 95% cluster-level | Cost per pass |</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>| agg/gamma (same vendor family, vendor-c, as the judge vendor-c/judge-1) | 15 | 5 | 0.72 | 0.47 to 0.88 | 0.49 to 0.89 | 0.002310 |</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 5 | 0.53 | 0.3 to 0.75 | 0.38 to 0.68, not distinguishable from parity at the cluster level | 0.005121 |</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>| agg/beta | 15 | 5 | 0.47 | 0.25 to 0.7 | 0.36 to 0.58, not distinguishable from parity at the cluster level | 0.001140 |</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>| agg/delta | 15 | 5 | 0.28 | 0.12 to 0.52 | 0.15 to 0.41, below parity at the cluster level | 0.000682 |</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>| agg/epsilon | 15 | 5 | 0.19 | 0.07 to 0.43 | 0.06 to 0.32, below parity at the cluster level | 0.001905 |</span></code></pre></div>
+<p>The same-family flag on the parity pick is the thing to act on here:
+the candidate leading the field shares a vendor family with the judge
+that ranked it. Running both orderings cancels position bias but cannot
 cancel that, and the harness judge cannot be swapped for another
 vendor's, so what settles it is the deterministic evaluators and a
 person reading those cells' transcripts. Note also how wide the
-intervals are at n=15. A win rate of 0.72 with a lower bound of 0.47 is
-a lead, not a proof.</p>
+intervals are at n=15: <code>agg/gamma</code> wins 0.72 of its
+comparisons and is cheaper than the incumbent, so it dominates, yet its
+cluster-level interval starts at 0.49, short of 0.5, so it is not the
+upgrade. A lead, not a proof; adopting it is a decision the report does
+not make, and the cost gain is the argument for it.</p>
 <h4 id="a2-multi-agent-episode-leaderboard-synthetic-sample">A.2
 Multi-agent episode leaderboard (synthetic sample)</h4>
 <p>One table per (episode, variant), with a model and a cost column
@@ -2580,15 +2623,20 @@ higher than the row above it and its win rate is poor. The
 all.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">### baseline (1 scenario(s): Tutoring.Session)</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Selected: a parity pick cleared its threshold; an upgrade pick also qualified.</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>Selected: Judged against &#39;baseline-cast&#39; over 3 candidate(s), pooled over 1 scenario(s), at least 6 comparisons each.</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Parity pick: **cheap-checker**, win rate 0.51 (n=9 over 1 scenario(s), 95% 0.24 to 0.77), cost per pass 0.014200</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Parity pick: **strong-teacher**, win rate 0.69 (n=9 over 1 scenario(s), 95% per-comparison 0.39 to 0.89, cluster-level n/a (one scenario)), cost per pass 0.031400</span>
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Upgrade pick: **strong-teacher**, win rate 0.69 (n=9 over 1 scenario(s), 95% 0.39 to 0.89), cost per pass 0.031400</span></code></pre></div>
-<p>An upgrade at 2.2x the parity pick is inside the default bound, but
-n=9 over a single fixture is thin evidence. This is the case for adding
-fixtures rather than repeats: comparisons pool across scenarios, so a
-second and third fixture would take the same decision to n=27.</p>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Dominates the incumbent: **cheap-checker**, win rate 0.51 (n=9 over 1 scenario(s), 95% per-comparison 0.24 to 0.77, cluster-level n/a (one scenario)), cost per pass 0.014200</span></code></pre></div>
+<p><code>strong-teacher</code> leads at parity at 1.6x the incumbent
+cast's cost, and <code>cheap-checker</code> is at parity for under
+three-quarters of it; which to adopt, if either, is a decision the
+report does not make, on the cost gain or a functional reason. Neither
+is an upgrade: one fixture gives no cluster-level interval, however wide
+the lead. This is the case for adding fixtures rather than repeats:
+comparisons pool across scenarios, so a second and third fixture would
+take the same decision to n=27 and give the upgrade test something to
+read.</p>
 <h4 id="a3-workflow-leaderboard-by-node-synthetic-sample">A.3 Workflow
 leaderboard, by node (synthetic sample)</h4>
 <p>A workflow measured through the FlowEngine adapter is an episode
@@ -2615,25 +2663,29 @@ samples)</h4>
 <p>The leaderboard answers "what did each candidate cost and how often
 did it win". These charts are the same data read as a decision:
 <strong>cost per passing generation on the x axis, win rate against the
-incumbent on the y axis</strong>, with the parity and upgrade thresholds
-drawn as lines and the picks ringed.</p>
+incumbent on the y axis</strong>, with the parity threshold and the 0.5
+no-difference line drawn, and the picks ringed and labelled. The upgrade
+is decided by the cluster-level interval, which a chart of pooled points
+cannot draw, so the label says which pick a ringed point is.</p>
 <p>The incumbent is drawn as a <strong>vertical cost reference
 line</strong>, not as a point, because it has no win rate against
 itself. The harness reports that as not applicable and never as 0.5, and
 a point at 0.5 would invite exactly the misreading the harness refuses
 to make.</p>
-<p><strong>A clear upgrade exists.</strong> One candidate is judged
-clearly better and costs about twice the parity pick, inside the default
-bound. Both picks are reported and the choice is a real one.</p>
+<p><strong>A clear upgrade exists.</strong> One candidate leads at
+parity and its cluster-level interval clears 0.5, at 1.5x the
+incumbent's cost, inside the default bound, so it is both picks. Whether
+the gain is worth the cost is a decision the report does not make.</p>
 <p><img src="diagrams/10-value-upgrade-exists.svg"
 alt="Value chart: a clear upgrade exists at a modest cost multiple" /></p>
-<p><strong>Parity everywhere.</strong> Nothing clears the upgrade
-threshold, so the decision collapses to price at equal measured quality.
-No upgrade pick is reported at all, which is a result and not a gap.
-This is the usual outcome for a well-specified prompt, and the finding
-is "take the cheapest".</p>
+<p><strong>Parity everywhere.</strong> No candidate's cluster-level
+interval clears 0.5, so no upgrade pick is reported at all, which is a
+result and not a gap. The parity pick leads by a point inside
+overlapping intervals, so the decision turns on cost: adopting it, or a
+cheaper candidate at parity, is a decision the report does not make.
+This is the usual outcome for a well-specified prompt.</p>
 <p><img src="diagrams/11-value-parity-everywhere.svg"
-alt="Value chart: parity everywhere, so the cheapest wins" /></p>
+alt="Value chart: parity everywhere, so the decision turns on cost" /></p>
 <p><strong>The incumbent is dominated.</strong> Two candidates are both
 better than even and cheaper. Dominators are reported separately from
 the picks, because better <strong>and</strong> cheaper needs no
