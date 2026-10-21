@@ -814,9 +814,9 @@ only an estimate above zero and would run an unpriced roster for real -
 then state the field as roster, candidates, setting variants and
 set-aside entries separately - "48 in the roster file: 20 candidates, 14
 models plus 6 setting variants, 28 already set aside" - and offer the
-full field, a researched shortlist of the top 10 or 20 per role, or a
-different ceiling. Nothing launches until that is answered, and silence
-is not consent.</p>
+full field, a researched shortlist of the 5 most likely per role (up to
+10), or a different ceiling. Nothing launches until that is answered,
+and silence is not consent.</p>
 <p>Counting variants separately is the honest part: they cost cells like
 anything else, and a count of models against a candidate matrix
 understates the bill. The shortlist research proposes settings as
@@ -2385,13 +2385,16 @@ brackets was escaped rather than rendered. Every string that came from a
 model, a prompt or a roster is HTML-encoded, and characters XML 1.0
 cannot represent are dropped, because one stray control byte in a
 truncated answer would otherwise make the file unreadable.</p>
-<p>A harness that wants to keep a run copies the file into its own
+<p>A harness that wants to keep a round copies the file into its own
 repository as
-<code>docs/eval/&lt;yyyy-mm-dd&gt;-&lt;workload&gt;.html</code>. Nothing
-here does that: which runs are worth keeping is a judgement about the
-project, not about the sweep. The file embeds every prompt and every
-response verbatim, so the transcripts are read before a copy is
-committed - whatever a fixture put in front of a model is in it.</p>
+<code>docs/eval/&lt;yyyy-mm-dd&gt;-&lt;round&gt;.html</code>, with the
+round's summary as
+<code>docs/eval/&lt;yyyy-mm-dd&gt;-&lt;round&gt;.summary.md</code> (the
+raw <code>results.json</code> stays local). Nothing here does that:
+which runs are worth keeping is a judgement about the project, not about
+the sweep. The file embeds every prompt and every response verbatim, so
+the transcripts are read before a copy is committed - whatever a fixture
+put in front of a model is in it.</p>
 <hr />
 <h3 id="10-the-prompt-development-loop">10. The prompt-development
 loop</h3>

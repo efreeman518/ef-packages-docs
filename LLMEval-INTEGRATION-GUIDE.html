@@ -888,10 +888,10 @@ refuses only an estimate above zero and an unpriced roster would run for
 real - then states the field as roster, candidates, setting variants and
 set-aside entries separately ("48 in the roster file: 20 candidates, 14
 models plus 6 setting variants, 28 already set aside") and offers the
-full field, a researched shortlist of the top 10 or 20 per role, or a
-different ceiling. Nothing runs until that is answered. A shortlist cut
-is recorded per entry and reversible, and the harness passes
-<code>EvalConfiguration.SetAside</code> to
+full field, a researched shortlist of the 5 most likely per role (up to
+10), or a different ceiling. Nothing runs until that is answered. A
+shortlist cut is recorded per entry and reversible, and the harness
+passes <code>EvalConfiguration.SetAside</code> to
 <code>LeaderboardWriter.WriteAsync</code> so the report prints those
 entries under roster provenance; see <a
 href="../README.md#narrowing-the-field">Narrowing the field</a>.</p>
@@ -984,12 +984,12 @@ number:</p>
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>SeedFrom <span class="op">=</span> <span class="st">&quot;&lt;the previous run&#39;s results.json&gt;&quot;</span><span class="op">,</span>   <span class="co">// null is round 1</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>TopK <span class="op">=</span> <span class="dv">3</span><span class="op">,</span>                                         <span class="co">// per role, on top of the incumbent</span></span></code></pre></div>
 <p>With <code>SeedFrom</code> set the runner keeps the top
-<code>TopK</code> per role by cost per pass <strong>among the candidates
-that reached the parity win rate over at least the minimum
-samples</strong>, keeps the incumbent whether or not it made the cut,
-carries in every admitted proposal and every prompt hint concrete enough
-to run as a variant bound to the model or family it was learned from,
-and for a multi-role run builds joint casts capped by
+<code>TopK</code> per role by win rate, then cost per pass, then id,
+<strong>among the candidates that reached the parity win rate over at
+least the minimum samples</strong>, keeps the incumbent and its controls
+outside the cut, carries in every admitted proposal and every prompt
+hint concrete enough to run as a variant bound to the model or family it
+was learned from, and for a multi-role run builds joint casts capped by
 <code>MaxJointAssignments</code> instead of a model list. A seed it
 cannot use - missing, unparseable, nothing judged, narrowing to no
 model, or measured in the other shape - stops the sweep before anything
