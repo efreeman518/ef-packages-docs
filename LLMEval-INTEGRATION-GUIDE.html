@@ -753,8 +753,12 @@ Code's <code>opus</code> alias - unless <code>JudgeModelId</code> pins
 one. What is worth a moment is the incumbent: a candidate from the
 judge's own vendor family is flagged in the selection report, and that
 flag is placed from the judge's model. Attach the pairwise evaluator
-with the rubric and leave the judging out of the budget - it is quota,
-not money.</p>
+with the rubric and leave the judging out of the budget - on the
+exchange it is quota, not money, and with
+<code>SweepOptions.JudgeApiKey</code> set the API's share is paid from
+the judge's own credits and reported apart as
+<code>JudgeApiSpend</code>, never against <code>MaxSpend</code> (see
+below).</p>
 <div class="sourceCode" id="cb12"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> options <span class="op">=</span> <span class="kw">new</span> SweepOptions</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>

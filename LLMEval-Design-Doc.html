@@ -307,13 +307,15 @@ and beside the spend line
 size a paid judge would be an order of magnitude more than the field it
 is judging, and it is the one part of the run that scales with every
 dimension at once. Two consequences follow. First, the spend ceiling
-gates the candidates and only them, because judging is not money - which
-is not the same as free, and the judge-answer count beside the spend
-line is what a reader sizes the other cost by; do not size a matrix as
-though either were unlimited. Second, before widening a matrix, widen it
-in the dimension that adds judged evidence (fixtures) rather than the
-one that multiplies judging without pooling it (variants) - the
-drainer's time is finite too.</p>
+gates the candidates and only them, because judging is not the
+candidates' money - the drainer's answers are quota and an API judge's
+are its own credits, reported apart as <code>JudgeApiSpend</code> -
+which is not the same as free, and the judge-answer count beside the
+spend line is what a reader sizes the other cost by; do not size a
+matrix as though either were unlimited. Second, before widening a
+matrix, widen it in the dimension that adds judged evidence (fixtures)
+rather than the one that multiplies judging without pooling it
+(variants) - the drainer's time is finite too.</p>
 <h4 id="what-the-judge-needs-from-you">What the judge needs from
 you</h4>
 <p>The one requirement is that somebody is draining. A run started with
@@ -1633,11 +1635,15 @@ cell carrying a rubric score (the incumbent's cells included, since they
 are scored even though they are never compared against themselves), each
 times the replicate count of <a href="#55-judge-consistency">5.5</a>.
 The pre-flight plan line states that figure before anything runs, and a
-dry run's report carries it. None of it is priced. The judge is a
-subagent answering on subscription quota, so the calls are left out of
-the spend estimate with a logged note rather than folded in at a rate
-nobody will be billed, and the spend ceiling gates the candidates
-alone.</p>
+dry run's report carries it. None of it is in the candidates' spend. On
+the exchange the judge is a subagent answering on subscription quota, so
+the calls are left out of the spend estimate with a logged note rather
+than folded in at a rate nobody will be billed, and the spend ceiling
+gates the candidates alone. With <code>SweepOptions.JudgeApiKey</code>
+set the API's answers are money on the judge's own credits: priced from
+<code>JudgeCatalog</code> and reported apart as
+<code>JudgeApiSpend</code>, still outside the estimate and
+<code>MaxSpend</code>, and the logged note says so.</p>
 <p>Nothing caps a judge call's output either. A cap exists to protect a
 metered completion from running away, and there is no meter here; a
 request with no options is also the simplest thing to hash, which is
@@ -2293,7 +2299,11 @@ who has not met the measure, defining the pooling, the two presentation
 orders, ties as halves, the interval, <code>MinSamples</code> and both
 thresholds at the values this sweep used.</li>
 <li><strong>Selection</strong> - the summary's own Selection section, as
-a table.</li>
+a table. On a prompt round the note that its non-baseline groups were
+judged in a different presentation from the baseline group, and are not
+on its scale, is printed once above the Recommendations (and above the
+leaderboard in <code>summary.md</code>), before any win rate it
+qualifies.</li>
 <li><strong>Prompt hints</strong> -
 <code>SweepResultsFile.PromptHints</code>, or one line saying none were
 recorded, then <code>SweepResultsFile.HintResearch</code>: what each
@@ -2301,7 +2311,13 @@ family answered, so a family that documents nothing, one whose reply
 could not be read and one nobody asked are three different rows rather
 than one absence, followed by <code>SweepResultsFile.Proposals</code>:
 what the run proposed trying, whether it ran, and why, under a line
-saying that the proposer and the judge were the same agent.</li>
+saying that the proposer and the judge were the same agent, and then, on
+a prompt round only, <strong>Prompt round</strong> -
+<code>SweepResultsFile.PromptRound</code>: per variant the incumbent
+under it against the baseline prompt (win rate, Wilson and cluster
+intervals, n, cost per cell beside the baseline's), and the pick per
+scope and editable key, the same text and table <code>summary.md</code>
+prints after its Selection section.</li>
 <li><strong>Round provenance</strong> -
 <code>SweepResultsFile.Round</code> and every round it chains back to,
 or <code>Round 1 (initial broad roster)</code>.</li>
