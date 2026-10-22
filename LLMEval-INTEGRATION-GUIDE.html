@@ -375,10 +375,10 @@ repository's own convention) that references <code>EF.LLMEval</code> and
 calls</strong>. Never copy a prompt or an agent class into the test
 project: the value of the sweep is that it measures what production
 runs, and a copy drifts the first time somebody edits the original.</p>
-<p>If live cells share one spend ceiling, turn assembly and class
-parallelisation <strong>off</strong> in the test project. Parallel test
-classes each reserve against the same ceiling and can overshoot it
-together.</p>
+<p>If live test classes share one budget, turn assembly and class
+parallelisation <strong>off</strong> in the test project: separate
+sweeps each enforce their own ceiling, not a combined budget. Within one
+sweep the ceiling holds at any <code>MaxParallel</code>.</p>
 <h4 id="the-host-over-the-real-composition-root">The host over the real
 composition root</h4>
 <p>The host builds the application's own service collection per cell and

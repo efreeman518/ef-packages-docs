@@ -180,10 +180,13 @@ distorts the whole plan.</p>
 <p><strong>The estimate is an upper bound, not a forecast.</strong>
 Actual spend is normally lower. Do not read the gap as the harness being
 wrong; read it as the ceiling having done its job.</p>
-<p><strong>Watch concurrency against the ceiling.</strong> Parallel
-cells can each clear the ceiling check before any of them has spent
-anything. Where cells share one ceiling, run them one at a time, and
-turn off test parallelisation in a test project that shares one.</p>
+<p><strong>Watch concurrency against the ceiling.</strong> Each cell
+reserves its estimate under a lock before its call, so parallel cells
+cannot all clear the same check. Overshoot is bounded by the cells in
+flight that cost more than they reserved, including cells the cache was
+expected to answer that miss. The ceiling is per sweep: separate sweeps
+(or test classes) sharing one budget do not combine theirs, so turn off
+test parallelisation in a test project whose live sweeps share one.</p>
 <hr />
 <h3 id="2-judge-cost-and-what-the-subscription-pays">2. Judge cost, and
 what the subscription pays</h3>
