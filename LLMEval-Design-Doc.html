@@ -248,11 +248,14 @@ count printed beside the spend line</td>
 </table>
 <p>With <code>SweepOptions.JudgeApiKey</code> set, the same judge model
 answers on the Anthropic API first, on a credits-only key, and the run
-latches onto the exchange once those credits are exhausted; a rejected
-key or any other API failure stops the run. A sweep is still run from a
-Claude Code session with a subagent draining the exchange, and judging
-that reaches it with nobody draining fails fast rather than quietly
-finding something to bill.</p>
+latches onto the exchange once those credits are exhausted. Persona
+turns, proposals and hints take the same path under the same latch,
+hints with web search and web fetch. A rejected key or any other API
+failure on a verdict or a persona turn stops the run; on a proposal or
+hints request it stops only that round, recorded with the reason. A
+sweep is still run from a Claude Code session with a subagent draining
+the exchange, and judging that reaches it with nobody draining fails
+fast rather than quietly finding something to bill.</p>
 <h4 id="why-the-judge-dominates">Why the judge dominates</h4>
 <p>The judge answers for <strong>every cell of the matrix</strong>, and
 each of its calls is expensive in input tokens because of what it has to
