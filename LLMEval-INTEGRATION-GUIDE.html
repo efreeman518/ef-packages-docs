@@ -891,10 +891,11 @@ refuses only an estimate above zero and an unpriced roster would run for
 real - then states the field as roster, candidates, setting variants and
 set-aside entries separately ("48 in the roster file: 20 candidates, 14
 models plus 6 setting variants, 28 already set aside") and offers the
-full field, a researched shortlist of the 5 most likely per role (up to
-10), or a different ceiling. Nothing runs until that is answered. A
-shortlist cut is recorded per entry and reversible, and the harness
-passes <code>EvalConfiguration.SetAside</code> to
+full field, a researched field (up to 10 per role screened to up to 5
+where a screen saves cells, else 5), or a different ceiling. Nothing
+runs until that is answered. A research cut is recorded per entry and
+reversible (a screen's cut is a filter, never a <code>models.json</code>
+edit), and the harness passes <code>EvalConfiguration.SetAside</code> to
 <code>LeaderboardWriter.WriteAsync</code> so the report prints those
 entries under roster provenance; see <a
 href="../README.md#narrowing-the-field">Narrowing the field</a>.</p>

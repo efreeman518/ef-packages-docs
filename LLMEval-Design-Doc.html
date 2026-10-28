@@ -817,29 +817,30 @@ only an estimate above zero and would run an unpriced roster for real -
 then state the field as roster, candidates, setting variants and
 set-aside entries separately - "48 in the roster file: 20 candidates, 14
 models plus 6 setting variants, 28 already set aside" - and offer the
-full field, a researched shortlist of the 5 most likely per role (up to
-10), or a different ceiling. Nothing launches until that is answered,
-and silence is not consent.</p>
+full field, a researched field (up to 10 per role screened to up to 5
+where a screen saves cells, else 5), or a different ceiling. Nothing
+launches until that is answered, and silence is not consent.</p>
 <p>Counting variants separately is the honest part: they cost cells like
 anything else, and a count of models against a candidate matrix
 understates the bill. The shortlist research proposes settings as
 candidates too, each with its own one-line reason and source, because
 the top ten candidates for a role are not always ten different
 models.</p>
-<p>A cut is recorded and reversible: the entry stays in
+<p>A research cut is recorded and reversible (a screen's cut is a filter
+on one round, never a <code>models.json</code> edit): the entry stays in
 <code>models.json</code> with <code>"shortlisted": false</code> and a
 <code>provenance</code> line saying why, and a frontier-price exclusion
 is recorded as the price decision it is rather than as a quality
 judgement nothing measured. A narrowing that cannot be undone is a
 deletion, and a deletion nobody recorded is how a field silently shrinks
 between rounds.</p>
-<p>The cut also reaches the report, which is the part the records cannot
-supply: they only know what ran, so a roster narrowed from forty-eight
-entries to twenty is indistinguishable from a roster of twenty. The
-harness - the only thing that read the roster file - passes its cut
-entries in as <code>SetAsideModel</code>s, on
-<code>SweepReport.SetAside</code> or as an argument to
-<code>LeaderboardWriter.WriteAsync</code>, and both
+<p>A research cut also reaches the report (a screen's cuts reach the run
+log and findings instead), which is the part the records cannot supply:
+they only know what ran, so a roster narrowed from forty-eight entries
+to twenty is indistinguishable from a roster of twenty. The harness -
+the only thing that read the roster file - passes its cut entries in as
+<code>SetAsideModel</code>s, on <code>SweepReport.SetAside</code> or as
+an argument to <code>LeaderboardWriter.WriteAsync</code>, and both
 <code>summary.md</code> and <code>report.html</code> render a
 <strong>Set aside before the run</strong> table under the roster
 provenance with the honest count in the header
