@@ -933,19 +933,19 @@ id="roslyn-version-conflict-with-microsoftentityframeworkcoredesign">Roslyn
 version conflict with
 <code>Microsoft.EntityFrameworkCore.Design</code></h4>
 <p><code>EF.FlowEngine</code> depends on
-<code>Microsoft.CodeAnalysis.CSharp.Scripting 5.9.0</code> (for the
+<code>Microsoft.CodeAnalysis.CSharp.Scripting 5.12.0</code> (for the
 workflow expression evaluator used by <code>compute</code>,
 <code>wait</code>, and edge-guard nodes). EF Core Design 10.x pulls in
 older <code>Microsoft.CodeAnalysis.Workspaces 5.0.0</code>. Pinning only
 <code>Microsoft.CodeAnalysis.Common</code> lets restore succeed but
 <code>dotnet ef migrations add</code> then crashes with
 <code>TypeLoadException: Method 'ReduceExtensionMember' ... not have an implementation</code>.
-Pin <strong>all four</strong> Roslyn packages to 5.9.0:</p>
+Pin <strong>all four</strong> Roslyn packages to 5.12.0:</p>
 <div class="sourceCode" id="cb37"><pre
-class="sourceCode xml"><code class="sourceCode xml"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Common&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.9.0&quot;</span> /&gt;</span>
-<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.9.0&quot;</span> /&gt;</span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Workspaces.Common&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.9.0&quot;</span> /&gt;</span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp.Workspaces&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.9.0&quot;</span> /&gt;</span></code></pre></div>
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Common&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.12.0&quot;</span> /&gt;</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp&quot;</span><span class="ot">            Version=</span><span class="st">&quot;5.12.0&quot;</span> /&gt;</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.Workspaces.Common&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.12.0&quot;</span> /&gt;</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;Microsoft.CodeAnalysis.CSharp.Workspaces&quot;</span><span class="ot"> Version=</span><span class="st">&quot;5.12.0&quot;</span> /&gt;</span></code></pre></div>
 <p>Plus an explicit <code>&lt;PackageReference&gt;</code> to all four in
 the project that runs <code>dotnet ef</code>. The error is misleading
 because <code>dotnet restore</code> succeeds with only two pins.</p>
