@@ -177,10 +177,9 @@ app.MapFallbackToPage("/_Host");
 
 <h3>IFlowEngineAdminClient</h3>
 <p>The dashboard uses a Refit-generated typed client whose routes are fixed at <code>/flowengine/admin/...</code>. Point its base address at the Admin API host root and map the Admin API with <code>MapFlowEngineAdmin("/flowengine/admin")</code>; the default <code>/api/flowengine</code> prefix will not match. You can also use the client directly:</p>
-<pre><span class="lang-tag">csharp</span><code>// Registered by AddFlowEngineDashboard — or register manually:
-builder.Services.AddRefitClient&lt;IFlowEngineAdminClient&gt;()
-    .ConfigureHttpClient(c => c.BaseAddress = new Uri(adminApiBaseUrl));
+<pre><span class="lang-tag">csharp</span><code>builder.Services.AddFlowEngineDashboard(adminApiBaseUrl);
 </code></pre>
+<p>Use the optional <code>configureHttpClientBuilder</code> callback to customize the admin client's registration.</p>
 
 <div class="callout callout-amber">
   <strong>Authentication:</strong> The dashboard does not configure authentication itself. Mount it behind your existing auth middleware and ensure the user's JWT or cookie includes the <code>scope</code> claim value (<code>FlowEngine.Admin</code> or <code>FlowEngine.HumanTask</code>) required by the default Admin API policies, plus a <code>tid</code> tenant claim unless <code>RequireTenant</code> is off.
