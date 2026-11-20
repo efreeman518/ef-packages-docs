@@ -125,32 +125,32 @@ episodes) times (candidates or assignments) times variants. Each factor
 multiplies:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Dimension</th>
 <th>What raising it buys</th>
 <th>What it costs</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Candidates</td>
 <td>A wider field</td>
 <td>Linear in cells, and every non-incumbent cell is also two judge
 calls, times <code>JudgeReplicates</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Workloads or fixtures</td>
 <td>Evidence. Pooled comparisons grow, so the selection reaches its
 minimum sample count</td>
 <td>Linear</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Variants</td>
 <td>A different question, with its own selection group</td>
 <td>Linear, and it does <strong>not</strong> help a group reach its
 sample minimum</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Repeats</td>
 <td>Confidence against run-to-run variance, which matters because
 reasoning models generally reject temperature controls</td>
@@ -276,39 +276,39 @@ cache.</li>
 <p>Symptoms and what to do:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>What you see</th>
 <th>What it means</th>
 <th>Do</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>A long pacing figure in the summary, low spend</td>
 <td>The run was slow, not expensive. Pacing waits are excluded from
 latency, so the latency column is still usable</td>
 <td>Nothing, or raise the declared rate if the provider actually allows
 more</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Many retried calls with 429s</td>
 <td>The declared rate is above the real cap, or another process shares
 the account</td>
 <td>Lower the declared rate. More retries is the wrong lever</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>The sweep stopped with a judge stop reason</td>
 <td>The judge provider kept refusing</td>
 <td>Lower the judge rate and concurrency, then re-run. Finished cells
 replay free</td>
 </tr>
-<tr class="even">
+<tr>
 <td>One model takes minutes per cell and then fails</td>
 <td>A dead model id answering an error to everything: four sends and
 roughly half a minute per call</td>
 <td>Remove it from the roster</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>No pacing line in the report at all</td>
 <td>A decorating client provider is not forwarding the rate-limit
 counters</td>
@@ -328,27 +328,27 @@ interruption, a judge outage, or a machine going to sleep.</p>
 <p>What each cache is keyed on, and what therefore re-pays:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Cache</th>
 <th>Keyed on</th>
 <th>Invalidated by</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Candidate responses</td>
 <td>The request, partitioned per model, and for an episode per
 assignment <strong>and the cast it names</strong></td>
 <td>Editing a prompt, changing a model, or swapping a role's model
 inside an assignment that kept its name</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Judge replies</td>
 <td>A hash over the model, the kind and the messages</td>
 <td>Changing the rubric or the answers compared, or deleting the reply
 file</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Persona turns</td>
 <td>The same hash, plus the cell the turn belongs to</td>
 <td>Never replayed across cells. Deleting the reply file re-asks that
@@ -456,23 +456,23 @@ they are committed or ignored, and a checkout with no <code>.git</code>
 entry installs nothing at all.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Lever</th>
 <th>Effect</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>&lt;LLMEvalInstallSkills&gt;false&lt;/LLMEvalInstallSkills&gt;</code></td>
 <td>Opt out. Reasonable for a CI-only build that will never run an
 agent.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>&lt;LLMEvalSkillsRoot&gt;path&lt;/LLMEvalSkillsRoot&gt;</code></td>
 <td>Install into <code>path/.claude/skills</code> instead of the
 detected repository root.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>tools/install-skills.ps1</code> /
 <code>tools/install-skills.sh</code> in the package</td>
 <td>Manual fallback for an opted-out build, a non-git checkout, or a
@@ -493,26 +493,26 @@ everyone who clones.</p>
 finding is written from.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>File</th>
 <th>Read it for</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>summary.md</code></td>
 <td>The banner - cells, spend, who judged and how many answers that took
 on the harness subscription, pacing, anything dropped or stopped - then
 one table per scenario and variant ranked by cost per passing
 generation, then the selection section</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>results.json</code></td>
 <td>Every cell: its metrics rendered and raw, its cost, its duration,
 its response text and transcript, the upstream that served it, and
 whatever it ran without</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>report.html</code></td>
 <td>The decision view: a cost-versus-quality chart per role with
 intervals and thresholds, the top suggestions, the selection table and

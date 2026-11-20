@@ -120,7 +120,7 @@ flowEngineBuilder
 <ul>
   <li>.NET 10 SDK</li>
   <li>Docker Desktop (running)</li>
-  <li>No Aspire workload: the AppHost uses the <code>Aspire.AppHost.Sdk</code> 13.6.5 MSBuild SDK with <code>AspireUseCliBundle</code>, which resolves DCP and the dashboard from an <code>aspire</code> CLI on PATH or from the matching <code>aspire.cli</code> package</li>
+  <li>No Aspire workload: the AppHost is a <code>Microsoft.NET.Sdk</code> project on the <code>Aspire.Hosting.*</code> 17.0.0 packages with <code>AspireUseCliBundle</code>, which resolves DCP and the dashboard from an <code>aspire</code> CLI on PATH or from the <code>aspire.cli</code> package matching <code>Aspire.Hosting.AppHost</code></li>
 </ul>
 
 <h3>Start the harness</h3>

@@ -31,19 +31,19 @@ href="LLMEval-Operations.html">LLMEval-Operations.md</a>.</p>
 <h3 id="at-a-glance">At a glance</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Question</th>
 <th>Answer</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>What is added to the solution</td>
 <td>One test project (<code>tests/Test.Eval</code>), referencing
 <code>EF.LLMEval</code> and the production code it measures. Nothing in
 the application takes a dependency on the harness.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>What runs the sweep</td>
 <td>A Claude Code session: the three skills the package installs on
 build, and a subagent draining the judge exchange. With
@@ -51,7 +51,7 @@ build, and a subagent draining the judge exchange. With
 Anthropic API first and the drainer takes over when the credits run
 out.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>What it costs</td>
 <td>The candidate calls, capped by a spend ceiling priced before
 anything is sent, and the judge answers on top - outside that spend,
@@ -60,20 +60,20 @@ when <code>LLMEVAL_JUDGE_API_KEY</code> is set, otherwise and after
 those run out charged to the harness subscription, reported as counts
 beside the spend line and never as zero.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>What comes out</td>
 <td><code>summary.md</code>, <code>results.json</code> and the
 self-contained <code>report.html</code>, ranked by cost per passing
 generation.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>What decides</td>
 <td>The <code>Selection</code> section: parity pick, upgrade pick,
 dominators, each with a pooled sample count, a per-comparison Wilson 95
 percent interval and a cluster-level one with the scenario as the
 unit.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>How long it takes to wire</td>
 <td>An afternoon for a single-shot workload over an existing composition
 root; longer where a chat client is <code>new</code>ed inside a service
@@ -155,17 +155,17 @@ runner reports are discarded.</li>
 <h3 id="what-to-install">What to install</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Need</th>
 <th>Package</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>The harness itself</td>
 <td><code>EF.LLMEval</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>A workflow measured as an episode</td>
 <td><code>EF.LLMEval.FlowEngine</code></td>
 </tr>
@@ -181,10 +181,10 @@ version. Check the <a
 href="https://github.com/efreeman518/EF.Packages.Enterprise/packages">GitHub
 Package Registry</a> for the current version.</p>
 <div class="sourceCode" id="cb1"><pre
-class="sourceCode xml"><code class="sourceCode xml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">ItemGroup</span><span class="ot"> Label=</span><span class="st">&quot;EF.LLMEval&quot;</span>&gt;</span>
+class="sourceCode xml"><code class="sourceCode xml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>&lt;<span class="kw">ItemGroup</span> <span class="ot">Label=</span><span class="st">&quot;EF.LLMEval&quot;</span>&gt;</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">&lt;!-- Replace [latest] with the current package version from the registry --&gt;</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval&quot;</span><span class="ot">            Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span><span class="ot"> Include=</span><span class="st">&quot;EF.LLMEval.FlowEngine&quot;</span><span class="ot"> Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span> <span class="ot">Include=</span><span class="st">&quot;EF.LLMEval&quot;</span>            <span class="ot">Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  &lt;<span class="kw">PackageVersion</span> <span class="ot">Include=</span><span class="st">&quot;EF.LLMEval.FlowEngine&quot;</span> <span class="ot">Version=</span><span class="st">&quot;[latest]&quot;</span> /&gt;</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>&lt;/<span class="kw">ItemGroup</span>&gt;</span></code></pre></div>
 <p>Then reference them versionless from the test project.</p>
 <hr />
@@ -201,31 +201,31 @@ definitions and reasoning effort settings.</p>
 <p>For each hit, write down five things:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Field</th>
 <th>Why it matters</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>The entry point a request reaches</td>
 <td>This is the thing a scenario or workload calls.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Which chat client it resolves, and under what key</td>
 <td>The key becomes a role binding in step 3.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Whether it is one call or a conversation</td>
 <td>Decides scenario versus episode, step 2.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>What the request asks for: structured output, tools, reasoning
 effort</td>
 <td>Decides what gets removed from the request for a candidate whose
 catalog entry refuses it. No candidate is excluded over one.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Roughly how often it runs in production, and how long its output
 is</td>
 <td>Decides which call site is worth measuring first, and what to
@@ -317,19 +317,19 @@ claim the application asked for the defaults.</p>
 episode</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Choose</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>Scenario</strong></td>
 <td>The workload is one model call, or a short deterministic chain
 around one call. Example: an interpretation prompt that turns a
 structured record into a paragraph of prose.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Episode</strong></td>
 <td>The workload converses, or more than one model participates.
 Example: a three-agent tutoring session where one model explains, a
@@ -407,17 +407,17 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb4-1"><a href="
 <span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Registration</th>
 <th>Where it goes</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Adds an <code>IChatClient</code></td>
 <td>Either side. The cell registration removes it.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Inspects</strong> the collection for an
 <code>IChatClient</code> while registering (an "add AI services" method
 that picks a live path when one is present)</td>
@@ -425,16 +425,16 @@ that picks a live path when one is present)</td>
 <code>AddRoleClients</code>, so it sees the clients under test and takes
 the offline branch.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>TryAddKeyedSingleton</code> for a chat client</td>
 <td>Moves with the code above. Safe on either side.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>A plain <code>AddKeyedSingleton</code> for a chat client</td>
 <td><strong>Never after <code>AddRoleClients</code>.</strong> It wins,
 and the cell talks to the live endpoint.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Everything the harness cannot supply: storage, request or tenant
 context, configuration, clocks, outbound integrations</td>
 <td><code>ConfigureCell</code>. A workload that reaches a real
@@ -818,17 +818,17 @@ them too. The repository root is the nearest ancestor holding a
 installs nothing unless it is told where to put them.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Effect</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>&lt;LLMEvalInstallSkills&gt;false&lt;/LLMEvalInstallSkills&gt;</code></td>
 <td>Opt out. The install step is skipped entirely.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>&lt;LLMEvalSkillsRoot&gt;path&lt;/LLMEvalSkillsRoot&gt;</code></td>
 <td>Install into <code>path/.claude/skills</code> instead of the
 detected repository root. Also the way to install from a checkout with
@@ -855,26 +855,26 @@ of a diff whenever the package version moves. Nothing in the package
 depends on which you pick.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Skill</th>
 <th>Use it to</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>llmeval-harness</code></td>
 <td>Build the harness this guide describes, with templates for every
 file and a verification checklist. It also ships the file a draining
 subagent is handed.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>llmeval-run</code></td>
 <td>Run the broad first round of an existing harness: start the drainer,
 launch the sweep in the background, wait for the summary, read the
 selection and the HTML report, keep the report and write the
 findings.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>llmeval-focus</code></td>
 <td>Run round N+1 seeded from a previous run's
 <code>results.json</code>: the shortlist per role, the prompt variants
@@ -928,36 +928,36 @@ verbatim, so read the transcripts before committing a copy of it.</p>
 first:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Section</th>
 <th>What to take from it</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>The leaderboard, one table per workload and variant</td>
 <td>Ranked by <strong>cost per passing generation</strong>. A model with
 zero passes is listed without a cost figure rather than sorted to the
 bottom by an invented number.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>The pacing line</td>
 <td>How many calls waited on rate limits and for how long, and how many
 were retried. A large number here means the run was slower than it was
 expensive.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Banners</td>
 <td>The run stopped on its ceiling, response caching was on (so latency
 and the upstream route are not trustworthy for cached cells), or the
 judging was outside the estimate.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Suggested adjustments</code></td>
 <td>One subsection per model that failed something: the deterministic
 hints and any matching vendor prompting note.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Selection</code></td>
 <td>The parity pick, the upgrade pick, dominators, each with pooled
 sample count, win rate, a per-comparison Wilson interval and a
@@ -1034,10 +1034,10 @@ class="sourceCode md"><code class="sourceCode markdown"><span id="cb17-1"><a hre
 <span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
 <span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | Notes |</span>
-<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
-<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>| agg/beta | 6 | 6/6 | 0.001140 | 0.001140 | 2103 ms | cheap-field |</span>
-<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 6 | 5/6 | 0.005121 | 0.004268 | 3320 ms | production |</span></code></pre></div>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Model <span class="pp">|</span> Runs <span class="pp">|</span> Passed <span class="pp">|</span> Cost per pass <span class="pp">|</span> Mean cost <span class="pp">|</span> Mean latency <span class="pp">|</span> Notes <span class="pp">|</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|---|---|---|</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/beta <span class="pp">|</span> 6 <span class="pp">|</span> 6/6 <span class="pp">|</span> 0.001140 <span class="pp">|</span> 0.001140 <span class="pp">|</span> 2103 ms <span class="pp">|</span> cheap-field <span class="pp">|</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> fp/alpha <span class="pp">|</span> 6 <span class="pp">|</span> 5/6 <span class="pp">|</span> 0.005121 <span class="pp">|</span> 0.004268 <span class="pp">|</span> 3320 ms <span class="pp">|</span> production <span class="pp">|</span></span></code></pre></div>
 <p>Then <code>## Selection</code>, which is the answer the run exists
 for: the parity pick, the upgrade pick, any dominators, and a table
 carrying each candidate's pooled sample count, win rate, per-comparison
@@ -1048,18 +1048,18 @@ shape, including the multi-role one.</p>
 self-contained and printable, in this order:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Section</th>
 <th>What it is for</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Header</td>
 <td>Execution, workload, render date, package version, the judge line
 word for word, spend against the ceiling, cell counts</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Recommendations</td>
 <td>One cost-versus-quality chart per role: cost per passing generation
 on x, pooled win rate on y, the Wilson interval as a bar through each
@@ -1068,30 +1068,30 @@ upgrade's cluster interval has to clear as reference lines, the
 price-efficient frontier, and the first three candidates at parity in
 pick order (higher win rate, then lower cost) listed underneath</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>How to read a win rate</td>
 <td>The plain-language paragraph to read before quoting one to anybody
 who did not run the sweep</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Selection</td>
 <td>The same table as <code>summary.md</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Prompt hints and variations</td>
 <td>What each vendor family was asked, what came back with its source,
 and every proposal with the decision on it</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Round provenance</td>
 <td>This round and every round back to the first</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Matrix</td>
 <td>Every cell, expanding to its whole untruncated transcript, the
 judge's verdict text and its numeric metrics</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Roster provenance</td>
 <td>Each entry's settings and <code>provenance</code> note, then a
 <strong>Set aside before the run</strong> table of what was cut and why,
@@ -1106,21 +1106,21 @@ transcripts before committing a copy of it into a repository.</p>
 <h3 id="troubleshooting">Troubleshooting</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Symptom</th>
 <th>Cause</th>
 <th>Fix</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>A plan exception before anything runs</td>
 <td>The estimated spend exceeds the ceiling</td>
 <td>Read the breakdown in the message. Narrow the matrix, declare
 expected output tokens for a role priced at its full ceiling, or raise
 the ceiling deliberately.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>A row says it ran without part of the request</td>
 <td>The model's catalog entry refuses a member of the probed options, so
 it was removed before the call</td>
@@ -1128,14 +1128,14 @@ it was removed before the call</td>
 the model cannot take it, or the catalog entry is wrong. The score is
 real; it is a score for the request as sent.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Price is unknown on a model that should be priced</td>
 <td>No catalog match or upstream tag, or the meter could not be
 classified</td>
 <td>Read the pricing diagnostics for the meter names or upstream tags
 that were on offer, then correct the match string or the model id.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>The sweep hangs on its first cell</td>
 <td>A foreground sweep deadlocking with a drainer in the same
 session</td>
@@ -1143,52 +1143,52 @@ session</td>
 With no drainer at all the sweep fails fast instead; if it hangs, check
 that the heartbeat file is being written.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"No judge agent is draining"</td>
 <td>Nobody is draining the exchange, or the heartbeat is stale</td>
 <td>Start the drainer. It is the judge without an API key and the
 fallback once the API credits run out.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Selection says insufficient samples</td>
 <td>Fewer pooled comparisons than the minimum</td>
 <td>Add repeats or add fixtures. Adding a <strong>variant</strong> does
 not help: it is a different question and gets its own group.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Every cell returns an unreadable judge verdict</td>
 <td>The drainer is answering with prose, a code fence or a summary</td>
 <td>Re-read <code>judge-queue.md</code> with it: a verdict is bare JSON
 in exactly the shape the prompt asks for, and anything else is recorded
 as unmeasurable.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Latency looks impossibly good</td>
 <td>Response caching served the cells</td>
 <td>Caching is on by default. Turn it off for any run that measures
 latency or run-to-run variance.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>The pacing line is missing from the report</td>
 <td>A decorating client provider did not forward the rate-limit
 counters</td>
 <td>Forward them. The member is a default interface implementation, so a
 decorator that ignores it silently returns nothing.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>A cell talked to the live endpoint</td>
 <td>A plain keyed chat-client registration ran after the cell's clients
 were registered</td>
 <td>Move it before, or make it a try-add. See step 3.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>An episode completed in one turn and looks suspiciously clean</td>
 <td>No human simulator, so the conversation ended after its opening
 turn</td>
 <td>Configure one. A workload that genuinely never converses says so
 with an empty script.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>A keyless Azure connection fails auth, or its models vanish from the
 roster</td>
 <td>The credential chain has nothing to hand it</td>
@@ -1197,13 +1197,13 @@ roster</td>
 its models with it, so a short roster is the symptom rather than an
 error.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>The report says round 1 when a round was seeded</td>
 <td>The seed path never reached <code>SweepOptions.SeedFrom</code></td>
 <td>The whole roster ran. Check the gate variable, and do not report the
 result as a shortlist.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Restoring the package fails</td>
 <td>The package feed is not configured</td>
 <td>Add the GitHub Packages feed for the repository, or

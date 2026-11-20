@@ -27,57 +27,57 @@ persistence, distributed locking, and automatic crash recovery.</p>
 <h3 id="document-map">Document Map</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Document</th>
 <th>Audience</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>This README</td>
 <td>Everyone</td>
 <td>Getting started, installation, configuration reference</td>
 </tr>
-<tr class="even">
+<tr>
 <td><a
 href="FlowEngine-INTEGRATION-GUIDE.html">FlowEngine-INTEGRATION-GUIDE.md</a></td>
 <td>Implementors</td>
 <td>End-to-end .NET solution integration: providers, migrations,
 clients, Admin API, Dashboard</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><a
 href="FlowEngine-Design-Doc.html">FlowEngine-Design-Doc.html</a></td>
 <td>Developers / implementors</td>
 <td>Full technical reference: architecture, node types, execution model,
 API, operations</td>
 </tr>
-<tr class="even">
+<tr>
 <td><a href="FlowEngine-SKILL.html">FlowEngine-SKILL.md</a></td>
 <td>Workflow authors / AI agents</td>
 <td>Node authoring guide, design patterns, decision guide</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><a
 href="FlowEngine-WorkflowDefinition.html">FlowEngine-WorkflowDefinition.html</a></td>
 <td>Implementors</td>
 <td>Node config classes and schema</td>
 </tr>
-<tr class="even">
+<tr>
 <td><a
 href="FlowEngine-NodeExecutor-Guide.html">FlowEngine-NodeExecutor-Guide.html</a></td>
 <td>Node authors</td>
 <td>How to build custom node executors</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><a
 href="FlowEngine-Operations.html">FlowEngine-Operations.html</a></td>
 <td>Ops / platform teams</td>
 <td>Admin API, Dashboard, Outbox, distributed circuit breakers,
 migration tooling</td>
 </tr>
-<tr class="even">
+<tr>
 <td><a
 href="FlowEngine-Connectors.html">FlowEngine-Connectors.html</a></td>
 <td>Developers</td>
@@ -183,23 +183,23 @@ cases</li>
 <h4 id="when-to-use-each-pattern">When to use each pattern</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Pattern</th>
 <th>Use when</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>Orchestration</strong></td>
 <td>Process has a clear sequence, compensation requirements, audit
 needs, or human-in-the-loop steps</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Choreography</strong></td>
 <td>Independent bounded contexts that must remain fully decoupled with
 no shared process state</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Hybrid</strong></td>
 <td>Core process needs durability and observability, but some
 participants are autonomous external systems or AI agents</td>
@@ -210,24 +210,24 @@ participants are autonomous external systems or AI agents</td>
 <h3 id="features">Features</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Feature</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>Declarative JSON workflows</strong></td>
 <td>Every workflow is a directed graph of typed nodes and conditional
 edges — fully serializable, storable, and versioned as data</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>19 node types</strong></td>
 <td>filter, decision, store, compute, transform, integration, fetch,
 query, agent, message, loop, workflow, parallel, human, wait, timer,
 output, checkpoint, document</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Durable async execution</strong></td>
 <td>Suspend at explicit wait boundaries (<code>human</code>,
 <code>wait</code>, <code>timer</code>, <code>message</code>
@@ -236,48 +236,48 @@ workflows survive process restarts and server failures. Nodes that make
 external calls inline (<code>query</code>, <code>integration</code>,
 <code>fetch</code>, etc.) execute and advance without suspending.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>FilterBuilder integration</strong></td>
 <td><code>filter</code> and <code>query</code> nodes use FilterBuilder
 declarative filter expressions for typed, null-safe, EF
 Core-translatable conditions</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Distributed locking</strong></td>
 <td>Pluggable <code>IDistributedLockProvider</code> — Redis, Azure Blob,
 SQL, Cosmos, Azure Table — prevents duplicate execution across server
 instances</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Pluggable state stores</strong></td>
 <td>SQL Server, Postgres, Redis, CosmosDB, Azure Table, local file
 (dev/test) — implement <code>IExecutionStateStore</code> for any
 backend</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Named external clients</strong></td>
 <td>Bring your own <code>HttpClient</code>, <code>DbContext</code>,
 <code>ServiceBusClient</code>, <code>OpenAIClient</code> — register by
 name; FlowEngine never owns connection config</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Human-in-the-loop</strong></td>
 <td><code>human</code> node creates a <code>HumanTask</code>, suspends
 execution, resumes on response — Internal task queue or External
 (email/Teams/Slack) notification</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Rework patterns</strong></td>
 <td>Backward edges + <code>$.engine.visits.{nodeId}</code> visit counts
 enable N-attempt rework cycles without explicit counter nodes</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Input validation</strong></td>
 <td><code>paramsSchema</code> on a workflow definition validates
 <code>StartRequest.Params</code> at startup — fail fast with clear
 messages</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Output and context validation</strong></td>
 <td><code>outputSchema</code> on any node validates its JSON output
 before it is stored via <code>storeAs</code> — invalid values produce
@@ -286,13 +286,13 @@ before it is stored via <code>storeAs</code> — invalid values produce
 optional per-key schemas) that must be present before a node
 executes</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Saga compensation</strong></td>
 <td><code>enableCompensation: true</code> + per-node
 <code>compensationNodeId</code> — engine walks history in reverse and
 executes undo nodes automatically on failure</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Circuit breaker</strong></td>
 <td><code>circuitBreakerPolicy</code> on workflow or node — detects
 repeated executor failures, opens a circuit with HalfOpen probe
@@ -300,13 +300,13 @@ recovery, and auto-suspends affected instances until the service
 recovers. Alternate <code>CircuitOpen</code> edges enable graceful
 degradation</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Distributed circuit breaker</strong></td>
 <td><code>EF.FlowEngine.CircuitBreaker.Redis</code> / <code>.Sql</code>
 / <code>.Cosmos</code> packages provide cross-replica circuit state via
 pluggable <code>ICircuitBreakerStore</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>System.Diagnostics.Metrics</strong></td>
 <td><code>UseMetrics()</code> emits counters and histograms
 (<code>flowengine.instances.active</code>, <code>completed_total</code>,
@@ -314,58 +314,58 @@ pluggable <code>ICircuitBreakerStore</code></td>
 <code>node.duration_ms</code>) consumable by any .NET metrics
 exporter</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Dead-letter store</strong></td>
 <td><code>UseDeadLetterStore&lt;T&gt;()</code> +
 <code>IDeadLetterStore</code> — faulted instances with no recovery path
 are automatically enqueued; replay via
 <code>IFlowEngine.ReplayFromDeadLetterAsync</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Instance retention</strong></td>
 <td><code>UseRetentionPolicy(policy)</code> — background
 <code>InstanceRetentionService</code> archives (deletes) terminal
 instances older than a configured age, keeping state stores lean</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Streaming queries</strong></td>
 <td><code>IExecutionStateStore.StreamAsync(filter)</code> —
 <code>IAsyncEnumerable&lt;ExecutionInstance&gt;</code> for
 memory-efficient enumeration of large result sets</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Per-node concurrency cap</strong></td>
 <td><code>MaxConcurrentNodeExecutions</code> on any node — limits
 simultaneous executor calls of that node type process-wide, preventing a
 single node type from monopolising the thread pool</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Dynamic sub-workflow selection</strong></td>
 <td><code>WorkflowIdExpression</code> on a <code>workflow</code> node —
 Roslyn C# expression evaluated at runtime to choose the child workflow
 ID from context values</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Workflow definition cache</strong></td>
 <td><code>UseWorkflowRegistryCache(ttl)</code> — wraps any
 <code>IWorkflowRegistry</code> with a short-lived
 <code>IMemoryCache</code> layer, reducing registry round-trips on hot
 paths</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>State store resilience</strong></td>
 <td><code>UseStoreResiliency(options)</code> — wraps
 <code>IExecutionStateStore</code> with a Polly retry pipeline for
 transient I/O failures; <code>ConcurrencyException</code> is never
 retried</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Transactional outbox</strong></td>
 <td><code>EF.FlowEngine.Outbox.Sql</code> — message/agent nodes enqueue
 in the same DB transaction as state save; background drain publishes
 with at-least-once guarantee</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Instance migration</strong></td>
 <td><code>MigrateInstanceAsync</code> moves suspended instances to a
 newer workflow version without replaying history.
@@ -373,19 +373,19 @@ newer workflow version without replaying history.
 changes before migration. <code>dryRun: true</code> validates remapping
 without persisting</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Admin API</strong></td>
 <td><code>EF.FlowEngine.AdminApi</code> — minimal-API extension:
 instance query/retry/terminate/resume, circuit-breaker management,
 compatibility analysis over HTTP</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Ops Dashboard</strong></td>
 <td><code>EF.FlowEngine.Dashboard</code> — Blazor Server + MudBlazor:
 instance list/detail, human task inbox, workflow compatibility, circuit
 breaker status</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Connector clients</strong></td>
 <td><code>EF.FlowEngine.Clients.Http</code>, <code>.ServiceBus</code>,
 <code>.Sql</code>, <code>.SqlServer</code>, <code>.AI</code> -
@@ -393,24 +393,24 @@ ready-made <code>IFlowClient</code> / <code>IMessageClient</code> /
 <code>IQueryClient</code> / <code>IAgentClient</code>
 implementations</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Agent governance</strong></td>
 <td><code>ContentFilterPolicy</code> pre/post call hook,
 <code>PromptVersion</code> label, per-model cost rate table, and
 structured OTel telemetry on every agent invocation</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Pre-execution validation</strong></td>
 <td>All client dependencies verified before the first node runs —
 misconfigured workflows fail fast with clear messages</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Full audit trail</strong></td>
 <td>Every node execution is immutably appended to
 <code>ExecutionInstance.History</code> — timestamps, outcomes, branch
 taken, stored values</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>OpenTelemetry</strong></td>
 <td>Structured events at every state transition — flows into any OTel
 collector, Azure Monitor, Datadog, Jaeger</td>
@@ -696,7 +696,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="
 reference the execution context.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Namespace</th>
 <th>Access</th>
 <th>Mutability</th>
@@ -704,92 +704,92 @@ reference the execution context.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>$.entity</code></td>
 <td>Primary input passed at <code>StartAsync</code></td>
 <td>Read-only</td>
 <td><code>$.entity.OrderId</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.entity.Field</code></td>
 <td>Nested field access</td>
 <td>Read-only</td>
 <td><code>$.entity.Customer.Name</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.params.x</code></td>
 <td>Named parameters from <code>StartRequest.Params</code></td>
 <td>Read-only</td>
 <td><code>$.params.approvalLevel</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.context.x</code></td>
 <td>Mutable store — written by <code>storeAs</code> or
 <code>store</code> nodes</td>
 <td>Read/Write</td>
 <td><code>$.context.riskTier</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.context.x.y</code></td>
 <td>Nested context access</td>
 <td>Read/Write</td>
 <td><code>$.context.crmData.id</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.engine.visits.{nodeId}</code></td>
 <td>Visit count for a node</td>
 <td>Read-only</td>
 <td><code>$.engine.visits.n-review</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.engine.visits._total</code></td>
 <td>Total node executions so far</td>
 <td>Read-only</td>
 <td><code>$.engine.visits._total</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.engine.instanceId</code></td>
 <td>Current instance ID</td>
 <td>Read-only</td>
 <td><code>$.engine.instanceId</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.engine.workflowId</code></td>
 <td>Workflow definition ID</td>
 <td>Read-only</td>
 <td><code>$.engine.workflowId</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.engine.workflowVersion</code></td>
 <td>Workflow version the instance started on</td>
 <td>Read-only</td>
 <td><code>$.engine.workflowVersion</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.engine.currentNodeId</code></td>
 <td>ID of the node currently executing</td>
 <td>Read-only</td>
 <td><code>$.engine.currentNodeId</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.engine.status</code></td>
 <td>Instance status string</td>
 <td>Read-only</td>
 <td><code>$.engine.status</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.engine.createdAt</code></td>
 <td>ISO 8601 timestamp when the instance was created</td>
 <td>Read-only</td>
 <td><code>$.engine.createdAt</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.engine.parentInstanceId</code></td>
 <td>Instance ID of the parent (if spawned as a child)</td>
 <td>Read-only</td>
 <td><code>$.engine.parentInstanceId</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.engine.correlationId</code></td>
 <td>Correlation ID passed at <code>StartAsync</code></td>
 <td>Read-only</td>
@@ -801,36 +801,36 @@ reference the execution context.</p>
 by node executors):</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Key</th>
 <th>Written by</th>
 <th>Content</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>$.context._humanTaskResponse</code></td>
 <td><code>human</code> node on resume</td>
 <td>The first submitted response's values as a JSON object</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.context._humanTaskResponses</code></td>
 <td><code>human</code> node on resume</td>
 <td>All collected responses (quorum tasks)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.context._humanTaskConsensus</code></td>
 <td><code>human</code> node on resume</td>
 <td>Consensus label computed from quorum responses; null for a
 single-respondent task</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.context._signal</code></td>
 <td>Any resume with a signal payload</td>
 <td>Most recent signal payload (a human task's payload also carries
 <code>_humanTaskId</code>, which correlates it to the pending task)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.context._signals</code></td>
 <td>Any resume with a signal payload</td>
 <td>Append-only array with one entry per resume: the payload that
@@ -879,34 +879,34 @@ SQL state + Redis locks + SQL registry).</p>
 <h4 id="state-store">State Store</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Backend</th>
 <th>Package</th>
 <th>Use when</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>File</strong></td>
 <td><code>StateStore.File</code></td>
 <td>Dev/test only — no infra required, JSON on disk</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>SQL</strong></td>
 <td><code>StateStore.Sql</code></td>
 <td>You already have SQL Server / Postgres / SQLite in your stack</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Redis</strong></td>
 <td><code>StateStore.Redis</code></td>
 <td>You need fast reads and have Redis available</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Cosmos</strong></td>
 <td><code>StateStore.Cosmos</code></td>
 <td>Azure-first architecture, global distribution needed</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>AzureTable</strong></td>
 <td><code>StateStore.AzureTable</code></td>
 <td>Low-cost Azure storage, less query flexibility needed</td>
@@ -916,39 +916,39 @@ SQL state + Redis locks + SQL registry).</p>
 <h4 id="lock-provider">Lock Provider</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Backend</th>
 <th>Package</th>
 <th>Use when</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>InMemory</strong></td>
 <td><code>Locks.InMemory</code></td>
 <td>Single-process only — dev, test, local demos</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Redis</strong></td>
 <td><code>Locks.Redis</code></td>
 <td>Universal recommendation — fast, widely available</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>AzureBlob</strong></td>
 <td><code>Locks.AzureBlob</code></td>
 <td>Azure-only, no Redis; uses Blob lease API</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>SQL</strong></td>
 <td><code>Locks.Sql</code></td>
 <td>Co-locate with SQL state store; no extra infra</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Cosmos</strong></td>
 <td><code>Locks.Cosmos</code></td>
 <td>Co-locate with Cosmos state store</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>AzureTable</strong></td>
 <td><code>Locks.AzureTable</code></td>
 <td>Co-locate with AzureTable state store</td>
@@ -958,39 +958,39 @@ SQL state + Redis locks + SQL registry).</p>
 <h4 id="workflow-registry">Workflow Registry</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Backend</th>
 <th>Package</th>
 <th>Use when</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>JsonFile</strong></td>
 <td>Built into <code>EF.FlowEngine</code></td>
 <td>Dev/test — load definitions from a local directory</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>SQL</strong></td>
 <td><code>WorkflowRegistry.Sql</code></td>
 <td>Production recommendation — transactional, queryable</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Redis</strong></td>
 <td><code>WorkflowRegistry.Redis</code></td>
 <td>Fast lookup, acceptable durability tradeoff</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Cosmos</strong></td>
 <td><code>WorkflowRegistry.Cosmos</code></td>
 <td>Azure-first, global replication needed</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>AzureTable</strong></td>
 <td><code>WorkflowRegistry.AzureTable</code></td>
 <td>Low-cost Azure storage</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>File</strong></td>
 <td><code>WorkflowRegistry.File</code></td>
 <td>Dev/test only - versioned JSON files on disk</td>
@@ -1000,39 +1000,39 @@ SQL state + Redis locks + SQL registry).</p>
 <h4 id="human-task-store">Human Task Store</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Backend</th>
 <th>Package</th>
 <th>Use when</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>InMemory</strong></td>
 <td>Built into <code>EF.FlowEngine</code></td>
 <td>Test only - tasks are lost on restart</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>SQL</strong></td>
 <td><code>HumanTaskStore.Sql</code></td>
 <td>Production recommendation — queryable, durable</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Redis</strong></td>
 <td><code>HumanTaskStore.Redis</code></td>
 <td>Fast lookup with acceptable durability</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Cosmos</strong></td>
 <td><code>HumanTaskStore.Cosmos</code></td>
 <td>Azure-first, global distribution</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>AzureTable</strong></td>
 <td><code>HumanTaskStore.AzureTable</code></td>
 <td>Low-cost Azure storage</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>File</strong></td>
 <td><code>HumanTaskStore.File</code></td>
 <td>Dev/test only - JSON files on disk</td>
@@ -1042,31 +1042,31 @@ SQL state + Redis locks + SQL registry).</p>
 <h4 id="circuit-breaker-store">Circuit Breaker Store</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Backend</th>
 <th>Package</th>
 <th>Use when</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>InMemory</strong></td>
 <td>Built into <code>EF.FlowEngine</code></td>
 <td>Single replica only — process-local; circuit state is not shared
 across replicas</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Redis</strong></td>
 <td><code>CircuitBreaker.Redis</code></td>
 <td>Multi-replica deployments — shared circuit state via Redis sorted
 sets</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>SQL</strong></td>
 <td><code>CircuitBreaker.Sql</code></td>
 <td>Multi-replica deployments — shared circuit state via EF Core</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Cosmos</strong></td>
 <td><code>CircuitBreaker.Cosmos</code></td>
 <td>Multi-replica deployments - shared circuit state via Cosmos DB with
@@ -1089,26 +1089,26 @@ pluggable provider interfaces
 <code>IDistributedRateLimiter</code>).</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Backend</th>
 <th>Package</th>
 <th>Use when</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>InMemory</strong> (default)</td>
 <td>Built into <code>EF.FlowEngine</code></td>
 <td>Single process, dev/test, or when cluster-wide throttling is not
 required</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Redis</strong></td>
 <td><code>Throttles.Redis</code></td>
 <td>Multi-node — atomic Lua scripts; sliding-window rate + INCR
 concurrency counter</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>SQL</strong></td>
 <td><code>Throttles.Sql</code></td>
 <td>Multi-node without Redis — EF Core optimistic-concurrency;
@@ -1282,20 +1282,20 @@ JSON seeding add their own when opted in. Configure them via
 <code>FlowEngineOptions</code>:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Option</th>
 <th>Default</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>ClaimantId</code></td>
 <td>new GUID per process</td>
 <td>Unique identifier for this engine node — used to scope distributed
 lock ownership</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>DefaultLeaseDuration</code></td>
 <td>30 s</td>
 <td>How long a distributed lock lease lasts before it can be reclaimed.
@@ -1304,7 +1304,7 @@ workflow's executions (provider lease, record stamp and renewals); the
 override must exceed <code>LeaseRenewalInterval</code> or the start is
 rejected</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>LeaseRenewalInterval</code></td>
 <td>13 s</td>
 <td>How often the lease renewal service extends active locks (~43% of
@@ -1312,24 +1312,24 @@ lease duration). If a renewal throws, the execution keeps running only
 while its lease outlasts the next renewal attempt; otherwise it is
 cancelled</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SweepInterval</code></td>
 <td>30 s</td>
 <td>How often the sweep service polls for timed-out waits and unclaimed
 instances</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>SweepBatchSize</code></td>
 <td>50</td>
 <td>How many instances the sweep service processes per tick</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ScriptCacheSize</code></td>
 <td>1000</td>
 <td>Maximum number of compiled Roslyn <code>when</code>-predicate
 scripts kept in the expression cache</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ScriptTimeoutSeconds</code></td>
 <td>5</td>
 <td>Maximum seconds the evaluator waits for a single Roslyn script run
@@ -1339,66 +1339,66 @@ faults. It bounds the wait, not the script: the running script is not
 cancelled and keeps its thread-pool thread until it finishes.
 <code>0</code> disables the timeout</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>AgentModelRates</code></td>
 <td><code>{}</code></td>
 <td><code>AgentModelRate</code> (input/output cost per token) keyed by
 the agent node's <code>clientRef</code>, used to compute
 <code>estimatedCostUsd</code> on agent nodes</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>MaxConcurrentExecutions</code></td>
 <td><code>0</code> (unlimited)</td>
 <td>Maximum workflow executions running concurrently on this node.
 <code>0</code> = unlimited. Prevents burst overload under high-volume
 starts</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>GlobalOverflowPolicy</code></td>
 <td><code>Block</code></td>
 <td>When <code>MaxConcurrentExecutions</code> is hit: <code>Block</code>
 waits for a slot (default); <code>Reject</code> throws
 <code>WorkflowCapacityExceededException</code> immediately</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>PerWorkflowConcurrencyLimits</code></td>
 <td><code>{}</code></td>
 <td>Per-workflow concurrency cap by workflow ID. Exceeding the cap
 throws <code>WorkflowCapacityExceededException</code> regardless of
 global policy</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SweepPartitionCount</code></td>
 <td><code>1</code></td>
 <td>Total sweep partitions. Set to replica count for Kubernetes
 StatefulSet multi-replica deployments</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>IntakeQueueDepth</code></td>
 <td><code>0</code> (unbounded)</td>
 <td>Maximum instances waiting in the in-process intake queue
 (<code>UseInMemoryIntakeQueue</code>); durable providers ignore it</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>IntakeOverflowPolicy</code></td>
 <td><code>Reject</code></td>
 <td>When the in-process intake queue is full: <code>Reject</code> throws
 <code>WorkflowCapacityExceededException</code>; <code>Block</code> waits
 for a slot</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>TenantPolicies</code></td>
 <td>defaults (off)</td>
 <td>Opt-in per-tenant throttle fairness and instance quotas
 (<code>TenantPolicyOptions</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SweepPartitionIndex</code></td>
 <td><code>0</code></td>
 <td>Zero-based index of this replica's sweep partition. Set from
 <code>$env:INSTANCE_INDEX</code> or the pod ordinal</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>MaxShutdownDrainSeconds</code></td>
 <td><code>0</code> (disabled)</td>
 <td>Seconds to wait for in-flight executions to finish on host shutdown.
@@ -1448,20 +1448,20 @@ execution for environments where workflow definitions come from
 untrusted authors:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Option</th>
 <th>Default</th>
 <th>Effect when <code>false</code></th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>AllowComputeNodes</code></td>
 <td><code>true</code></td>
 <td><code>StartAsync</code> / <code>StartBackgroundAsync</code> rejects
 any workflow definition that contains a <code>compute</code> node</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>AllowWhenExpressions</code></td>
 <td><code>true</code></td>
 <td><code>StartAsync</code> / <code>StartBackgroundAsync</code> rejects
@@ -1499,43 +1499,43 @@ signals reported only when their stores are registered. Optional signals
 compose to the worst reported status:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Component</th>
 <th>Probe</th>
 <th>Result</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>State store</td>
 <td><code>LoadAsync("__healthcheck__")</code></td>
 <td><code>Unhealthy</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Lock provider</td>
 <td><code>FindResumableInstanceIdsAsync(...)</code></td>
 <td><code>Unhealthy</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Outbox drain lag (optional)</td>
 <td><code>GetMetricsAsync()</code> — oldest pending age vs.
 <code>OutboxStalenessThreshold</code></td>
 <td><code>Degraded</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Intake queue depth (optional)</td>
 <td><code>GetDepthAsync()</code> vs.
 <code>IntakeDepthDegradedThreshold</code></td>
 <td><code>Degraded</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Dead-letter backlog (optional)</td>
 <td><code>ListAsync().Count</code> vs.
 <code>DeadLetterDegradedThreshold</code> /
 <code>DeadLetterUnhealthyThreshold</code></td>
 <td><code>Degraded</code> / <code>Unhealthy</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Open circuits (optional)</td>
 <td><code>GetOpenCircuitsAsync()</code> — any open</td>
 <td><code>Degraded</code></td>
@@ -1851,7 +1851,7 @@ definitions can be started.</p>
                ◄──────────────</code></pre>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Status</th>
 <th>New instances</th>
 <th>Editable</th>
@@ -1859,19 +1859,19 @@ definitions can be started.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Draft</code></td>
 <td>No</td>
 <td>Yes</td>
 <td>Yes</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Active</code></td>
 <td>Yes</td>
 <td>No</td>
 <td>No (auto-demoted on delete)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Archived</code></td>
 <td>No</td>
 <td>No</td>
@@ -1924,51 +1924,51 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb42-1"><a href=
 (<code>Warning</code> / <code>Breaking</code>) covering:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Finding</th>
 <th>Severity</th>
 <th>Reason</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Node removed</td>
 <td>Breaking</td>
 <td>Suspended instances pinned to that node would be stranded</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Node type changed</td>
 <td>Breaking</td>
 <td>Executor incompatibility</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Missing edge target</td>
 <td>Breaking</td>
 <td>Dangling <code>nextNodeId</code> references</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Entry node changed</td>
 <td>Warning</td>
 <td>New instances start at a different node</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>GlobalOnFailureNodeId</code> changed</td>
 <td>Warning</td>
 <td>Error routing differs between versions</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>StoreAs</code> key renamed</td>
 <td>Warning</td>
 <td>In-flight instances have already stored under the old key;
 downstream reads will fail</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>New <code>contextRequirements</code> key on an existing node</td>
 <td>Breaking</td>
 <td>In-flight instances may not have that context value when they
 resume</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>compensationNodeId</code> references a node absent in the
 target</td>
 <td>Breaking</td>
@@ -2119,26 +2119,26 @@ a stable <code>Code</code>, the <code>NodeId</code> and a
 <code>Message</code>, so tests and CI can assert on them.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Code</th>
 <th>When</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>MESSAGE_IDEMPOTENCY_KEY_MISSING</code></td>
 <td>message node without <code>idempotencyKey</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>AGENT_IDEMPOTENCY_KEY_MISSING</code></td>
 <td>agent node without <code>idempotencyKey</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>INTEGRATION_IDEMPOTENCY_KEY_MISSING</code></td>
 <td>integration node with neither <code>idempotencyKeyHeader</code> nor
 <code>idempotencyKey</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>UNSAFE_RETRY_WITHOUT_IDEMPOTENCY_HEADER</code></td>
 <td>unsafe method, <code>retryOnStatusCodes</code> contains
 408/500/502/504, no <code>idempotencyKeyHeader</code></td>
@@ -2269,14 +2269,14 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb48-1"><a href=
 <p><strong><code>CircuitBreakerPolicy</code> properties:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Default</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>key</code></td>
 <td>node <code>type</code></td>
 <td>Groups nodes that share a backing service under one circuit. Omit to
@@ -2284,18 +2284,18 @@ scope per node type. At most 240 characters
 (<code>FlowEngine.MaxCircuitBreakerKeyLength</code>); longer keys fail
 definition validation.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>failureThreshold</code></td>
 <td><code>5</code></td>
 <td>Number of failures within <code>samplingWindow</code> that trips the
 circuit</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>samplingWindow</code></td>
 <td><code>00:01:00</code></td>
 <td>Rolling window over which failures are counted</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>openDuration</code></td>
 <td><code>00:00:30</code></td>
 <td>How long the circuit stays open before the next attempt is
@@ -2306,18 +2306,18 @@ allowed</td>
 <p><strong>Behaviors when the circuit is open:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Scenario</th>
 <th>Behavior</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Node has a <code>CircuitOpen</code> edge</td>
 <td>Engine takes that edge — workflow continues via the alternate
 path</td>
 </tr>
-<tr class="even">
+<tr>
 <td>No <code>CircuitOpen</code> edge</td>
 <td>Instance suspends at the failing node with a timed wait equal to
 <code>openDuration</code>; the sweep service resumes it automatically
@@ -2540,36 +2540,36 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb60-1"><a href=
 <p><strong>Metrics emitted by <code>UseMetrics()</code>:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Metric</th>
 <th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>flowengine.instances.active</code></td>
 <td>Gauge</td>
 <td>Currently executing instances on this process</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>flowengine.instances.completed_total</code></td>
 <td>Counter</td>
 <td>Instances that reached <code>Completed</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>flowengine.instances.failed_total</code></td>
 <td>Counter</td>
 <td>Instances that reached <code>Faulted</code>, <code>TimedOut</code>
 or <code>CycleDetected</code> (CycleDetected emits
 <code>flow.instance.faulted</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>flowengine.instance.duration_ms</code></td>
 <td>Histogram</td>
 <td>Wall-clock ms from instance creation to terminal state</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>flowengine.node.duration_ms</code></td>
 <td>Histogram</td>
 <td>Wall-clock ms for a single node execution</td>
@@ -2924,44 +2924,44 @@ the workflow definition ID.</p>
 <code>IFlowEngineTelemetry</code> with:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Tag</th>
 <th>Type</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>nodeId</code></td>
 <td>string</td>
 <td>Node ID in the workflow graph</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>clientRef</code></td>
 <td>string</td>
 <td>Registered agent client name</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>promptHash</code></td>
 <td>string</td>
 <td>SHA-256 (truncated) of the rendered prompt</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>latencyMs</code></td>
 <td>long</td>
 <td>End-to-end call latency</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>tokensUsed</code></td>
 <td>int?</td>
 <td>Total tokens (input + output)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>promptVersion</code></td>
 <td>string?</td>
 <td><code>AgentNodeConfig.PromptVersion</code> label</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>estimatedCostUsd</code></td>
 <td>decimal?</td>
 <td>Computed from <code>FlowEngineOptions.AgentModelRates</code></td>
@@ -2997,29 +2997,29 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb81-1"><a href=
 <p>Endpoints exposed under <code>{prefix}/</code>:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Method</th>
 <th>Path</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>GET</code></td>
 <td><code>instances</code></td>
 <td>Query instances (<code>ExecutionQuery</code> via query string)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>GET</code></td>
 <td><code>instances/{instanceId}</code></td>
 <td>Get one instance</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>POST</code></td>
 <td><code>instances/start</code></td>
 <td>Start an instance</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>POST</code></td>
 <td><code>instances/{instanceId}/retry</code></td>
 <td>Re-drive a <code>Suspended</code> instance (for example a stuck
@@ -3027,80 +3027,80 @@ wait) from its current node with no payload, in the background; any
 other status, including <code>Faulted</code>, returns 409 (a faulted
 instance is not re-run)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>POST</code></td>
 <td><code>instances/{instanceId}/terminate</code></td>
 <td>Terminate a running instance</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>POST</code></td>
 <td><code>instances/{instanceId}/resume</code></td>
 <td>Resume a suspended instance with signal payload (background -
 returns immediately with <code>Running</code> status)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>GET</code></td>
 <td><code>circuit-breakers/{key}</code></td>
 <td>Get one circuit's state</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>DELETE</code></td>
 <td><code>circuit-breakers/{key}</code></td>
 <td>Reset a circuit</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>GET</code></td>
 <td><code>workflows</code></td>
 <td>List workflow definitions</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>GET</code></td>
 <td><code>workflows/{workflowId}</code></td>
 <td>Get a definition (optional <code>version</code> query; latest
 otherwise)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>PUT</code></td>
 <td><code>workflows</code></td>
 <td>Save a definition</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>POST</code></td>
 <td><code>workflows/{workflowId}/{version}/publish</code></td>
 <td>Draft -&gt; Active</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>POST</code></td>
 <td><code>workflows/{workflowId}/{version}/unpublish</code></td>
 <td>Active -&gt; Draft</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>DELETE</code></td>
 <td><code>workflows/{workflowId}/{version}</code></td>
 <td>Delete a version</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>POST</code></td>
 <td><code>workflows/{workflowId}/copy</code></td>
 <td>Copy a version to a new workflow id</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>GET</code></td>
 <td><code>workflows/{workflowId}/compatibility</code></td>
 <td>Analyze version compatibility</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>GET</code></td>
 <td><code>human-tasks</code></td>
 <td>List human tasks (<code>FlowEngine.HumanTask</code> policy)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>GET</code></td>
 <td><code>human-tasks/instance/{instanceId}</code></td>
 <td>Tasks for one instance (<code>FlowEngine.HumanTask</code>
 policy)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>POST</code></td>
 <td><code>human-tasks/{taskId}/respond</code></td>
 <td>Submit a response (<code>FlowEngine.HumanTask</code> policy)</td>

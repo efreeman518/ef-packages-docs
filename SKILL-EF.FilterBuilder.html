@@ -53,7 +53,7 @@ property reference</h3>
 <h4 id="filterset">FilterSet</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>Required</th>
@@ -61,40 +61,40 @@ property reference</h3>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Operator</code></td>
 <td><code>Operator</code> (AND|OR)</td>
 <td>Yes</td>
 <td>Combines all children at this level</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Filters</code></td>
 <td><code>IList&lt;Filter&gt;?</code></td>
 <td>One of</td>
 <td>Leaf conditions. Mutually exclusive with <code>FilterSets</code> at
 same level</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>FilterSets</code></td>
 <td><code>IList&lt;FilterSet&gt;?</code></td>
 <td>One of</td>
 <td>Nested logical groups</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Sequence</code></td>
 <td><code>int</code></td>
 <td>No</td>
 <td>Sort order for <code>FindFirstMatch</code>. Lower = evaluated
 first</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Name</code></td>
 <td><code>string?</code></td>
 <td>No</td>
 <td>Identifier returned when this FilterSet wins
 <code>FindFirstMatch</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ReferenceValue</code></td>
 <td><code>string?</code></td>
 <td>No</td>
@@ -108,7 +108,7 @@ neither.</p>
 <h4 id="filter">Filter</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>Required</th>
@@ -116,14 +116,14 @@ neither.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>PropertyPath</code></td>
 <td><code>string</code></td>
 <td>Yes</td>
 <td>Navigation path to target property. e.g.
 <code>"Customer.Address.City"</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Delimiter</code></td>
 <td><code>string?</code></td>
 <td>No</td>
@@ -131,59 +131,59 @@ neither.</p>
 <code>"/"</code>, <code>"-&gt;"</code>, <code>"::"</code>, any
 string</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Operation</code></td>
 <td><code>string</code></td>
 <td>Yes</td>
 <td>See operator table below</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>FilterType</code></td>
 <td><code>FilterType</code></td>
 <td>No</td>
 <td>Defaults to <code>Default</code> (static TestValue)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>TestValue</code></td>
 <td><code>object?</code></td>
 <td>Conditional</td>
 <td>RHS value when <code>FilterType = Default</code>. Accepts arrays for
 <code>in</code>/<code>nin</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>FilterSet</code></td>
 <td><code>FilterSet?</code></td>
 <td>No</td>
 <td><strong>Controls collection scope</strong> (see critical rule
 below)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ParamKey</code></td>
 <td><code>string?</code></td>
 <td>Conditional</td>
 <td>Key into <code>params1</code> dict for dynamic RHS strategies</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Query</code></td>
 <td><code>string?</code></td>
 <td>Conditional</td>
 <td>Property name (FilterExpression) or JSONPath expr (Json)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>TestValueExpression</code></td>
 <td><code>string?</code></td>
 <td>No</td>
 <td>C# expression applied to resolved value. e.g.
 <code>"Math.Abs(TestValue - 90)"</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>CaseSensitive</code></td>
 <td><code>bool</code></td>
 <td>No</td>
 <td>Defaults to <code>true</code>. Set <code>false</code> for
 case-insensitive string matching — both sides lowercased</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Normalize</code></td>
 <td><code>bool</code></td>
 <td>No</td>
@@ -197,33 +197,33 @@ whitespace from both sides before comparison</td>
 <p><strong>Comparison</strong> — any comparable type</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Code</th>
 <th>Meaning</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>eq</code></td>
 <td>Equal (<code>==</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ne</code></td>
 <td>Not equal (<code>!=</code>)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>gt</code></td>
 <td>Greater than (<code>&gt;</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ge</code></td>
 <td>Greater than or equal (<code>&gt;=</code>)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>lt</code></td>
 <td>Less than (<code>&lt;</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>le</code></td>
 <td>Less than or equal (<code>&lt;=</code>)</td>
 </tr>
@@ -233,33 +233,33 @@ whitespace from both sides before comparison</td>
 automatically null-safe</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Code</th>
 <th>Meaning</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>bw</code></td>
 <td>Begins with (<code>StartsWith</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>bn</code></td>
 <td>Does not begin with (<code>!StartsWith</code>)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ew</code></td>
 <td>Ends with (<code>EndsWith</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>en</code></td>
 <td>Does not end with (<code>!EndsWith</code>)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>cn</code></td>
 <td>Contains (<code>Contains</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>nc</code></td>
 <td>Does not contain (<code>!Contains</code>)</td>
 </tr>
@@ -271,20 +271,20 @@ automatically null-safe</p>
 array</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Code</th>
 <th>Meaning</th>
 <th>Compiled form</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>in</code></td>
 <td>Value is in list</td>
 <td><code>new[] { v1, v2 }.Contains(property)</code> → SQL
 <code>IN (...)</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>nin</code></td>
 <td>Value is NOT in list</td>
 <td><code>!new[] { v1, v2 }.Contains(property)</code> → SQL
@@ -299,19 +299,19 @@ array</p>
 NOT set TestValue for these</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Code</th>
 <th>Meaning</th>
 <th>SQL</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>isnull</code></td>
 <td>Property IS NULL</td>
 <td><code>IS NULL</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>isnotnull</code></td>
 <td>Property IS NOT NULL</td>
 <td><code>IS NOT NULL</code></td>
@@ -327,34 +327,34 @@ check.</p>
 null-guarded automatically</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Code</th>
 <th>Meaning</th>
 <th>TestValue</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>year-eq</code></td>
 <td>Year component equals</td>
 <td>integer e.g. <code>2024</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>month-eq</code></td>
 <td>Month equals (1–12)</td>
 <td>integer e.g. <code>3</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>day-eq</code></td>
 <td>Day of month equals (1–31)</td>
 <td>integer e.g. <code>15</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>hour-eq</code></td>
 <td>Hour equals (0–23)</td>
 <td>integer e.g. <code>9</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>dow-eq</code></td>
 <td>Day of week equals</td>
 <td>string <code>"Monday"</code>…<code>"Sunday"</code> OR integer
@@ -369,33 +369,33 @@ null-guarded automatically</p>
 null strings evaluate to <code>false</code></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Code</th>
 <th>Meaning</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>len-eq</code></td>
 <td><code>string.Length ==</code> value</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>len-ne</code></td>
 <td><code>string.Length !=</code> value</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>len-gt</code></td>
 <td><code>string.Length &gt;</code> value</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>len-ge</code></td>
 <td><code>string.Length &gt;=</code> value</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>len-lt</code></td>
 <td><code>string.Length &lt;</code> value</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>len-le</code></td>
 <td><code>string.Length &lt;=</code> value</td>
 </tr>
@@ -408,7 +408,7 @@ null strings evaluate to <code>false</code></p>
 dynamic RHS strategies</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Value</th>
 <th>TestValue source</th>
 <th>SQL output</th>
@@ -416,33 +416,33 @@ dynamic RHS strategies</h3>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Default</code></td>
 <td><code>Filter.TestValue</code> literal</td>
 <td>Constant in WHERE</td>
 <td>Static value known at authoring time</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>TestValueParam</code></td>
 <td><code>params1[ParamKey]</code> at call time</td>
 <td>Constant in WHERE</td>
 <td>Value varies per request</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>TestValueFilterExpression</code></td>
 <td>Child FilterSet → <strong>first match</strong> → extract named
 property</td>
 <td>Scalar constant in WHERE</td>
 <td>Single value derived from another collection</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>TestValueFilterExpressionMulti</code></td>
 <td>Child FilterSet → <strong>all matches</strong> → extract named
 property from each → typed array</td>
 <td><code>WHERE col IN (v1,v2,...)</code></td>
 <td>Membership set derived from another collection</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>TestValueJson</code></td>
 <td>JSONPath against <code>JsonDocument</code> in
 <code>params1</code></td>
@@ -477,26 +477,26 @@ value, and the result replaces <code>testValue</code>.</p>
 build-time branching</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Value</th>
 <th>Behaviour</th>
 <th>SQL output</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Standard</code> (default)</td>
 <td>Compiled directly to a predicate</td>
 <td>Normal WHERE</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Branch</code></td>
 <td>Evaluates <code>ConditionFilterSet</code> against
 <code>params1[ConditionParamKey]</code>; compiles
 <code>BranchIfMatch</code> or <code>BranchIfNoMatch</code></td>
 <td>Normal WHERE from selected branch — no conditional in SQL</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Switch</code></td>
 <td>Evaluates <code>ConditionFilterSet</code>, extracts
 <code>SwitchValueProperty</code> from first match, compiles first
@@ -528,7 +528,7 @@ compiler recurses through the same entry point.</p>
 properties</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Property</th>
 <th>Type</th>
 <th>Used by</th>
@@ -536,52 +536,52 @@ properties</h4>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>FilterSetType</code></td>
 <td><code>FilterSetType</code></td>
 <td>All</td>
 <td>Defaults to <code>Standard</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ConditionFilterSet</code></td>
 <td><code>FilterSet?</code></td>
 <td>Branch, Switch</td>
 <td>Condition evaluated against dataset</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ConditionParamKey</code></td>
 <td><code>string?</code></td>
 <td>Branch, Switch</td>
 <td>Key to pre-materialized <code>List&lt;T&gt;</code> in
 <code>params1</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>BranchIfMatch</code></td>
 <td><code>FilterSet?</code></td>
 <td>Branch</td>
 <td>Compiled when condition matches any element</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>BranchIfNoMatch</code></td>
 <td><code>FilterSet?</code></td>
 <td>Branch</td>
 <td>Compiled when condition matches nothing. <code>null</code> = match
 all</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SwitchValueProperty</code></td>
 <td><code>string?</code></td>
 <td>Switch</td>
 <td>Property extracted from first condition match</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>SwitchCases</code></td>
 <td><code>List&lt;FilterSetCase&gt;?</code></td>
 <td>Switch</td>
 <td>Ordered <code>{ WhenValue, Then }</code> pairs. First match
 wins</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SwitchDefault</code></td>
 <td><code>FilterSet?</code></td>
 <td>Switch</td>
@@ -1111,34 +1111,34 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb20-1"><a href=
 <h3 id="common-mistakes-to-avoid">Common mistakes to avoid</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Mistake</th>
 <th>Correct approach</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Using both <code>Filters</code> and <code>FilterSets</code> on the
 same node</td>
 <td>Choose one. Use <code>FilterSets</code> to compose groups,
 <code>Filters</code> for leaves</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Expecting same-object collection semantics without a child
 <code>FilterSet</code></td>
 <td>Add a child <code>FilterSet</code> to the <code>Filter</code>
 targeting the collection property</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Putting conditions directly on the collection-targeting Filter</td>
 <td>Conditions targeting collection element properties go inside the
 child <code>FilterSet</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Casting <code>TestValue</code> to the target type</td>
 <td>Don't — pass the natural value. Type coercion is automatic</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Setting <code>ParamKey</code> without setting
 <code>FilterType</code></td>
 <td><code>FilterType</code> must be <code>TestValueParam</code>,
@@ -1146,61 +1146,61 @@ child <code>FilterSet</code></td>
 <code>TestValueFilterExpressionMulti</code>, or
 <code>TestValueJson</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Using <code>FindFirstMatch</code> and expecting insertion-order
 evaluation</td>
 <td>Evaluation order is determined by <code>Sequence</code> value, not
 list order</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Using string method operators on non-string properties</td>
 <td>String operators only work on <code>string</code> properties</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Passing a scalar to <code>in</code> / <code>nin</code></td>
 <td><code>TestValue</code> must be an array —
 <code>new[] { "Active", "Pending" }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Setting <code>TestValue</code> on <code>isnull</code> /
 <code>isnotnull</code></td>
 <td>No <code>TestValue</code> needed — omit it entirely</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Using <code>year-eq</code> / etc. on a non-DateTime property</td>
 <td>Date component operators only work on <code>DateTime</code> /
 <code>DateTimeOffset</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Using <code>len-*</code> on a non-string property</td>
 <td>String length operators only work on <code>string</code>
 properties</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Using <code>TestValueFilterExpressionMulti</code> with
 <code>Operation = "eq"</code></td>
 <td>Must use <code>"in"</code> or <code>"nin"</code> — multi-result
 produces an array</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Passing <code>IQueryable&lt;T&gt;</code> as a condition dataset in
 <code>params1</code></td>
 <td>Must be pre-materialized <code>List&lt;T&gt;</code> —
 <code>IQueryable&lt;T&gt;</code> bypasses EF Core translation</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Caching an expression built with
 <code>TestValueFilterExpressionMulti</code> when the dataset
 changes</td>
 <td>Array is a snapshot — rebuild the expression if the underlying
 dataset changes</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Expecting Branch/Switch to produce conditional SQL</td>
 <td>Branch and Switch resolve at build time; EF Core receives a flat
 predicate with no conditional logic</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Expecting <code>BranchIfNoMatch = null</code> to throw</td>
 <td><code>null</code> is valid — produces
 <code>Expression.Constant(true)</code> (match everything)</td>
@@ -1253,118 +1253,118 @@ guide — same-object vs any-object collection scope?</h3>
 FilterSets from natural language</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Natural language</th>
 <th>FilterSet structure</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>"where X equals Y"</td>
 <td><code>Filter { PropertyPath="X", Operation="eq", TestValue=Y }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X is greater than Y"</td>
 <td><code>Filter { PropertyPath="X", Operation="gt", TestValue=Y }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X contains Y"</td>
 <td><code>Filter { PropertyPath="X", Operation="cn", TestValue=Y }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X contains Y (case-insensitive)"</td>
 <td>Same + <code>CaseSensitive=false</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X is one of [A, B, C]"</td>
 <td><code>Filter { Operation="in", TestValue=new[]{A,B,C} }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X is in the set of [active/matching] values from another
 collection"</td>
 <td><code>FilterType.TestValueFilterExpressionMulti</code> +
 <code>Operation="in"</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X is not A, B, or C"</td>
 <td><code>Filter { Operation="nin", TestValue=new[]{A,B,C} }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X is null / not set"</td>
 <td><code>Filter { Operation="isnull" }</code> — no TestValue</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X is not null / is set"</td>
 <td><code>Filter { Operation="isnotnull" }</code> — no TestValue</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X is non-empty"</td>
 <td><code>Filter { Operation="len-gt", TestValue=0 }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X has exactly N characters"</td>
 <td><code>Filter { Operation="len-eq", TestValue=N }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"records from year Y"</td>
 <td><code>Filter { Operation="year-eq", TestValue=Y }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"records from month M"</td>
 <td><code>Filter { Operation="month-eq", TestValue=M }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"records on Mondays"</td>
 <td><code>Filter { Operation="dow-eq", TestValue="Monday" }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where A and B"</td>
 <td><code>FilterSet { Operator=AND, Filters=[A, B] }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where A or B"</td>
 <td><code>FilterSet { Operator=OR, Filters=[A, B] }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"(A and B) or (C and D)"</td>
 <td><code>FilterSet { Operator=OR, FilterSets=[{AND,[A,B]},{AND,[C,D]}] }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"if customer is VIP apply X filter, otherwise apply Y"</td>
 <td><code>FilterSetType.Branch</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"select filter based on customer tier"</td>
 <td><code>FilterSetType.Switch</code> with
 <code>SwitchValueProperty</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where any Tag has Key='x' and Value='y'"</td>
 <td>Collection filter with child FilterSet (same-object)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where there exists a Tag with Key='x' and also a Tag with
 Value='y'"</td>
 <td>Any-object scope — two dot-path filters</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"ignore case / case-insensitive"</td>
 <td>Add <code>CaseSensitive=false</code> to any string Filter</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"trim whitespace / ignore spaces"</td>
 <td>Add <code>Normalize=true</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"not deleted / active only"</td>
 <td><code>Filter { PropertyPath="DeletedAt", Operation="isnull" }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"within X miles / km of location"</td>
 <td>Cannot be inside FilterBuilder — compose geo predicate
 externally</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"full-text search / contains words"</td>
 <td>Cannot be inside FilterBuilder — compose via raw SQL</td>
 </tr>
@@ -1375,112 +1375,112 @@ externally</td>
 FilterSets from natural language</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Natural language</th>
 <th>FilterSet structure</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>"where X equals Y"</td>
 <td><code>Filter { PropertyPath="X", Operation="eq", TestValue=Y }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X is greater than Y"</td>
 <td><code>Filter { PropertyPath="X", Operation="gt", TestValue=Y }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X contains Y"</td>
 <td><code>Filter { PropertyPath="X", Operation="cn", TestValue=Y }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X contains Y (case-insensitive)"</td>
 <td>Same + <code>CaseSensitive=false</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X is one of [A, B, C]"</td>
 <td><code>Filter { Operation="in", TestValue=new[]{A,B,C} }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X is not A, B, or C"</td>
 <td><code>Filter { Operation="nin", TestValue=new[]{A,B,C} }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X is null / not set"</td>
 <td><code>Filter { Operation="isnull" }</code> — no TestValue</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X is not null / is set"</td>
 <td><code>Filter { Operation="isnotnull" }</code> — no TestValue</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where X is non-empty"</td>
 <td><code>Filter { Operation="len-gt", TestValue=0 }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where X has exactly N characters"</td>
 <td><code>Filter { Operation="len-eq", TestValue=N }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"records from year Y"</td>
 <td><code>Filter { Operation="year-eq", TestValue=Y }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"records from month M"</td>
 <td><code>Filter { Operation="month-eq", TestValue=M }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"records on Mondays"</td>
 <td><code>Filter { Operation="dow-eq", TestValue="Monday" }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where A and B"</td>
 <td><code>FilterSet { Operator=AND, Filters=[A, B] }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where A or B"</td>
 <td><code>FilterSet { Operator=OR, Filters=[A, B] }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"(A and B) or (C and D)"</td>
 <td><code>FilterSet { Operator=OR, FilterSets=[ {AND,[A,B]}, {AND,[C,D]} ] }</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where any Tag has Key='x' and Value='y'"</td>
 <td>Collection filter with child FilterSet (same-object)</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where there exists a Tag with Key='x' and also a Tag with
 Value='y'"</td>
 <td>Any-object scope — two separate dot-path filters</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"where Name starts with 'Free'"</td>
 <td><code>Filter { PropertyPath="Name", Operation="bw", TestValue="Free" }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"where nav property City equals 'X'"</td>
 <td><code>Filter { PropertyPath="Nav.City", Operation="eq", TestValue="X" }</code>
 — null-safe automatically</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"ignore case / case-insensitive"</td>
 <td>Add <code>CaseSensitive=false</code> to any string Filter</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"trim whitespace / ignore spaces"</td>
 <td>Add <code>Normalize=true</code> to any string Filter</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"not deleted / active only"</td>
 <td><code>Filter { PropertyPath="DeletedAt", Operation="isnull" }</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"within X miles / km of location"</td>
 <td>Cannot be inside FilterBuilder — compose geo predicate
 externally</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"full-text search / contains words"</td>
 <td>Cannot be inside FilterBuilder — compose via raw SQL or external
 full-text predicate</td>

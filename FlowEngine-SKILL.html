@@ -102,26 +102,26 @@ Execution context namespaces (JSONPath) - used in `storeAs`, `config` paths, `ta
 evaluated by Roslyn scripting. The following globals are in scope:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Global</th>
 <th>Type</th>
 <th>Content</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Context</code></td>
 <td><code>IReadOnlyDictionary&lt;string,ContextVal&gt;</code></td>
 <td>All <code>$.context.*</code> values, each wrapped in a
 <code>ContextVal</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Entity</code></td>
 <td><code>IReadOnlyDictionary&lt;string,object?&gt;</code></td>
 <td><code>$.entity</code> top-level properties; each value is a boxed
 <code>System.Text.Json.JsonElement</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Params</code></td>
 <td><code>IReadOnlyDictionary&lt;string,object?&gt;</code></td>
 <td>All <code>$.params.*</code> values as CLR values
@@ -130,7 +130,7 @@ evaluated by Roslyn scripting. The following globals are in scope:</p>
 <code>Dictionary&lt;string,object?&gt;</code>,
 <code>List&lt;object?&gt;</code>, or <code>null</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Engine</code></td>
 <td><code>IReadOnlyDictionary&lt;string,object?&gt;</code></td>
 <td><code>instanceId</code>, <code>workflowId</code>,
@@ -197,7 +197,7 @@ valid C# — not JSONPath. Use <code>Context["key"]</code> not
 level, not inside individual nodes.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Field</th>
 <th>Type</th>
 <th>Default</th>
@@ -205,14 +205,14 @@ level, not inside individual nodes.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>id</code></td>
 <td><code>string</code></td>
 <td>required</td>
 <td>Stable identifier across versions; at most 128 characters
 (<code>FlowEngine.MaxWorkflowIdLength</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>version</code></td>
 <td><code>string</code></td>
 <td>required</td>
@@ -220,53 +220,53 @@ level, not inside individual nodes.</p>
 (<code>FlowEngine.MaxWorkflowVersionLength</code>) - combined with
 <code>id</code> as registry key; an empty version fails validation</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>label</code></td>
 <td><code>string</code></td>
 <td>(id)</td>
 <td>Human-readable display name</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>description</code></td>
 <td><code>string?</code></td>
 <td>—</td>
 <td>Prose description of the workflow's purpose</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>intent</code></td>
 <td><code>string?</code></td>
 <td>—</td>
 <td>AI-routing hint — written same style as node
 <code>intent</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>status</code></td>
 <td><code>Draft|Active|Archived</code></td>
 <td><code>Draft</code></td>
 <td>Only <code>Active</code> workflows can be started; see Workflow
 version lifecycle for transitions</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>entryNodeId</code></td>
 <td><code>string</code></td>
 <td>required</td>
 <td>First node to execute</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>paramsSchema</code></td>
 <td><code>string?</code></td>
 <td>—</td>
 <td>JSON Schema (draft-07 subset) validating
 <code>StartRequest.Params</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>globalOnFailureNodeId</code></td>
 <td><code>string?</code></td>
 <td>—</td>
 <td>Reroutes any unhandled <code>Error</code> instead of faulting the
 instance</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>globalOnDeadlineNodeId</code></td>
 <td><code>string?</code></td>
 <td>-</td>
@@ -275,19 +275,19 @@ fallback for a wait, human or message-reply timeout with no
 <code>onTimeoutNodeId</code>. Entered at most once per instance: after
 that, an unhandled timeout ends the instance <code>TimedOut</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>defaultRetryPolicy</code></td>
 <td><code>RetryPolicy?</code></td>
 <td>—</td>
 <td>Retry policy applied to every node that doesn't declare its own</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>defaultLeaseDuration</code></td>
 <td><code>TimeSpan?</code></td>
 <td>engine default</td>
 <td>Distributed lock lease duration for this workflow's instances</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>defaultTags</code></td>
 <td><code>Dictionary&lt;string,string&gt;</code></td>
 <td>-</td>
@@ -296,13 +296,13 @@ most 256 and values at most 512 characters
 (<code>FlowEngine.MaxTagKeyLength</code> /
 <code>MaxTagValueLength</code>)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>enableCompensation</code></td>
 <td><code>bool</code></td>
 <td><code>false</code></td>
 <td>Enable saga rollback — see Saga Compensation section</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>persistAfterEveryNode</code></td>
 <td><code>bool</code></td>
 <td><code>false</code></td>
@@ -432,43 +432,43 @@ Retry Policy</a></p>
 <p>Every node emits exactly one outcome. Edges match on these:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Outcome</th>
 <th>Meaning</th>
 <th>Typical source</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Match</code></td>
 <td>Condition satisfied / operation succeeded</td>
 <td>filter (found results), integration (2xx), human (response
 received)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>NoMatch</code></td>
 <td>Condition explicitly not satisfied</td>
 <td>filter (no results), integration (404), decision (value is explicit
 null)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Unknown</code></td>
 <td>Could not determine — missing or null data</td>
 <td>filter (null/missing target), compute (null result), decision (path
 not found), transform (missing path)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Error</code></td>
 <td>Exception or external failure</td>
 <td>integration (5xx/timeout), compute (threw), agent (client failure,
 content filter rejection)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Default</code></td>
 <td>Catch-all — no other edge matched</td>
 <td>Any node, last edge with no <code>on</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>CircuitOpen</code></td>
 <td>The node's circuit breaker is open; the executor was not called (or
 reported its dependency's circuit open, with no side effects)</td>
@@ -918,30 +918,30 @@ edge.</li>
 <p><strong>Response context keys written on resume:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Key</th>
 <th>When</th>
 <th>Content</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>$.context._humanTaskResponse</code></td>
 <td>Always</td>
 <td>First/only respondent's form values (JSON object)</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.context._humanTaskResponses</code></td>
 <td>Always</td>
 <td>Array of all respondents' form values</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>$.context._humanTaskConsensus</code></td>
 <td>Always (<code>null</code> when <code>quorum</code> is 1)</td>
 <td><code>"unanimous"</code> / <code>"majority"</code> /
 <code>"any-denied"</code> / <code>"split"</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>$.context._signal._humanTaskId</code></td>
 <td>Always</td>
 <td>Id of the task that resumed the instance (not promoted to a
@@ -1061,7 +1061,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb22-1"><a href=
 <p><strong>resultMode options:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Mode</th>
 <th>Returns</th>
 <th>Outcome emitted</th>
@@ -1069,31 +1069,31 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb22-1"><a href=
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>all</code></td>
 <td>Array of entities</td>
 <td><code>Match</code> (always)</td>
 <td>Get collection for downstream filter/loop</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>first</code></td>
 <td>Single entity or null</td>
 <td><code>Match</code> (found), <code>NoMatch</code> (not found)</td>
 <td>Look up specific record</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>count</code></td>
 <td>Integer</td>
 <td><code>Match</code> (always)</td>
 <td>How many? Use compute/filter on stored count</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>any</code></td>
 <td>Boolean</td>
 <td><code>Match</code> (found), <code>NoMatch</code> (none)</td>
 <td>Does any exist? Most efficient — uses EXISTS</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>page</code></td>
 <td><code>{ items, totalCount, hasMore }</code></td>
 <td><code>Match</code></td>
@@ -1159,19 +1159,19 @@ the right shape <em>and</em> the engine to reject it if it doesn't.</p>
 <p><strong>Additional <code>AgentNodeConfig</code> fields:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Field</th>
 <th>Type</th>
 <th>Purpose</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>instructions</code></td>
 <td><code>string?</code></td>
 <td>System message sent with the prompt</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>idempotencyKey</code></td>
 <td><code>string?</code></td>
 <td>JSONPath resolving to a string (else used literally), forwarded to
@@ -1179,7 +1179,7 @@ the right shape <em>and</em> the engine to reject it if it doesn't.</p>
 retry. The validator warns (<code>AGENT_IDEMPOTENCY_KEY_MISSING</code>)
 when it is absent</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>contentFilterPolicy</code></td>
 <td><code>string?</code></td>
 <td>Name of a registered <code>IContentFilter</code> - runs pre-call
@@ -1190,7 +1190,7 @@ with <code>CONTENT_FILTER_INPUT_REJECTED</code> /
 filter is not an error: the call proceeds unfiltered (fail-open), so
 verify the registration</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>promptVersion</code></td>
 <td><code>string?</code></td>
 <td>Label stored in
@@ -1349,30 +1349,30 @@ successfully)</p>
 <code>wait</code>:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Need</th>
 <th>Use</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Wait a fixed time then continue</td>
 <td><code>timer</code> — no harness code</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Wait for an external event to arrive</td>
 <td><code>wait</code> — harness calls <code>ResumeAsync</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Wait up to X time for an event, then take a fallback path</td>
 <td><code>wait</code> with <code>timeout</code> and
 <code>onTimeoutNodeId</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Delay between loop iterations</td>
 <td><code>timer</code> inside sub-workflow</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Business-day-aware delay</td>
 <td><code>timer</code> with custom <code>ICalendarProvider</code></td>
 </tr>
@@ -1511,7 +1511,7 @@ many times:</p>
 see <code>when</code> predicate syntax above.</p>
 </blockquote>
 <div class="sourceCode" id="cb35"><pre
-class="sourceCode json"><code class="sourceCode json"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;n-review&quot;:</span> <span class="fu">{</span></span>
+class="sourceCode json"><code class="sourceCode json"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;n-review&quot;</span><span class="er">:</span> <span class="fu">{</span></span>
 <span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;human&quot;</span><span class="fu">,</span></span>
 <span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Underwriter reviews the application and either approves, rejects, or requests rework&quot;</span><span class="fu">,</span></span>
 <span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;maxVisits&quot;</span><span class="fu">:</span> <span class="dv">10</span><span class="fu">,</span></span>
@@ -1527,7 +1527,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb35-1"><a href=
 <span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-final-reject&quot;</span> <span class="fu">}</span></span>
 <span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
 <span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span><span class="er">,</span></span>
-<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a><span class="er">&quot;n-rework&quot;:</span> <span class="fu">{</span></span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;n-rework&quot;</span><span class="er">:</span> <span class="fu">{</span></span>
 <span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;human&quot;</span><span class="fu">,</span></span>
 <span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Applicant addresses the underwriter feedback and resubmits&quot;</span><span class="fu">,</span></span>
 <span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
@@ -1552,33 +1552,33 @@ back if any one fails — the classic distributed saga.</p>
 <p><strong>Business conversation guide:</strong></p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>User says</th>
 <th>What to ask / design</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>"If payment fails, we need to release the inventory
 reservation"</td>
 <td>Each forward step needs a <code>compensationNodeId</code> pointing
 to its undo node</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Rollback in reverse order if anything fails"</td>
 <td>Set <code>enableCompensation: true</code> on the workflow</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"The undo for 'charge payment' is 'refund payment'"</td>
 <td>Map each step to its compensation node:
 <code>"compensationNodeId": "n-refund-payment"</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"What about steps that don't need rollback?"</td>
 <td>Leave <code>compensationNodeId</code> absent — the engine skips
 those steps during compensation</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"What happens after all the undos run?"</td>
 <td>Engine routes to <code>globalOnFailureNodeId</code> (if set) or
 faults the instance</td>
@@ -1670,7 +1670,7 @@ already-completed branches automatically</li>
 <h4 id="status-states">Status states</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Status</th>
 <th>Can be started</th>
 <th>Can be edited</th>
@@ -1679,14 +1679,14 @@ already-completed branches automatically</li>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>Draft</code></td>
 <td>No</td>
 <td>Yes</td>
 <td>Yes</td>
 <td>Default on <code>SaveAsync</code>; safe to iterate</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>Active</code></td>
 <td>Yes</td>
 <td>No</td>
@@ -1694,7 +1694,7 @@ already-completed branches automatically</li>
 <td>Immutable once active — transition back to <code>Draft</code> to
 edit, or create a new version</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>Archived</code></td>
 <td>No</td>
 <td>No</td>
@@ -1783,42 +1783,42 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb38-1"><a href=
 <p><code>CompatibilityFinding</code> entries cover:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Finding</th>
 <th>Severity</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Node removed</td>
 <td>Breaking</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Node type changed</td>
 <td>Breaking</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Missing edge target</td>
 <td>Breaking</td>
 </tr>
-<tr class="even">
+<tr>
 <td>New <code>contextRequirements</code> key on an existing node</td>
 <td>Breaking</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>compensationNodeId</code> references a node absent in the
 target</td>
 <td>Breaking</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Entry node changed</td>
 <td>Warning</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>GlobalOnFailureNodeId</code> changed</td>
 <td>Warning</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>StoreAs</code> key renamed</td>
 <td>Warning</td>
 </tr>
@@ -1828,36 +1828,36 @@ target</td>
 <h3 id="common-mistakes-to-avoid">Common mistakes to avoid</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Mistake</th>
 <th>Correct approach</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>No <code>output</code> node — instance never completes</td>
 <td>Every workflow must have at least one <code>output</code> node
 reachable from the entry node</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Backward edge with no <code>maxVisits</code> adjustment</td>
 <td>Set <code>maxVisits</code> on nodes in cycles safely above the
 business limit</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>human</code> node edges that don't cover all form
 responses</td>
 <td>Missing response branches leave the instance unrouted — add a
 Default catch-all edge</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>integration</code> write without
 <code>idempotencyKeyHeader</code></td>
 <td>Set <code>idempotencyKeyHeader</code> on POST/PUT/PATCH/DELETE calls
 whose API deduplicates on a header; <code>idempotencyKey</code> alone is
 client metadata and does not prevent double-execution</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Expecting a body failure to retry the whole inline
 <code>loop</code></td>
 <td>A loop node's <code>retryPolicy</code> is inherited by body nodes
@@ -1865,79 +1865,79 @@ without their own; a body that fails after its retries fails the loop
 without retrying the loop node. Set <code>retryPolicy</code> on a body
 node only when it needs a different policy</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Using <code>$.context.*</code> directly in a <code>filter</code>
 node config</td>
 <td>Set <code>"target": "$.context.myObject"</code> — don't reference
 context paths inside the filterSet itself</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Parallel branches without explicit <code>joinStrategy</code></td>
 <td>Default is <code>All</code> — explicitly set
 <code>joinStrategy</code> when you want <code>FirstOf</code> or
 <code>Threshold</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>workflow</code> node <code>fireAndForget: true</code> with
 <code>storeAs</code></td>
 <td>FireAndForget parent never sees child output — <code>storeAs</code>
 will always be null</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Missing <code>intent</code> field</td>
 <td>Always write <code>intent</code> on every node and the workflow
 definition</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Credentials or connection strings in workflow JSON</td>
 <td>Use <code>clientRef</code> pointing to a registered
 <code>IFlowClient</code> — never embed secrets</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>query</code> node for a yes/no check returning all
 results</td>
 <td>Use <code>resultMode: any</code> — translates to EXISTS, no data
 transfer, emits Match/NoMatch directly</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>filter</code> node targeting a database table</td>
 <td><code>filter</code> is in-memory only — use <code>query</code>
 first, then <code>filter</code> on the stored results</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>outputSchema</code> set on a node without
 <code>storeAs</code></td>
 <td>Schema validation only runs when <code>storeAs</code> is also set -
 registration rejects the definition with a validation error</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>outputSchema</code> on <code>agent</code> node but only in
 <code>config</code> (AgentNodeConfig)</td>
 <td><code>AgentNodeConfig.outputSchema</code> shapes the LLM prompt;
 <code>NodeDefinition.outputSchema</code> enforces the shape engine-side
 — set both</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>contextRequirements</code> key names include
 <code>$.context.</code> prefix</td>
 <td>Use bare key names (e.g. <code>"apiResult"</code> not
 <code>"$.context.apiResult"</code>) — same convention as
 <code>storeAs</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>agent</code> node with model/temperature config in workflow
 JSON</td>
 <td>Model config belongs on the registered <code>IAgentClient</code>,
 not in the workflow definition</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>agent</code> node with <code>contentFilterPolicy</code> but no
 <code>IContentFilter</code> registered</td>
 <td>The node does not fail: an unresolved policy name is skipped and the
 call runs unfiltered (fail-open). Register the filter and check its
 <code>PolicyName</code> matches</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>compute</code> node or <code>when</code> edge predicate on an
 engine with <code>AllowComputeNodes = false</code> or
 <code>AllowWhenExpressions = false</code></td>
@@ -1945,32 +1945,32 @@ engine with <code>AllowComputeNodes = false</code> or
 check the engine's security policy before authoring Roslyn
 expressions</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>message</code> node <code>deliveryMode: RequestReply</code>
 without <code>replyEventName</code></td>
 <td>RequestReply suspends waiting for a signal —
 <code>replyEventName</code> is required to match it</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Migrating instances without running
 <code>CompatibilityAnalyzer</code> first</td>
 <td>Always call <code>CompatibilityAnalyzer.Analyze(from, to)</code>
 before bulk migration — breaking findings mean suspended instances would
 be stranded</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Assuming <code>MigrateInstanceAsync</code> is safe without testing
 it</td>
 <td>Use <code>dryRun: true</code> first — it validates the remapping
 without persisting and records a <code>[dry-run]</code> history
 entry</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>wait</code> node without a timeout</td>
 <td>Always set <code>timeout</code> — an indefinitely suspended instance
 is a resource leak and an ops nightmare</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Routing a wait, human or message-reply timeout with an
 <code>Error</code> edge</td>
 <td>Timeouts never take <code>Error</code> edges: set
@@ -1978,20 +1978,20 @@ is a resource leak and an ops nightmare</td>
 <code>globalOnDeadlineNodeId</code>; otherwise the instance ends
 <code>TimedOut</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>Casting a <code>Context</code> value in a <code>when</code> or
 <code>compute</code> expression (<code>(int)Context["n"]</code>)</td>
 <td><code>Context</code> values are <code>ContextVal</code> and support
 only the indexer and <code>ToString()</code>: use
 <code>int.Parse(Context["n"].ToString(), System.Globalization.CultureInfo.InvariantCulture)</code></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Using <code>$.context._humanTaskResponse</code> in a non-human
 node</td>
 <td><code>_humanTaskResponse</code> is only written by the human node
 executor — not available after other node types</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Any node with a <code>clientRef</code> that is not registered</td>
 <td>Registry <code>SaveAsync</code> (and JSON seeding at startup)
 rejects the definition with
@@ -1999,33 +1999,33 @@ rejects the definition with
 code <code>CLIENT_NOT_REGISTERED</code> - register the
 <code>IFlowClient</code> before saving the definition</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>query</code> node with TestValueParam filters but no
 <code>params</code> mapping</td>
 <td>TestValueParam filters need their values resolved from context via
 the <code>params</code> dict</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Signal payload fields accessed before checking <code>_signal</code>
 is set</td>
 <td><code>$.context._signal</code> is only populated after a
 <code>wait</code> or <code>message</code> RequestReply resumes — guard
 with a null check or filter</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>loop</code> node <code>mode: Parallel</code> with
 <code>errorBehavior: StopOnError</code> on high-volume collections</td>
 <td>Parallel + StopOnError cancels all in-flight children on first
 failure — use <code>ContinueOnError</code> if partial results are
 acceptable</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Write operation (<code>integration</code> POST/PUT/DELETE,
 <code>message</code>) without <code>idempotencyKey</code></td>
 <td>Crash recovery re-executes the chain — without idempotency keys you
 get double-charges, double-sends, duplicate records</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Assuming state is saved after every node</td>
 <td>By default, state saves at async boundaries only (wait, human,
 output, checkpoint) — a crash mid-chain re-runs all nodes since the last
@@ -2033,13 +2033,13 @@ save. Set <code>persistAfterEveryNode: true</code> on the
 <code>WorkflowDefinition</code> to opt in to per-node saves at the cost
 of extra store writes.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Checkpoint as a substitute for idempotency keys</td>
 <td>Checkpoint reduces re-execution window but a crash can still happen
 after the checkpoint and before the next save — write nodes must be
 idempotent regardless</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Checkpoint between every node</td>
 <td>Every checkpoint is a state store round-trip — place at meaningful
 boundaries only (before expensive compute, before write chains, before
@@ -2126,181 +2126,181 @@ intake queue is active.</p>
 mapping</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>User says</th>
 <th>Node type(s)</th>
 <th>Notes</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>"Check if..." / "Does the customer have..."</td>
 <td><code>filter</code></td>
 <td>Use FilterBuilder SKILL for the FilterSet</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Query the database for..." / "Find all X where..."</td>
 <td><code>query</code></td>
 <td>clientRef = registered IQueryClient</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Based on X, go to A or B or C"</td>
 <td><code>decision</code> + edge <code>when</code> predicates</td>
 <td></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Look up / retrieve / get from [API/service]"</td>
 <td><code>integration</code></td>
 <td>clientRef = registered IRequestResponseClient</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Call the [system] API"</td>
 <td><code>integration</code> or <code>fetch</code></td>
 <td><code>integration</code> if typed definition exists</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Ask an AI / use the LLM / run through Microsoft Foundry"</td>
 <td><code>agent</code></td>
 <td>clientRef = registered IAgentClient</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Send a message to Service Bus / Event Grid / queue"</td>
 <td><code>message</code></td>
 <td>clientRef = registered IMessageClient</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Publish an event / notify downstream services"</td>
 <td><code>message</code> (FireAndForget)</td>
 <td></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Send a message and wait for a reply"</td>
 <td><code>message</code> (RequestReply)</td>
 <td>Suspends until reply signal arrives</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Calculate / compute / derive a value"</td>
 <td><code>compute</code></td>
 <td>Roslyn expression, result via storeAs</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Send to [person/role] for approval"</td>
 <td><code>human</code></td>
 <td>channel: Internal; add formSchema</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Notify the customer / send an email"</td>
 <td><code>integration</code> or <code>message</code></td>
 <td>notification API or messaging client</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Wait for [event] / pause until"</td>
 <td><code>wait</code></td>
 <td><code>correlationKeyPath</code> for simple lookups;
 <code>correlationKeyExpression</code> for computed keys</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Delay / wait X minutes / pause for 2 days"</td>
 <td><code>timer</code></td>
 <td>Pure time delay — no harness code, no external signal</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Wait until next business day / 3 business days"</td>
 <td><code>timer</code> with custom <code>ICalendarProvider</code></td>
 <td></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Do this for each item in..."</td>
 <td><code>loop</code></td>
 <td>subWorkflowId = named sub-workflow</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Run these checks at the same time"</td>
 <td><code>parallel</code></td>
 <td></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Call another workflow / sub-process"</td>
 <td><code>workflow</code></td>
 <td>clientRef absent = local; set = remote engine</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Call the [risk/underwriting/other] engine"</td>
 <td><code>workflow</code> with clientRef</td>
 <td>IFlowEngineClient</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Store / remember this for later"</td>
 <td><code>store</code> or <code>storeAs</code> on any node</td>
 <td></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Reshape / transform the data"</td>
 <td><code>transform</code></td>
 <td>Maps fields from one shape to another</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"The application is approved/rejected"</td>
 <td><code>output</code></td>
 <td>One per terminal state</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Can be sent back for rework (up to N times)"</td>
 <td>backward edge + <code>$.engine.visits.{nodeId}</code> in
 <code>when</code></td>
 <td>No explicit counter needed</td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Save state / checkpoint here before expensive work"</td>
 <td><code>checkpoint</code></td>
 <td>Bounds re-execution window on crash recovery</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Escalate if not done within X hours/days"</td>
 <td><code>dueIn</code> + <code>escalation</code> on <code>human</code>
 node</td>
 <td></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Auto-approve if criteria met, else manual"</td>
 <td><code>filter</code> → <code>output</code> (auto) or
 <code>human</code> (manual)</td>
 <td></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Needs approval from 2 of 3 committee members"</td>
 <td><code>human</code> with <code>quorum: 2</code></td>
 <td></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Run in parallel, continue if at least 2 of 3 succeed"</td>
 <td><code>parallel</code> <code>joinStrategy: Threshold</code>
 <code>joinThreshold: 2</code></td>
 <td></td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Log / record that this happened"</td>
 <td><code>store</code> or <code>integration</code> to audit API</td>
 <td></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Check external data to decide"</td>
 <td><code>query</code> or <code>integration</code> → <code>filter</code>
 or <code>decision</code></td>
 <td>Fetch first, then evaluate</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Upload a document / store a file"</td>
 <td><code>document</code> with <code>operation: Write</code></td>
 <td>Requires <code>IDocumentStore</code> registered via
 <code>.UseDocumentStore&lt;T&gt;()</code></td>
 </tr>
-<tr class="even">
+<tr>
 <td>"Download / retrieve a document"</td>
 <td><code>document</code> with <code>operation: Read</code></td>
 <td>storeRef must already be in context</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>"Route to fallback if approval deadline passes"</td>
 <td><code>human</code> with <code>onTimeoutNodeId</code></td>
 <td>Without it the timeout goes to <code>globalOnDeadlineNodeId</code>

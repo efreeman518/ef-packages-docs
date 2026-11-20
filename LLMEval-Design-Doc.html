@@ -111,7 +111,7 @@ not make (that takes a cost gain or a functional reason). See <a
 href="#6-the-selection-rule">section 6</a>.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Workload shape</th>
 <th>What LLMEval runs</th>
 <th>Output</th>
@@ -119,7 +119,7 @@ href="#6-the-selection-rule">section 6</a>.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>A single prompt or synthesis call.</strong> One request, one
 answer. An interpretation prompt that turns a structured record into
 prose.</td>
@@ -131,7 +131,7 @@ pick, each with cost per pass, win rate and its interval.</td>
 <td>Lower runtime model cost at the same measured quality, or better
 output at a cost delta you can see before committing to it.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>A multi-agent loop with no human.</strong> Two or more
 models handing work to each other until a condition is met.</td>
 <td>An episode sweep with a role assignment per agent, varying one role
@@ -142,7 +142,7 @@ broken out alongside the total.</td>
 acceptable total is often mostly one role that a cheaper model would run
 just as well.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>A multi-agent loop with a human in the loop.</strong> The
 same, with a person replying in the middle.</td>
 <td>The same episode sweep, with a scripted human (the default, free and
@@ -155,7 +155,7 @@ stopped.</td>
 but takes two extra turns, or fails to converge at all, is visible as
 such rather than as a good answer.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>An EF.FlowEngine workflow.</strong> Agent nodes, human
 tasks, branches.</td>
 <td>The FlowEngine adapter runs the <strong>real</strong> workflow with
@@ -166,7 +166,7 @@ the workflow output as the scored artifact.</td>
 <td>Lower runtime cost per execution, measured on the workflow that
 actually ships rather than on a re-implementation of it.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Prompt variant development.</strong> The model is settled;
 the wording is not.</td>
 <td>The same sweep across prompt variants, with the shipped prompts as
@@ -177,7 +177,7 @@ with its own selection group per variant.</td>
 <td>Better prompts before they ship, decided on measurement rather than
 on a reading of two outputs.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>A routing or provider decision.</strong> Same model,
 different route.</td>
 <td>The same models run across connections: direct, gateway or
@@ -206,41 +206,41 @@ alt="How a run is judged: candidate calls on API connections, judging and person
 <h4 id="one-way-to-run">One way to run</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th></th>
 <th>What it is</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><strong>Candidate roles</strong></td>
 <td>API connections, billed per token</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Judge</strong></td>
 <td>The Claude Code harness subagent, answering through the file
 exchange</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Simulated human</strong></td>
 <td>The same subagent, through the same exchange, unless a model is cast
 for the role</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>What is billed</strong></td>
 <td>Candidate calls only</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Judge cost reported as</strong></td>
 <td><strong>Outside the eval's spend, charged to the harness
 subscription</strong>, never zero and never free, with the judge-answer
 count printed beside the spend line</td>
 </tr>
-<tr class="even">
+<tr>
 <td><strong>Runs unattended</strong></td>
 <td>No: it needs the harness session and a live drainer heartbeat</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>Reproducible judge</strong></td>
 <td>Only in the sense that the reply files are kept</td>
 </tr>
@@ -283,17 +283,17 @@ model's own price.</p>
 with an incumbent and a rubric score attached:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Line</th>
 <th>What it costs</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Candidate calls, 120 cells on mid-priced models</td>
 <td>A few tens of cents</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Judge calls, roughly 270 of them (two pairwise on each of the 90
 non-incumbent cells, plus one rubric score on all 120)</td>
 <td>Several dollars with a mid-priced API judge, tens of dollars with a
@@ -302,7 +302,7 @@ credits-only key and the harness answers the rest. Outside the eval's
 spend either way: on the judge's API credits, or charged to the harness
 subscription as about 270 answers of its allowance</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><strong>What the report says</strong></td>
 <td><code>Judge: Claude Code harness subagent (outside the eval's spend, charged to the harness subscription).</code>,
 and beside the spend line
@@ -370,42 +370,42 @@ one row per workload. What a row has to record is what a cell will have
 to satisfy:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Requirement</th>
 <th>Why the harness needs it</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Plain text or structured output</td>
 <td>A schema-bound call is checked against strict structured-output
 support and the schema is dropped for a model without it; a plain-text
 call is untouched.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Tool calling</td>
 <td>A call that offers tools is checked against tool support and the
 tools are dropped for a model without it, and the tools have to be
 resolvable inside a cell.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Web search or other retrieval</td>
 <td>Not inferred from a probed request. A role declares it with
 <code>RoleRequirements.WebSearch</code>. See <a
 href="#capabilities-and-candidate-filtering">Capabilities and candidate
 filtering</a>.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Context size</td>
 <td>Not measured from the probed prompt. A role declares the window it
 needs with <code>RoleRequirements.MinContextTokens</code>.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Human turns</td>
 <td>Decides whether the workload is a single-shot scenario or an
 episode, and which simulated human answers the middle turns.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Storage and ambient context it reaches</td>
 <td>Each needs a per-cell double in the host, or the cell measures
 something other than the model.</td>
@@ -481,35 +481,35 @@ because a gap in it looks like a model that is fine and is not.</p>
 and nothing else about a model is read:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Field</th>
 <th>What it decides is removed from a request</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>SupportsJsonSchema</code></td>
 <td>A request carrying a JSON <strong>schema</strong> (strict structured
 outputs).</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>SupportsJsonMode</code></td>
 <td>A request asking for a JSON response format with no schema. A model
 with schema support satisfies this too.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>SupportsTools</code></td>
 <td>A request that offers <strong>any</strong> tools. One boolean for
 tool calling as a whole.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>ReasoningEfforts</code></td>
 <td>The efforts the model accepts. A requested effort outside the list
 is removed. An empty published list means no effort is known to be
 accepted, so a requested one is removed too - stricter than
 <code>Supports</code>, which skips an empty list.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>ReasoningMandatory</code></td>
 <td>A model that always reasons. The requested effort is removed and the
 note says the model reasons on every call, rather than that it cannot do
@@ -1131,35 +1131,35 @@ rule over the results.</p>
 <h4 id="11-when-to-reach-for-it">1.1 When to reach for it</h4>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Situation</th>
 <th>Fit</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Choosing between candidate models for a production workload</td>
 <td>Yes. This is the primary case.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Deciding whether a prompt variant is an improvement</td>
 <td>Yes, with a judge and an incumbent baseline.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Re-checking a model choice after a vendor price or version
 change</td>
 <td>Yes. Re-run the same sweep.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Regression-testing that a response parses and carries required
 fields</td>
 <td>Use an ordinary unit test. A sweep costs money.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Load or latency testing an endpoint</td>
 <td>No. Response caching and pacing both falsify latency.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Measuring a model in isolation, outside the application</td>
 <td>Possible, but it gives up the main advantage.</td>
 </tr>
@@ -1241,26 +1241,26 @@ authentication</h4>
 <p>Three schemes, and one non-endpoint.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Scheme</th>
 <th>What it sends</th>
 <th>Notes</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>API key</td>
 <td>The provider's own key header</td>
 <td>The default.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Bearer token</td>
 <td>A pre-issued token, through an explicit auth policy</td>
 <td>Refused outright on Azure connections, because the Azure client can
 present only a key or a credential, and sending a token as a key fails
 with an error that says nothing about the real cause.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Token credential</td>
 <td>Any <code>Azure.Core</code> credential the caller builds</td>
 <td>The package references <code>Azure.Core</code> but deliberately
@@ -1315,34 +1315,34 @@ delegate owns the conversation loop and the harness owns the cap, the
 recording and the per-role accounting.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Concern</th>
 <th>Scenario</th>
 <th>Episode</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Unit of work</td>
 <td>One model call, or a short deterministic chain</td>
 <td>A conversation with a turn budget</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Candidate identity</td>
 <td>One model under test per cell</td>
 <td>A role assignment naming a model per role</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Cost reported</td>
 <td>One figure</td>
 <td>A total plus one figure per role</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Outcome</td>
 <td>Passed or failed on its evaluators</td>
 <td>Completed, turn cap reached, human stopped, or failed</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Built-in extras</td>
 <td>Cost, latency, completeness</td>
 <td>Plus turns-to-completion, outcome and per-role cost</td>
@@ -2049,18 +2049,18 @@ re-sends.</p>
 depends on who was calling:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Caller</th>
 <th>Beyond the bound</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>A candidate cell</td>
 <td>Recorded as failed with the reason. The sweep continues; that is a
 result about that model.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>The judge</td>
 <td>Raises a judge-unavailable failure, records the cell with the
 reason, sets the sweep's stop reason, and starts nothing further.</td>
@@ -2118,14 +2118,14 @@ reason saying so.</p>
 completely different replies:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th><code>kind</code></th>
 <th>What it wants</th>
 <th>Answered as</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><code>judge</code></td>
 <td>a verdict on somebody else's answer, against the rubric in front of
 it</td>
@@ -2134,19 +2134,19 @@ pairwise prompt - one request with two answers, or, for an episode, two
 complete exchanges - and <code>{"score":1-5,"why":...}</code> for a
 rubric one</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>human</code></td>
 <td>one turn spoken as the persona the system message describes, for an
 episode whose persona has no model cast for its role</td>
 <td>plain text, in that person's voice</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><code>proposal</code></td>
 <td>the prompt edits worth the sweep paying to try, each with a
 confidence</td>
 <td>a bare JSON array of proposals</td>
 </tr>
-<tr class="even">
+<tr>
 <td><code>hints</code></td>
 <td>how one vendor family is meant to be prompted, researched from that
 vendor's own current guide, with the source</td>
@@ -2249,14 +2249,14 @@ store and cache folders from being mistaken for executions.</p>
 things:</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Cache</th>
 <th>Keyed on</th>
 <th>Invalidated by</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Candidate responses</td>
 <td>The request, partitioned per model, and for an episode per
 assignment <strong>and the cast it names</strong></td>
@@ -2264,14 +2264,14 @@ assignment <strong>and the cast it names</strong></td>
 assignment with a swapped model is a miss, not a replay of the old
 model's answers.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Judge replies</td>
 <td>The request hash: the model, the kind, the messages and the
 options</td>
 <td>Changing the rubric or the answers compared, or deleting the reply
 file.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Persona turns</td>
 <td>The same hash, plus the cell - episode, cast, variant and
 iteration</td>
@@ -2455,39 +2455,39 @@ Each refusal exists because the alternative produces a number somebody
 would act on.</p>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Refusal</th>
 <th>Why</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>Call a model that cannot honour the probed request</td>
 <td>Downgrading the request to fit it makes the ranking
 meaningless.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Guess a price</td>
 <td>An unresolved meter stays unknown, with diagnostics. The model still
 runs and is left out of the cost ranking rather than treated as
 free.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Overspend silently</td>
 <td>The matrix is priced up front and refused against the ceiling, with
 a breakdown naming which dimension to cut.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Hide a failure</td>
 <td>A model that errors, or returns output the application's own code
 rejects, is recorded with its reason and the sweep continues. Both are
 results about that model.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Fall back from a subscription judge to a paid one</td>
 <td>That would bill somebody who chose otherwise, silently.</td>
 </tr>
-<tr class="even">
+<tr>
 <td>Adopt a prompt suggestion quietly, or for free</td>
 <td><code>PromptAdvisor</code>'s proposals go to a file for a person to
 read. The opt-in in-run loop does run what the drainer proposes, but
@@ -2495,7 +2495,7 @@ only against declared editable keys, above a stated confidence and
 inside the ceiling, with every decision written down and the
 proposer-is-the-judge bias named in the report.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>Mutate the caller's state</td>
 <td>Options handed to a client are cloned before being read, so an
 application that reuses and re-tunes one options object never rewrites
@@ -2552,14 +2552,14 @@ upstream that actually answered where the endpoint reported one.</p>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interpretation.Explain / baseline</span></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>| Model | Runs | Passed | Cost per pass | Mean cost | Mean latency | mean pairwise.win | mean rubric.score | Notes |</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>| agg/delta (vendor-d) | 15 | 11/15 | 0.000682 | 0.000500 | 1840 ms | 0.28 | 3.1 | cheap-field |</span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>| agg/beta (vendor-b) | 15 | 15/15 | 0.001140 | 0.001140 | 2310 ms | 0.47 | 3.9 | challenger |</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>| agg/gamma (vendor-c) | 15 | 15/15 | 0.002310 | 0.002310 | 3620 ms | 0.72 | 4.4 | challenger |</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>| agg/alpha (vendor-a) | 15 | 15/15 | 0.004180 | 0.004180 | 2980 ms | n/a | 4.1 | baseline |</span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 14/15 | 0.005121 | 0.004780 | 2450 ms | 0.53 | 4.2 | |</span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>| agg/epsilon | 15 | 6/15 | 0.001905 | 0.000762 | 1620 ms | 0.19 | 2.4 | ran without: ResponseFormat=JsonSchema dropped: model does not support strict JSON schema (structured outputs) |</span></code></pre></div>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Model <span class="pp">|</span> Runs <span class="pp">|</span> Passed <span class="pp">|</span> Cost per pass <span class="pp">|</span> Mean cost <span class="pp">|</span> Mean latency <span class="pp">|</span> mean pairwise.win <span class="pp">|</span> mean rubric.score <span class="pp">|</span> Notes <span class="pp">|</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|---|---|---|---|---|</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/delta (vendor-d) <span class="pp">|</span> 15 <span class="pp">|</span> 11/15 <span class="pp">|</span> 0.000682 <span class="pp">|</span> 0.000500 <span class="pp">|</span> 1840 ms <span class="pp">|</span> 0.28 <span class="pp">|</span> 3.1 <span class="pp">|</span> cheap-field <span class="pp">|</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/beta (vendor-b) <span class="pp">|</span> 15 <span class="pp">|</span> 15/15 <span class="pp">|</span> 0.001140 <span class="pp">|</span> 0.001140 <span class="pp">|</span> 2310 ms <span class="pp">|</span> 0.47 <span class="pp">|</span> 3.9 <span class="pp">|</span> challenger <span class="pp">|</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/gamma (vendor-c) <span class="pp">|</span> 15 <span class="pp">|</span> 15/15 <span class="pp">|</span> 0.002310 <span class="pp">|</span> 0.002310 <span class="pp">|</span> 3620 ms <span class="pp">|</span> 0.72 <span class="pp">|</span> 4.4 <span class="pp">|</span> challenger <span class="pp">|</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/alpha (vendor-a) <span class="pp">|</span> 15 <span class="pp">|</span> 15/15 <span class="pp">|</span> 0.004180 <span class="pp">|</span> 0.004180 <span class="pp">|</span> 2980 ms <span class="pp">|</span> n/a <span class="pp">|</span> 4.1 <span class="pp">|</span> baseline <span class="pp">|</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> fp/alpha <span class="pp">|</span> 15 <span class="pp">|</span> 14/15 <span class="pp">|</span> 0.005121 <span class="pp">|</span> 0.004780 <span class="pp">|</span> 2450 ms <span class="pp">|</span> 0.53 <span class="pp">|</span> 4.2 <span class="pp">|</span> <span class="pp">|</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/epsilon <span class="pp">|</span> 15 <span class="pp">|</span> 6/15 <span class="pp">|</span> 0.001905 <span class="pp">|</span> 0.000762 <span class="pp">|</span> 1620 ms <span class="pp">|</span> 0.19 <span class="pp">|</span> 2.4 <span class="pp">|</span> ran without: ResponseFormat=JsonSchema dropped: model does not support strict JSON schema (structured outputs) <span class="pp">|</span></span></code></pre></div>
 <p>Reading it: <code>agg/delta</code> is the cheapest per pass and loses
 most of its comparisons, which is exactly what cost per pass alone
 cannot tell you. <code>agg/alpha</code> is the incumbent, so it has no
@@ -2588,13 +2588,13 @@ same suspicion, with nothing to settle it.</p>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Dominates the incumbent: **agg/gamma** (same vendor family, vendor-c, as the judge vendor-c/judge-1), win rate 0.72 (n=15 over 5 scenario(s), 95% per-comparison 0.47 to 0.88, cluster-level 0.49 to 0.89), cost per pass 0.002310</span>
 <span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>| Candidate | n | Scenarios | Win rate | 95% per-comparison (Wilson) | 95% cluster-level | Cost per pass |</span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>| agg/gamma (same vendor family, vendor-c, as the judge vendor-c/judge-1) | 15 | 5 | 0.72 | 0.47 to 0.88 | 0.49 to 0.89 | 0.002310 |</span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>| fp/alpha | 15 | 5 | 0.53 | 0.3 to 0.75 | 0.38 to 0.68, not distinguishable from parity at the cluster level | 0.005121 |</span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>| agg/beta | 15 | 5 | 0.47 | 0.25 to 0.7 | 0.36 to 0.58, not distinguishable from parity at the cluster level | 0.001140 |</span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>| agg/delta | 15 | 5 | 0.28 | 0.12 to 0.52 | 0.15 to 0.41, below parity at the cluster level | 0.000682 |</span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>| agg/epsilon | 15 | 5 | 0.19 | 0.07 to 0.43 | 0.06 to 0.32, below parity at the cluster level | 0.001905 |</span></code></pre></div>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Candidate <span class="pp">|</span> n <span class="pp">|</span> Scenarios <span class="pp">|</span> Win rate <span class="pp">|</span> 95% per-comparison (Wilson) <span class="pp">|</span> 95% cluster-level <span class="pp">|</span> Cost per pass <span class="pp">|</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|---|---|---|</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/gamma (same vendor family, vendor-c, as the judge vendor-c/judge-1) <span class="pp">|</span> 15 <span class="pp">|</span> 5 <span class="pp">|</span> 0.72 <span class="pp">|</span> 0.47 to 0.88 <span class="pp">|</span> 0.49 to 0.89 <span class="pp">|</span> 0.002310 <span class="pp">|</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> fp/alpha <span class="pp">|</span> 15 <span class="pp">|</span> 5 <span class="pp">|</span> 0.53 <span class="pp">|</span> 0.3 to 0.75 <span class="pp">|</span> 0.38 to 0.68, not distinguishable from parity at the cluster level <span class="pp">|</span> 0.005121 <span class="pp">|</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/beta <span class="pp">|</span> 15 <span class="pp">|</span> 5 <span class="pp">|</span> 0.47 <span class="pp">|</span> 0.25 to 0.7 <span class="pp">|</span> 0.36 to 0.58, not distinguishable from parity at the cluster level <span class="pp">|</span> 0.001140 <span class="pp">|</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/delta <span class="pp">|</span> 15 <span class="pp">|</span> 5 <span class="pp">|</span> 0.28 <span class="pp">|</span> 0.12 to 0.52 <span class="pp">|</span> 0.15 to 0.41, below parity at the cluster level <span class="pp">|</span> 0.000682 <span class="pp">|</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> agg/epsilon <span class="pp">|</span> 15 <span class="pp">|</span> 5 <span class="pp">|</span> 0.19 <span class="pp">|</span> 0.07 to 0.43 <span class="pp">|</span> 0.06 to 0.32, below parity at the cluster level <span class="pp">|</span> 0.001905 <span class="pp">|</span></span></code></pre></div>
 <p>The same-family flag on the parity pick is the thing to act on here:
 the candidate leading the field shares a vendor family with the judge
 that ranked it. Running both orderings cancels position bias but cannot
@@ -2614,12 +2614,12 @@ acceptable total is often mostly one role that a cheaper model would run
 just as well.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Tutoring.Session / baseline</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>| Assignment | Runs | Passed | Cost per pass | Mean cost | teacher model | teacher cost | checker model | checker cost | student model | student cost | mean Turns to completion | mean pairwise.win | Notes |</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|---|---|---|---|---|</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>| cheap-checker | 9 | 9/9 | 0.014200 | 0.014200 | agg/alpha | 0.009100 | agg/delta | 0.001600 | scripted | n/a | 4.2 | 0.51 | |</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>| baseline-cast | 9 | 9/9 | 0.019800 | 0.019800 | agg/alpha | 0.009300 | agg/gamma | 0.007200 | scripted | n/a | 4.1 | n/a | baseline |</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>| strong-teacher | 9 | 8/9 | 0.031400 | 0.027900 | agg/gamma | 0.021000 | agg/gamma | 0.006900 | scripted | n/a | 3.4 | 0.69 | 1 failed, first: turn cap reached before a summary |</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>| cheap-teacher | 9 | 5/9 | 0.009800 | 0.005400 | agg/delta | 0.003100 | agg/gamma | 0.002300 | scripted | n/a | 5.8 | 0.22 | cheap-field |</span></code></pre></div>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Assignment <span class="pp">|</span> Runs <span class="pp">|</span> Passed <span class="pp">|</span> Cost per pass <span class="pp">|</span> Mean cost <span class="pp">|</span> teacher model <span class="pp">|</span> teacher cost <span class="pp">|</span> checker model <span class="pp">|</span> checker cost <span class="pp">|</span> student model <span class="pp">|</span> student cost <span class="pp">|</span> mean Turns to completion <span class="pp">|</span> mean pairwise.win <span class="pp">|</span> Notes <span class="pp">|</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|---|---|---|---|---|---|---|---|---|---|</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> cheap-checker <span class="pp">|</span> 9 <span class="pp">|</span> 9/9 <span class="pp">|</span> 0.014200 <span class="pp">|</span> 0.014200 <span class="pp">|</span> agg/alpha <span class="pp">|</span> 0.009100 <span class="pp">|</span> agg/delta <span class="pp">|</span> 0.001600 <span class="pp">|</span> scripted <span class="pp">|</span> n/a <span class="pp">|</span> 4.2 <span class="pp">|</span> 0.51 <span class="pp">|</span> <span class="pp">|</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> baseline-cast <span class="pp">|</span> 9 <span class="pp">|</span> 9/9 <span class="pp">|</span> 0.019800 <span class="pp">|</span> 0.019800 <span class="pp">|</span> agg/alpha <span class="pp">|</span> 0.009300 <span class="pp">|</span> agg/gamma <span class="pp">|</span> 0.007200 <span class="pp">|</span> scripted <span class="pp">|</span> n/a <span class="pp">|</span> 4.1 <span class="pp">|</span> n/a <span class="pp">|</span> baseline <span class="pp">|</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> strong-teacher <span class="pp">|</span> 9 <span class="pp">|</span> 8/9 <span class="pp">|</span> 0.031400 <span class="pp">|</span> 0.027900 <span class="pp">|</span> agg/gamma <span class="pp">|</span> 0.021000 <span class="pp">|</span> agg/gamma <span class="pp">|</span> 0.006900 <span class="pp">|</span> scripted <span class="pp">|</span> n/a <span class="pp">|</span> 3.4 <span class="pp">|</span> 0.69 <span class="pp">|</span> 1 failed, first: turn cap reached before a summary <span class="pp">|</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> cheap-teacher <span class="pp">|</span> 9 <span class="pp">|</span> 5/9 <span class="pp">|</span> 0.009800 <span class="pp">|</span> 0.005400 <span class="pp">|</span> agg/delta <span class="pp">|</span> 0.003100 <span class="pp">|</span> agg/gamma <span class="pp">|</span> 0.002300 <span class="pp">|</span> scripted <span class="pp">|</span> n/a <span class="pp">|</span> 5.8 <span class="pp">|</span> 0.22 <span class="pp">|</span> cheap-field <span class="pp">|</span></span></code></pre></div>
 <p>Reading it: <code>cheap-checker</code> keeps the teacher and swaps
 only the checker, and lands at parity for three-quarters of the
 incumbent's cost. <code>cheap-teacher</code> is the cautionary row: it
@@ -2652,11 +2652,11 @@ service key doubles as the node's client reference, so a role column in
 this table is a node in the workflow definition.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode md"><code class="sourceCode markdown"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">## Loans.Review / baseline</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>| Assignment | Runs | Passed | Cost per pass | Mean cost | extract model | extract cost | assess model | assess cost | explain model | explain cost | mean Episode completed | mean pairwise.win | Notes |</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>|---|---|---|---|---|---|---|---|---|---|---|---|---|---|</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>| cheap-extract | 6 | 6/6 | 0.021700 | 0.021700 | agg/delta | 0.001200 | agg/alpha | 0.014300 | agg/beta | 0.006200 | 1 | 0.58 | |</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>| baseline-cast | 6 | 6/6 | 0.027900 | 0.027900 | agg/beta | 0.007400 | agg/alpha | 0.014300 | agg/beta | 0.006200 | 1 | n/a | baseline |</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>| cheap-assess | 6 | 4/6 | 0.024600 | 0.016400 | agg/beta | 0.007300 | agg/delta | 0.002900 | agg/beta | 0.006200 | 0.67 | 0.25 | 2 failed, first: workflow faulted at node assess |</span></code></pre></div>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Assignment <span class="pp">|</span> Runs <span class="pp">|</span> Passed <span class="pp">|</span> Cost per pass <span class="pp">|</span> Mean cost <span class="pp">|</span> extract model <span class="pp">|</span> extract cost <span class="pp">|</span> assess model <span class="pp">|</span> assess cost <span class="pp">|</span> explain model <span class="pp">|</span> explain cost <span class="pp">|</span> mean Episode completed <span class="pp">|</span> mean pairwise.win <span class="pp">|</span> Notes <span class="pp">|</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|---|---|---|---|---|---|---|---|---|---|</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> cheap-extract <span class="pp">|</span> 6 <span class="pp">|</span> 6/6 <span class="pp">|</span> 0.021700 <span class="pp">|</span> 0.021700 <span class="pp">|</span> agg/delta <span class="pp">|</span> 0.001200 <span class="pp">|</span> agg/alpha <span class="pp">|</span> 0.014300 <span class="pp">|</span> agg/beta <span class="pp">|</span> 0.006200 <span class="pp">|</span> 1 <span class="pp">|</span> 0.58 <span class="pp">|</span> <span class="pp">|</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> baseline-cast <span class="pp">|</span> 6 <span class="pp">|</span> 6/6 <span class="pp">|</span> 0.027900 <span class="pp">|</span> 0.027900 <span class="pp">|</span> agg/beta <span class="pp">|</span> 0.007400 <span class="pp">|</span> agg/alpha <span class="pp">|</span> 0.014300 <span class="pp">|</span> agg/beta <span class="pp">|</span> 0.006200 <span class="pp">|</span> 1 <span class="pp">|</span> n/a <span class="pp">|</span> baseline <span class="pp">|</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> cheap-assess <span class="pp">|</span> 6 <span class="pp">|</span> 4/6 <span class="pp">|</span> 0.024600 <span class="pp">|</span> 0.016400 <span class="pp">|</span> agg/beta <span class="pp">|</span> 0.007300 <span class="pp">|</span> agg/delta <span class="pp">|</span> 0.002900 <span class="pp">|</span> agg/beta <span class="pp">|</span> 0.006200 <span class="pp">|</span> 0.67 <span class="pp">|</span> 0.25 <span class="pp">|</span> 2 failed, first: workflow faulted at node assess <span class="pp">|</span></span></code></pre></div>
 <p>Reading it: the extraction node is a mechanical transformation and
 runs perfectly well on the cheapest model in the field, which is most of
 the saving. The assessment node is the one carrying the judgement, and
@@ -2710,28 +2710,28 @@ a byte-identical file and never shows up as noise in a review.</p>
 <h3 id="further-reading">Further reading</h3>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Document</th>
 <th>What it covers</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td><a
 href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval/README.md">EF.LLMEval
 README</a></td>
 <td>Every type, option and default. The API source of truth.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><a
 href="LLMEval-INTEGRATION-GUIDE.html">LLMEval-INTEGRATION-GUIDE.md</a></td>
 <td>Adding an eval to a .NET solution, step by step.</td>
 </tr>
-<tr class="odd">
+<tr>
 <td><a href="LLMEval-Operations.html">LLMEval-Operations.md</a></td>
 <td>Budgets, pacing, caches, secrets, and reading a finished run.</td>
 </tr>
-<tr class="even">
+<tr>
 <td><a
 href="https://github.com/efreeman518/EF.Packages.Enterprise/blob/main/EF.LLMEval.FlowEngine/README.md">EF.LLMEval.FlowEngine
 README</a></td>
