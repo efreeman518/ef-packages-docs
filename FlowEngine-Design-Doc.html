@@ -229,7 +229,7 @@ dotnet add package EF.FlowEngine.WorkflowRegistry.Cosmos
 # JsonFileWorkflowRegistry is built into EF.FlowEngine (dev/test only)
 
 # Human task store — choose one (required only if workflow uses human nodes)
-dotnet add package EF.FlowEngine.HumanTaskStore.Sql     # SQL Server / Postgres / SQLite
+dotnet add package EF.FlowEngine.HumanTaskStore.Sql     # SQL Server / Postgres
 dotnet add package EF.FlowEngine.HumanTaskStore.Redis
 dotnet add package EF.FlowEngine.HumanTaskStore.Cosmos
 # InMemoryHumanTaskStore is built into EF.FlowEngine (dev/test only)
@@ -278,7 +278,7 @@ dotnet add package EF.FlowEngine.Testing</code></pre>
       "id": "n-manager-approval", "type": "human",
       "config": {
         "title":      "Approve expense: {{$.entity.SubmitterName}} — ${{$.entity.Total}}",
-        "assignedTo": "$.entity.ManagerEmail",
+        "assignedTo": "$.entity.ManagerId",
         "formSchema": "{ \"decision\": { \"type\": \"string\", \"enum\": [\"approved\",\"rejected\"] } }",
         "dueIn":      "P2D",
         "escalation": { "after": "PT4H", "reassignTo": "role:finance-team" }
@@ -358,12 +358,21 @@ await sqlReg.SaveAsync(def!);</code></pre>
 <h3>4. Resume from an external signal</h3>
 <pre><span class="lang-tag">csharp</span><code>// Task response via internal UI - background variant returns immediately; workflow continues on thread pool
 app.MapPost("/api/tasks/{taskId}/complete", async (
-    string taskId, TaskResponsePayload payload, ClaimsPrincipal user, IHumanTaskStore taskStore) =>
+    string taskId, TaskResponsePayload payload, ClaimsPrincipal user, IHumanTaskStore taskStore,
+    IOptions&lt;FlowEngineHumanTaskRespondentOptions&gt; respondent) =>
 {
-    if (user.Identity?.Name is not { Length: &gt; 0 } respondedBy)
+    var respondedBy = respondent.Value.ResolveRespondent(user);
+    if (respondedBy is null)
         return Results.Forbid();
-    await taskStore.SubmitResponseBackgroundAsync(taskId, payload.ResponseToken, payload.FormValues, respondedBy);
-    return Results.Ok();
+    try
+    {
+        await taskStore.SubmitResponseBackgroundAsync(taskId, payload.ResponseToken, payload.FormValues, respondedBy);
+        return Results.Ok();
+    }
+    catch (HumanTaskAlreadyRespondedException)
+    {
+        return Results.Conflict();
+    }
 }).RequireAuthorization("FlowEngine.HumanTask");
 // Use SubmitResponseAsync if you need to wait for the workflow to reach its next suspension point.
 
@@ -1189,7 +1198,7 @@ processor.ProcessMessageAsync += async args =>
   "type": "human",
   "config": {
     "title":       "Approve order {{$.entity.OrderId}} — ${{$.context.total}}",
-    "assignedTo":  "$.context.managerEmail",
+    "assignedTo":  "$.context.managerId",
     "channel":     "Internal",
     "formSchema":  "{ \"decision\": {\"type\":\"string\",\"enum\":[\"approved\",\"rejected\"]}, \"notes\": {\"type\":\"string\"} }",
     "quorum": 1, "dueIn": "P2D",
@@ -1202,7 +1211,7 @@ processor.ProcessMessageAsync += async args =>
   ]
 }</code></pre>
 <div class="table-wrap"><table>
-  <tr><th>assignedTo</th><td><code>"user:<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b4d5d8ddd7d1f4d7db9ad7dbd9">[email&#160;protected]</a>"</code> · <code>"role:approvers"</code> · <code>"$.context.email"</code> (JSONPath)<br>Template interpolation supported: <code>"role:{{$.context.tier}}-counsel"</code> — interpolated before JSONPath</td></tr>
+  <tr><th>assignedTo</th><td><code>"user:alice-id"</code> · <code>"role:approvers"</code> · <code>"$.context.reviewerId"</code> (JSONPath) · <code>"group:finance-id"</code><br>Values beginning with <code>$.</code> resolve as direct JSONPath. Other values support templates such as <code>"role:{{$.context.tier}}-counsel"</code>.</td></tr>
   <tr><th>channel</th><td><code>Internal</code> (task queue) · <code>External</code> (notification + response link)</td></tr>
   <tr><th>quorum</th><td>Responses required (default 1). Quorum &gt; 1 also writes <code>$.context._humanTaskConsensus</code>:<br><code>"unanimous"</code> / <code>"majority"</code> / <code>"any-denied"</code> / <code>"split"</code></td></tr>
   <tr><th>dueIn</th><td>ISO 8601 duration from task creation. <code>"P2D"</code> · <code>"PT4H"</code><br><small style="color:#8b949e"><strong>ISO 8601 duration syntax</strong> — <code>P[n]Y[n]M[n]DT[n]H[n]M[n]S</code> &nbsp;|&nbsp; <code>P2D</code> = 2 days · <code>PT8H</code> = 8 hours · <code>PT30M</code> = 30 min · <code>P1DT4H</code> = 1 day 4 hours. Parsed via <code>XmlConvert.ToTimeSpan()</code>.</small></td></tr>
@@ -1210,11 +1219,16 @@ processor.ProcessMessageAsync += async args =>
 </table>
 </div>
 <div class="callout callout-blue"><strong>How to resume a <code>human</code> node:</strong> automatic via <code>IHumanTaskStore</code>.
-<pre style="margin:.5rem 0 0"><span class="lang-tag">csharp</span><code>// Caller blocks until workflow reaches its next suspension point or terminal state:
-await taskStore.SubmitResponseAsync(taskId, responseToken, formValues, respondedBy);
-
-// Caller returns immediately; workflow continues on the thread pool:
-await taskStore.SubmitResponseBackgroundAsync(taskId, responseToken, formValues, respondedBy);</code></pre></div>
+<pre style="margin:.5rem 0 0"><span class="lang-tag">csharp</span><code>try
+{
+    // Await the next suspension point or terminal state. Use SubmitResponseBackgroundAsync to await acceptance only.
+    await taskStore.SubmitResponseAsync(taskId, responseToken, formValues, respondedBy);
+    return Results.Ok();
+}
+catch (HumanTaskAlreadyRespondedException)
+{
+    return Results.Conflict();
+}</code></pre></div>
 <div class="outcomes"><span class="pill pm">Match (quorum reached - branch via when predicates on _humanTaskResponse or _humanTaskConsensus)</span><span class="pill pe">Timeout does not emit an outcome: it jumps to onTimeoutNodeId, else globalOnDeadlineNodeId (once), else ends TimedOut (WAIT_TIMEOUT)</span></div>
 <div class="callout callout-yellow"><strong>In-memory human task store is dev/test only.</strong> <code>UseAllInMemoryProviders()</code> wires up <code>InMemoryHumanTaskStore</code>, which holds task records (form schema, assignee, partial responses) in process memory. If the process crashes, those records are lost — even if the state store is durable. The sweep service will detect the suspended instance but cannot reconstruct the task. Use a persistent store (<code>EF.FlowEngine.HumanTaskStore.Sql</code> / Redis / Cosmos) in production.</div>
 
@@ -1379,6 +1393,8 @@ flowEngineBuilder.AddClient(sp =&gt;
   <tr><td><code>human</code></td><td>A user submits a response via <code>IHumanTaskStore.SubmitResponseAsync</code> / <code>SubmitResponseBackgroundAsync</code>. The task store validates the response, checks quorum, and calls <code>engine.ResumeByInstanceIdAsync</code> (or its background variant) internally with the <code>HumanTaskContextKeys.BuildSignalPayload(task)</code> payload. A response to a cancelled task throws <code>HumanTaskClosedException</code> (Admin API: 409). You never call <code>ResumeAsync</code> directly for a human node.</td></tr>
   <tr><td><code>timer</code></td><td>Automatic — <code>ExecutionSweepService</code> detects the elapsed delay and resumes the instance. No caller code required.</td></tr>
 </table></div>
+<p>Human-task HTTP routes require <code>FlowEngine.HumanTask</code> and apply tenant scope through the instance. Assignee reach is the caller's resolved respondent ID plus non-blank configured assignee claims (raw <code>roles</code> and <code>groups</code>, plus mapped <code>roles</code> by default), compared ordinally. The inbox defaults to this reach (up to 50 assigned values) and includes open and in-progress unassigned tasks for identified callers. A caller with <code>FlowEngine.Admin</code> can query an explicit assignee outside their reach and see all tasks by instance. Other by-instance callers see reachable and unassigned tasks. A blank definition assignment allows any identified, tenant-authorized caller to respond. A configured assignment fails with <code>ASSIGNEE_EMPTY</code> for a blank assignee value or JSON null, <code>ASSIGNEE_UNRESOLVED</code> for an unresolved path, and <code>ASSIGNEE_INVALID_TYPE</code> for unsupported values such as documents, objects, and arrays. Responses to assigned tasks require an assignee match for every caller, including HTTP relays. External tasks also require the response token. Relays acting for recipients submit in process.</p>
+<p>Global workflow mutations (PUT, publish, unpublish, DELETE and copy) and circuit-breaker GET and DELETE require <code>FlowEngine.Platform</code>. Workflow reads and compatibility require <code>FlowEngine.Admin</code>. Global routes do not require a tenant claim. See the <a href="FlowEngine-Operations.html#admin-api">Admin API operations guide</a> for Entra permission setup.</p>
 <h4>Resuming a wait or message (RequestReply) node</h4>
 <pre><span class="lang-tag">csharp</span><code>// Caller blocks until workflow reaches its next suspension point or terminal state:
 await engine.ResumeAsync(
@@ -1397,11 +1413,15 @@ await engine.ResumeBackgroundAsync(
 );</code></pre>
 <p>Signal payload available in subsequent nodes as <code>$.context._signal.fieldName</code>.</p>
 <h4>Resuming a human node</h4>
-<pre><span class="lang-tag">csharp</span><code>// Caller blocks until workflow reaches its next suspension point or terminal state:
-await taskStore.SubmitResponseAsync(taskId, responseToken, formValues, respondedBy);
-
-// Caller returns immediately; workflow continues on the thread pool:
-await taskStore.SubmitResponseBackgroundAsync(taskId, responseToken, formValues, respondedBy);</code></pre>
+<pre><span class="lang-tag">csharp</span><code>try
+{
+    await taskStore.SubmitResponseBackgroundAsync(taskId, responseToken, formValues, respondedBy);
+    return Results.Ok();
+}
+catch (HumanTaskAlreadyRespondedException)
+{
+    return Results.Conflict();
+}</code></pre>
 <p>Response payload available in subsequent nodes as <code>$.context._humanTaskResponse</code> (and <code>_humanTaskResponses</code> / <code>_humanTaskConsensus</code> when <code>quorum &gt; 1</code>).</p>
 
 <h2 id="distributed">Multi-Server &amp; Distributed Execution</h2>
@@ -1811,7 +1831,7 @@ public sealed class MyOtelTelemetry : IFlowEngineTelemetry
     .AddNode("n-manager-approval", "human", new HumanNodeConfig
     {
         Title           = "Approve expense {{$.entity.ReportId}}",
-        AssignedTo      = "$.entity.ManagerEmail",
+        AssignedTo      = "$.entity.ManagerId",
         FormSchema      = "{ \"decision\": { \"type\": \"string\" } }",
         DueIn           = "P2D",
         OnTimeoutNodeId = "n-auto-approved"
@@ -2357,7 +2377,7 @@ Task&lt;ExecutionInstance&gt; CancelAsync(
 <h3>Unit tests — TestExecutionContextBuilder</h3>
 <p>Test individual node executors in isolation without a running engine or database:</p>
 <pre><span class="lang-tag">csharp</span><code>var ctx = TestExecutionContext.Create()
-    .WithEntity(new { Id = "ORD-42", Total = 750m, ManagerEmail = "mgr@example.com" })
+    .WithEntity(new { Id = "ORD-42", Total = 750m, ManagerId = "manager-id" })
     .WithContext("riskScore", 680)
     .WithVisitCount("n-review", 2)
     .Build();
@@ -2537,7 +2557,7 @@ faultable.FaultOnLoad = true;</code></pre>
   <li>After all compensation runs, the engine routes to <code>GlobalOnFailureNodeId</code> (if defined) or transitions to <code>Faulted</code>.</li>
 </ol>
 <p>An instance <code>Deadline</code> that passes with no <code>GlobalOnDeadlineNodeId</code>, and a wait that times out with no <code>OnTimeoutNodeId</code> or <code>GlobalOnDeadlineNodeId</code>, unwind the same way and then end <code>TimedOut</code> (<code>INSTANCE_DEADLINE_EXCEEDED</code> / <code>WAIT_TIMEOUT</code>). The sweep does not run a wait-timeout unwind itself: it saves the instance <code>Running</code> with the <code>WAIT_TIMEOUT</code> error, and the execution loop that claims it unwinds and finishes it. Compensation nodes must be idempotent: an unwind interrupted before its save (a crash, or the host stopping) runs again on the next claim. A migration of an instance waiting on an open circuit to a node behind another circuit key (<code>Key</code>, else the node type) rewrites the wait's event name, so closing the new circuit resumes it; the wait keeps its timeout.</p>
-<p>The instance <code>Deadline</code> is enforced on suspended instances too. On suspend the engine caps <code>PendingWait.TimeoutAt</code> at the deadline (a wait without a timeout gets the deadline), so the stores' existing timed-out-wait query finds the instance when it passes. The sweep recognizes the capped timeout before its circuit, timer and <code>OnTimeoutNodeId</code> branches, clears the wait and human task id, and hands the instance <code>Running</code> to the execution loop, whose deadline check routes to <code>GlobalOnDeadlineNodeId</code> or unwinds and ends <code>TimedOut</code> (<code>INSTANCE_DEADLINE_EXCEEDED</code>). A signal (or an admin <code>ResumeInstanceAsync</code>) arriving after the deadline but before the sweep does not advance the node: the instance resumes <code>Running</code> at it into the same check, its abandoned human task cancelled, so the deadline wins even at a suspension node without edges; likewise for signals accumulated before the deadline that the sweep finds after it. A response the task store accepted after the deadline (stores check neither the deadline nor <code>DueAt</code>) leaves the task <code>Completed</code>, the responder having been told it succeeded, and is discarded: the engine logs a warning and emits <code>flow.humantask.response_discarded</code> (<code>instanceId</code>, <code>nodeId</code>, <code>taskId</code>). A discarded response or signal is not applied to the context (<code>_signal</code>, <code>_response</code>, <code>_responses</code>, <code>_consensus</code>), so the deadline handler never sees it; a quorum task still <code>Open</code> that already holds accepted responses is reported the same way and cancelled. Once handled (<code>ExecutionInstance.DeadlineHandledAt</code>, set when the loop routes to the handler or times the instance out) the deadline is not enforced again and the handler's own waits are not capped; one of them that times out goes to its <code>OnTimeoutNodeId</code>, else ends <code>WAIT_TIMEOUT</code> (a saga unwinds first), never back to the handler. The deadline handler runs at most once per instance: <code>ExecutionInstance.DeadlineHandlerEnteredAt</code> records when execution was first routed to it, by the deadline or by a wait timeout without <code>OnTimeoutNodeId</code> falling back to it (also on an instance without a <code>Deadline</code>), and neither routes to it again. Such a fallback does not handle the <code>Deadline</code>: the handler's waits stay capped at it, and if it passes while the handler path still runs the instance unwinds (with compensation enabled) and ends <code>TimedOut</code> (<code>INSTANCE_DEADLINE_EXCEEDED</code>) instead of re-entering the handler. Until then a wait is capped even to a deadline that passed while its node ran. An instance that ends <code>TimedOut</code> cancels its open human tasks before signalling its parent and its non-terminal children after the signal, even when the signal throws, as a cancel does. An instance that ends <code>CycleDetected</code> does the same. One that ends <code>Faulted</code> cancels its open human tasks but keeps its children: <code>ReplayFromDeadLetterAsync</code> re-runs the failed node, and the loop, parallel and workflow executors adopt that node's existing children (a cancelled child counts as failed), so cancelling them would fail the replay; a replay reaching a human node opens a fresh task. A sweep timeout that routes onward (to <code>OnTimeoutNodeId</code>, <code>GlobalOnDeadlineNodeId</code>, or the deadline check) cancels the human task of the wait it leaves before the run continues, but leaves children running: the route may still want them. Only the sweep does this: an admin <code>ResumeInstanceAsync</code> that forces an instance past a human wait leaves the task <code>Open</code> (unless the deadline has passed and is unhandled, when it is cancelled as for a signal); cancel it through the human task store. A cancelled task rejects a response with <code>HumanTaskClosedException</code> (Admin API: 409 Conflict), after an External task's token check and before the duplicate-responder return. Known limitation: the cancel and a response are both load-modify-save on an unversioned <code>HumanTask</code> (only Cosmos uses an etag on responses), so a response loaded before a concurrent cancel can still complete the task and be dropped.</p>
+<p>The instance <code>Deadline</code> is enforced on suspended instances too. On suspend the engine caps <code>PendingWait.TimeoutAt</code> at the deadline (a wait without a timeout gets the deadline), so the stores' existing timed-out-wait query finds the instance when it passes. The sweep recognizes the capped timeout before its circuit, timer and <code>OnTimeoutNodeId</code> branches, clears the wait and human task id, and hands the instance <code>Running</code> to the execution loop, whose deadline check routes to <code>GlobalOnDeadlineNodeId</code> or unwinds and ends <code>TimedOut</code> (<code>INSTANCE_DEADLINE_EXCEEDED</code>). A signal (or an admin <code>ResumeInstanceAsync</code>) arriving after the deadline but before the sweep does not advance the node: the instance resumes <code>Running</code> at it into the same check, its abandoned human task cancelled, so the deadline wins even at a suspension node without edges; likewise for signals accumulated before the deadline that the sweep finds after it. A response the task store accepted after the deadline (stores check neither the deadline nor <code>DueAt</code>) leaves the task <code>Completed</code>, the responder having been told it succeeded, and the response is discarded. A discarded response or signal is not applied to the context (<code>_signal</code>, <code>_response</code>, <code>_responses</code>, <code>_consensus</code>), so the deadline handler never sees it; when the engine cancels a quorum task that holds responses, it logs a warning and emits <code>flow.humantask.response_discarded</code> (<code>instanceId</code>, <code>nodeId</code>, <code>taskId</code>). Once handled (<code>ExecutionInstance.DeadlineHandledAt</code>, set when the loop routes to the handler or times the instance out) the deadline is not enforced again and the handler's own waits are not capped; one of them that times out goes to its <code>OnTimeoutNodeId</code>, else ends <code>WAIT_TIMEOUT</code> (a saga unwinds first), never back to the handler. The deadline handler runs at most once per instance: <code>ExecutionInstance.DeadlineHandlerEnteredAt</code> records when execution was first routed to it, by the deadline or by a wait timeout without <code>OnTimeoutNodeId</code> falling back to it (also on an instance without a <code>Deadline</code>), and neither routes to it again. Such a fallback does not handle the <code>Deadline</code>: the handler's waits stay capped at it, and if it passes while the handler path still runs the instance unwinds (with compensation enabled) and ends <code>TimedOut</code> (<code>INSTANCE_DEADLINE_EXCEEDED</code>) instead of re-entering the handler. Until then a wait is capped even to a deadline that passed while its node ran. An instance that ends <code>TimedOut</code> cancels its open human tasks before signalling its parent and its non-terminal children after the signal, even when the signal throws, as a cancel does. An instance that ends <code>CycleDetected</code> does the same. One that ends <code>Faulted</code> cancels its open human tasks but keeps its children: <code>ReplayFromDeadLetterAsync</code> re-runs the failed node, and the loop, parallel and workflow executors adopt that node's existing children (a cancelled child counts as failed), so cancelling them would fail the replay; a replay reaching a human node opens a fresh task. A sweep timeout that routes onward (to <code>OnTimeoutNodeId</code>, <code>GlobalOnDeadlineNodeId</code>, or the deadline check) cancels the human task of the wait it leaves before the run continues, but leaves children running: the route may still want them. Only the sweep does this: an admin <code>ResumeInstanceAsync</code> that forces an instance past a human wait leaves the task <code>Open</code> (unless the deadline has passed and is unhandled, when it is cancelled as for a signal); cancel it through the human task store. A cancelled task rejects a response with <code>HumanTaskClosedException</code> (Admin API: 409 Conflict), after an External task's token check and before duplicate detection. A duplicate response triggers resume on a completed task before it throws <code>HumanTaskAlreadyRespondedException</code> (Admin API: 409 Conflict). Cancellation and response submission both operate against the current stored task. A cancellation preserves recorded responses and leaves a completed task unchanged.</p>
 
 <h4>Definition</h4>
 <pre><span class="lang-tag">json</span><code>{
@@ -2753,7 +2773,7 @@ var tenantInstances = await store.QueryAsync(new ExecutionQuery
 }, ct);</code></pre>
 
 <h3>HumanTask access control</h3>
-<p>Before calling <code>SubmitResponseAsync</code>, verify: caller matches <code>HumanTask.AssignedTo</code> (user or role) · task is <code>Open</code>/<code>InProgress</code> · <code>DueAt</code> not passed · for External channel, <code>responseToken</code> matches the one issued at task creation.</p>
+<p>Before calling <code>SubmitResponseAsync</code>, verify: caller matches <code>HumanTask.AssignedTo</code> (user ID, role name, or group ID) · task is <code>Open</code>/<code>InProgress</code> · <code>DueAt</code> not passed · for External channel, <code>responseToken</code> matches the one issued at task creation.</p>
 
 <h2 id="troubleshooting">Troubleshooting</h2>
 
@@ -2780,6 +2800,9 @@ var tenantInstances = await store.QueryAsync(new ExecutionQuery
   <tr><td><code>CANCELLED</code></td><td>CancelAsync</td><td>Instance was cancelled</td><td>-</td></tr>
   <tr><td><code>RUNTIME_KEY_TOO_LONG</code></td><td>Engine loop</td><td>A node result's wait event name, correlation key or outbox field exceeds its length limit (see Multi-tenancy)</td><td>Shorten the key or identifier</td></tr>
   <tr><td><code>ASSIGNEE_TOO_LONG</code></td><td>human</td><td>Resolved <code>assignedTo</code> exceeds 256</td><td>Shorten the assignee expression result</td></tr>
+  <tr><td><code>ASSIGNEE_INVALID_TYPE</code></td><td>human</td><td>Configured <code>assignedTo</code> resolves an unsupported value such as a document, object, or array</td><td>Supply a scalar assignee value</td></tr>
+  <tr><td><code>ASSIGNEE_UNRESOLVED</code></td><td>human</td><td>Configured <code>assignedTo</code> contains an unresolved path</td><td>Supply a path that resolves to an assignee value</td></tr>
+  <tr><td><code>ASSIGNEE_EMPTY</code></td><td>human</td><td>Configured <code>assignedTo</code> has a blank assignee value or resolves to JSON null</td><td>Supply a non-blank assignee value</td></tr>
 </table></div>
 
 <h3>Diagnosing a faulted instance</h3>

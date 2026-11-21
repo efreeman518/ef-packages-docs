@@ -916,18 +916,21 @@ flowEngineBuilder.AddClient(sp =&gt;
     /// &lt;summary&gt;
     /// Assignee expression. Evaluated against context at runtime.
     ///
-    /// Three supported formats:
-    ///   &quot;user:alice@company.com&quot;       — specific named user
-    ///   &quot;role:finance-approvers&quot;       — any member of the named role
-    ///   &quot;$.context.reviewerEmail&quot;      — JSONPath resolved at runtime
+    /// Use a bare user ID or a prefixed assignment such as &quot;user:alice-id&quot;,
+    /// &quot;role:finance-approvers&quot;, or &quot;group:finance-id&quot;.
     ///
-    /// Template interpolation is supported BEFORE JSONPath resolution.
+    /// A value starting with $. is resolved directly as JSONPath, for example
+    /// &quot;$.context.reviewerId&quot;. Other values support template interpolation.
     /// This enables dynamic role construction from context values:
     ///   &quot;role:{{$.context.requiredCounselTier}}-counsel&quot;
     ///   → resolves $.context.requiredCounselTier = &quot;senior&quot;
     ///   → produces &quot;role:senior-counsel&quot;
     ///
     /// Interpolation uses {{...}} syntax, same as the Title field.
+    /// Leave AssignedTo blank to create an unassigned task. A configured
+    /// assignment with a blank assignee value or JSON null fails with ASSIGNEE_EMPTY.
+    /// An unresolved path fails with ASSIGNEE_UNRESOLVED. Numbers and booleans use their
+    /// raw JSON text. Documents, objects, and arrays fail with ASSIGNEE_INVALID_TYPE.
     /// The resolved assignee is at most FlowEngine.MaxAssignedToLength (256)
     /// UTF-16 code units; a longer one fails the node with ASSIGNEE_TOO_LONG.
     /// &lt;/summary&gt;
@@ -970,7 +973,7 @@ flowEngineBuilder.AddClient(sp =&gt;
     public EscalationConfig? Escalation { get; init; }
 }
 </code></pre>
-<p>Outcomes: <code>Match</code> when Quorum is reached; <code>Error</code> when the node cannot create the task (for example <code>ASSIGNEE_TOO_LONG</code>).<br />
+<p><code>Match</code> means the task reached quorum. <code>Error</code> means the node could not create the task, for example because of <code>ASSIGNEE_EMPTY</code> or <code>ASSIGNEE_TOO_LONG</code>.<br />
 Edge <code>When</code> predicates branch on the submitted values.</p>
 <p><strong>Response context keys written on resumption:</strong></p>
 <div class="table-wrap"><table>
@@ -1474,7 +1477,7 @@ await using var stream = await ctx.GetDocumentAsync(docRef, ct);
       &quot;maxVisits&quot;: 5,
       &quot;config&quot;: {
         &quot;title&quot;:      &quot;Order {{$.entity.OrderId}}: some items are backordered (ask {{$.engine.visits.n-human-backorder}} of 3)&quot;,
-        &quot;assignedTo&quot;: &quot;$.entity.CustomerEmail&quot;,
+        &quot;assignedTo&quot;: &quot;$.entity.CustomerId&quot;,
         &quot;channel&quot;:    &quot;External&quot;,
         &quot;notification&quot;: { &quot;via&quot;: &quot;email&quot;, &quot;to&quot;: &quot;$.entity.CustomerEmail&quot;,
                           &quot;template&quot;: &quot;backorder-notification&quot; },

@@ -311,7 +311,7 @@ before the case is auto-denied.</p>
 <p><code>integration</code> with <code>storeAs</code> — <code>eligibility-api</code> stores coverage details,<br />
    downstream filter reads <code>$.context.coverage.formularyTier</code></p>
 <p><code>filter</code> targeting <code>$.context</code> for auto-approve criteria check</p>
-<p><code>human</code> node Internal channel, with <code>dueIn</code> and <code>escalation</code></p>
+<p><code>human</code> node on the Internal channel, with <code>assignedTo: "role:medical-director"</code>, <code>dueIn</code> and <code>escalation</code></p>
 <p><code>wait</code> node with <code>timeout: "P7D"</code> — sweep service handles expiry</p>
 <p>Rework pattern — <code>$.engine.visits.n-medical-review &lt; 2</code> on edge <code>when</code>,<br />
    backward edge to <code>n-medical-review</code></p>
@@ -355,7 +355,7 @@ and adverse action notice generation.</p>
    — partial bureau result is acceptable, engine proceeds with what it has</p>
 <p><code>compute</code> nodes for score and DTI — Roslyn expression with <code>Context["bureauScore"]</code></p>
 <p><code>decision</code> node - <code>target: "$.context.riskTier"</code> with edge <code>when</code> predicates</p>
-<p><code>human</code> node with <code>quorum: 2</code> and <code>assignedTo: "role:credit-committee"</code><br />
+<p><code>human</code> node with <code>quorum: 2</code> and <code>assignedTo: "role:underwriter-team"</code><br />
    — <code>IHumanTaskStore.SubmitResponseAsync</code> tracks quorum, resumes when 2 respond</p>
 <p>Multi-response handling — <code>$.context._humanTaskResponses</code> accumulates all responses when <code>quorum &gt; 1</code>. <code>$.context._humanTaskConsensus</code> is set automatically: <code>"unanimous"</code>, <code>"majority"</code>, <code>"any-denied"</code>, or <code>"split"</code>. Edges use simple string comparison: <code>"$.context._humanTaskConsensus == 'unanimous'"</code>.</p>
 <p>Rework with <code>$.engine.visits.n-underwrite &lt; 2</code> on backward edge</p>
@@ -447,7 +447,7 @@ signature is then required before the document is marked approved.</p>
 <p><code>agent</code> with Error routing — <code>IAgentClient</code> returns <code>Error</code> outcome; routes<br />
    directly to error output without creating a human task</p>
 <p><code>store</code> — records AI recommendation in context for human reviewer visibility</p>
-<p><code>human[Internal]</code> with <code>channel: Internal</code> and <code>assignedTo: "legal-team"</code></p>
+<p><code>human[Internal]</code> with <code>channel: Internal</code> and <code>assignedTo: "role:legal-team"</code></p>
 <p><code>wait</code> for digital signature — uses <code>instanceId</code> as correlation key;<br />
    harness calls <code>engine.ResumeAsync(instance.InstanceId, "signature.received", instance.InstanceId)</code>
    (signature <code>ResumeAsync(instanceId, eventName, correlationKey, signalPayload?)</code>)</p>

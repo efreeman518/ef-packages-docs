@@ -614,6 +614,45 @@ root as <code>adminApiBaseUrl</code>.</p>
 It exposes instance management, workflow registry operations,
 circuit-breaker operations, compatibility analysis, and human-task
 endpoints.</p>
+<p>The default policies require individual <code>scope</code> claims.
+Use <code>FlowEngine.Admin</code> for instance operations, workflow
+definition GETs, and compatibility analysis. Grant
+<code>FlowEngine.Platform</code> only to operators who can PUT, publish,
+unpublish, delete or copy workflow definitions, or read and reset
+circuit breakers. In Entra, expose and consent to delegated scopes, or
+assign and grant admin consent to app roles for app-only callers.
+Configure the host to normalize validated <code>scp</code> values or
+approved app roles to separate <code>scope</code> claims. If you replace
+<code>AddFlowEngineAdminPolicies</code>, register
+<code>FlowEngineTenantContext</code> as scoped and register all three
+named policies (<code>FlowEngine.Admin</code>,
+<code>FlowEngine.HumanTask</code>, and
+<code>FlowEngine.Platform</code>). <a
+href="https://learn.microsoft.com/en-us/entra/identity-platform/scenario-protected-web-api-expose-scopes">Entra
+scopes and app roles</a></p>
+<p>Human-task endpoints require <code>FlowEngine.HumanTask</code>. The
+respondent ID matches a bare assignment or <code>user:&lt;id&gt;</code>.
+Role assignments use <code>role:&lt;name&gt;</code> with
+<code>RoleClaimTypes</code> (<code>roles</code> and
+<code>ClaimTypes.Role</code> by default), and group assignments use
+<code>group:&lt;id&gt;</code> with <code>GroupClaimTypes</code>
+(<code>groups</code> by default). All comparisons are ordinal. The inbox
+defaults to this reach, with a limit of 50 assigned values before an
+explicit <code>assignee</code> is needed. For identified callers within
+the tenant, the default inbox includes open and in-progress unassigned
+tasks, and the instance task list includes unassigned tasks of any
+status. An explicit assignee outside reach, or reading all tasks by
+instance, requires <code>FlowEngine.Admin</code> as well. Leave
+<code>AssignedTo</code> blank in the definition to allow any identified
+caller in the tenant to respond. A configured assignment with a blank
+assignee value or JSON null fails with <code>ASSIGNEE_EMPTY</code>. An
+unresolved path fails with <code>ASSIGNEE_UNRESOLVED</code>. Unsupported
+values such as documents, objects, and arrays fail with
+<code>ASSIGNEE_INVALID_TYPE</code>. For assigned tasks, every HTTP
+respondent must match the assignment, including operators.
+External-channel HTTP responses also need the issued token. An HTTP
+relay needs the assignment within its own reach. A relay acting for
+recipients submits their responses in process.</p>
 <h3 id="multi-tenancy-end-to-end">Multi-tenancy: end-to-end</h3>
 <p><code>StartRequest.TenantId</code> is propagated to
 <code>ExecutionInstance.TenantId</code>. The engine does not enforce
@@ -630,10 +669,9 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href=
 <span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">FallbackHeader</span>  <span class="op">=</span> <span class="st">&quot;X-Tenant&quot;</span><span class="op">;</span> <span class="co">// optional, off by default</span></span>
 <span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">RequireTenant</span>   <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>       <span class="co">// 403 when neither resolves</span></span>
 <span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">});</span></span></code></pre></div>
-<p>When enabled, an endpoint filter resolves the tenant for every Admin
-API request and populates a request-scoped
-<code>FlowEngineTenantContext</code>. Endpoints honor it in two
-ways:</p>
+<p>When enabled, an endpoint filter resolves the tenant for instance and
+human-task requests and populates a request-scoped
+<code>FlowEngineTenantContext</code>. Endpoints use it as follows:</p>
 <ul>
 <li><code>GET /instances</code> injects <code>tenant.TenantId</code>
 into <code>ExecutionQuery.TenantId</code>.</li>
@@ -662,9 +700,8 @@ its tenant. Set it only when a trusted gateway sets or strips that
 header; otherwise any caller with the admin scope can name any
 tenant.</p>
 <p>Workflow definitions, compatibility analysis and circuit breakers are
-engine-global, not per tenant: any caller with
-<code>FlowEngine.Admin</code> can publish, delete or reset them. Grant
-that scope only to operators of the whole engine.</p>
+engine-global. These routes work without a tenant claim even when
+<code>RequireTenant</code> is enabled.</p>
 <p>For asynchronous trigger handlers (Service Bus consumers, hosted
 services) that call <code>IFlowEngine</code> outside an HTTP request,
 capture the tenant on the inbound message and pass it explicitly. Use
@@ -753,31 +790,57 @@ them. Missing providers fail silently when the user navigates to a page
 that opens a dialog or snackbar.</p>
 <p><strong>MudBlazor version window:</strong> the Dashboard targets
 MudBlazor 9.x. Verify your host pins a compatible major version.</p>
-<h4 id="forwarding-user-authentication-to-the-admin-api">Forwarding user
-authentication to the Admin API</h4>
-<p>When the Dashboard sits in the same app as the Admin API (or talks to
-a remote API behind the same identity provider), forward the inbound
-user's bearer token to the Admin API call so per-tenant / per-scope
-authorization is enforced upstream:</p>
+<h4
+id="acquiring-a-downstream-token-from-a-blazor-server-circuit">Acquiring
+a downstream token from a Blazor Server circuit</h4>
+<p>Configure the host for delegated access to the Admin API. Use the
+circuit's current <code>AuthenticationStateProvider</code> to resolve
+the user on each call. A factory-created <code>DelegatingHandler</code>
+runs in its own DI scope, so use the
+<code>CircuitServicesAccessor</code> and circuit handler registration
+from <a
+href="https://learn.microsoft.com/en-us/aspnet/core/blazor/security/additional-scenarios?view=aspnetcore-10.0#circuit-activity-handler">Microsoft
+Learn's circuit activity handler example</a>.</p>
+<p>For a host using Microsoft.Identity.Web, enable downstream token
+acquisition and a per-user token cache, then request a delegated token
+for the Admin API scopes. The same handler shape works with a
+host-provided token service. See <a
+href="https://learn.microsoft.com/en-us/dotnet/api/microsoft.identity.web.itokenacquisition.getaccesstokenforuserasync">ITokenAcquisition.GetAccessTokenForUserAsync</a>.</p>
 <div class="sourceCode" id="cb28"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">BearerForwardingHandler</span><span class="op">(</span>IHttpContextAccessor accessor<span class="op">)</span> <span class="op">:</span> DelegatingHandler</span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">protected</span> <span class="kw">override</span> Task<span class="op">&lt;</span>HttpResponseMessage<span class="op">&gt;</span> <span class="fu">SendAsync</span><span class="op">(</span></span>
-<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>        HttpRequestMessage request<span class="op">,</span> CancellationToken ct<span class="op">)</span></span>
-<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> token <span class="op">=</span> accessor<span class="op">.</span><span class="fu">HttpContext</span><span class="op">?.</span><span class="fu">Request</span><span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">Authorization</span><span class="op">.</span><span class="fu">ToString</span><span class="op">();</span></span>
-<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(!</span><span class="dt">string</span><span class="op">.</span><span class="fu">IsNullOrEmpty</span><span class="op">(</span>token<span class="op">))</span></span>
-<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>            request<span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">TryAddWithoutValidation</span><span class="op">(</span><span class="st">&quot;Authorization&quot;</span><span class="op">,</span> token<span class="op">);</span></span>
-<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> <span class="kw">base</span><span class="op">.</span><span class="fu">SendAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
-<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
-<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddHttpContextAccessor</span><span class="op">();</span></span>
-<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddTransient</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;();</span></span>
-<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Attach the handler to the admin client only, so the user&#39;s token never reaches other HTTP clients.</span></span>
-<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">,</span></span>
-<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>    configureHttpClientBuilder<span class="op">:</span> b <span class="op">=&gt;</span> b<span class="op">.</span><span class="fu">AddHttpMessageHandler</span><span class="op">&lt;</span>BearerForwardingHandler<span class="op">&gt;());</span></span></code></pre></div>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> Microsoft<span class="op">.</span><span class="fu">AspNetCore</span><span class="op">.</span><span class="fu">Components</span><span class="op">.</span><span class="fu">Authorization</span><span class="op">;</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> Microsoft<span class="op">.</span><span class="fu">Identity</span><span class="op">.</span><span class="fu">Web</span><span class="op">;</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="kw">using</span> System<span class="op">.</span><span class="fu">Net</span><span class="op">.</span><span class="fu">Http</span><span class="op">.</span><span class="fu">Headers</span><span class="op">;</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">sealed</span> <span class="kw">class</span> <span class="fu">AdminUserTokenHandler</span><span class="op">(</span>CircuitServicesAccessor circuit<span class="op">,</span> <span class="dt">string</span><span class="op">[]</span> adminApiScopes<span class="op">)</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">:</span> DelegatingHandler</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">protected</span> <span class="kw">override</span> async Task<span class="op">&lt;</span>HttpResponseMessage<span class="op">&gt;</span> <span class="fu">SendAsync</span><span class="op">(</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>        HttpRequestMessage request<span class="op">,</span> CancellationToken ct<span class="op">)</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">// The resilience handler cannot recover a missing circuit or user by retrying.</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> services <span class="op">=</span> circuit<span class="op">.</span><span class="fu">Services</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>            <span class="op">??</span> <span class="kw">throw</span> <span class="kw">new</span> <span class="fu">InvalidOperationException</span><span class="op">(</span><span class="st">&quot;The Admin API call requires an active Blazor circuit.&quot;</span><span class="op">);</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> state <span class="op">=</span> services<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>AuthenticationStateProvider<span class="op">&gt;();</span></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> user <span class="op">=</span> <span class="op">(</span>await state<span class="op">.</span><span class="fu">GetAuthenticationStateAsync</span><span class="op">().</span><span class="fu">WaitAsync</span><span class="op">(</span>ct<span class="op">)).</span><span class="fu">User</span><span class="op">;</span></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a>        <span class="kw">if</span> <span class="op">(</span>user<span class="op">.</span><span class="fu">Identity</span><span class="op">?.</span><span class="fu">IsAuthenticated</span> <span class="op">!=</span> <span class="kw">true</span><span class="op">)</span></span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>            <span class="kw">throw</span> <span class="kw">new</span> <span class="fu">InvalidOperationException</span><span class="op">(</span><span class="st">&quot;The Admin API call requires a signed-in user.&quot;</span><span class="op">);</span></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> acquisition <span class="op">=</span> services<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>ITokenAcquisition<span class="op">&gt;();</span></span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>        <span class="dt">var</span> token <span class="op">=</span> await acquisition<span class="op">.</span><span class="fu">GetAccessTokenForUserAsync</span><span class="op">(</span>adminApiScopes<span class="op">,</span> user<span class="op">:</span> user<span class="op">).</span><span class="fu">WaitAsync</span><span class="op">(</span>ct<span class="op">);</span></span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>        request<span class="op">.</span><span class="fu">Headers</span><span class="op">.</span><span class="fu">Authorization</span> <span class="op">=</span> <span class="kw">new</span> <span class="fu">AuthenticationHeaderValue</span><span class="op">(</span><span class="st">&quot;Bearer&quot;</span><span class="op">,</span> token<span class="op">);</span></span>
+<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> await <span class="kw">base</span><span class="op">.</span><span class="fu">SendAsync</span><span class="op">(</span>request<span class="op">,</span> ct<span class="op">);</span></span>
+<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb28-24"><a href="#cb28-24" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb28-25"><a href="#cb28-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-26"><a href="#cb28-26" aria-hidden="true" tabindex="-1"></a><span class="co">// adminApiScopes contains the host-configured delegated scopes for this API.</span></span>
+<span id="cb28-27"><a href="#cb28-27" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddTransient</span><span class="op">(</span>sp <span class="op">=&gt;</span></span>
+<span id="cb28-28"><a href="#cb28-28" aria-hidden="true" tabindex="-1"></a>    <span class="kw">new</span> <span class="fu">AdminUserTokenHandler</span><span class="op">(</span>sp<span class="op">.</span><span class="fu">GetRequiredService</span><span class="op">&lt;</span>CircuitServicesAccessor<span class="op">&gt;(),</span> adminApiScopes<span class="op">));</span></span>
+<span id="cb28-29"><a href="#cb28-29" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span><span class="op">.</span><span class="fu">AddFlowEngineDashboard</span><span class="op">(</span>adminApiBaseUrl<span class="op">,</span></span>
+<span id="cb28-30"><a href="#cb28-30" aria-hidden="true" tabindex="-1"></a>    configureHttpClientBuilder<span class="op">:</span> b <span class="op">=&gt;</span> b<span class="op">.</span><span class="fu">AddHttpMessageHandler</span><span class="op">&lt;</span>AdminUserTokenHandler<span class="op">&gt;());</span></span></code></pre></div>
+<p>Run calls using this handler after the interactive circuit starts.
+Configure the Admin API to validate the delegated token's audience,
+scopes and tenant. A shared service identity counts as one respondent
+for a task. A second user who responds through it receives HTTP 409.</p>
 <h4 id="dashboard-package-dependencies">Dashboard package
 dependencies</h4>
 <p><code>EF.FlowEngine.Dashboard</code> transitively pulls
@@ -875,16 +938,21 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb33-1"><a href=
 <span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span>
 <span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Suspended</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span>
 <span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="co">// The store records the response and, once quorum is reached, resumes the instance itself.</span></span>
-<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="co">// Do not call ResumeAsync for a human task.</span></span>
-<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>await _humanTasks<span class="op">.</span><span class="fu">SubmitResponseAsync</span><span class="op">(</span></span>
-<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    instance<span class="op">.</span><span class="fu">PendingHumanTaskId</span><span class="op">!,</span></span>
-<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    responseToken<span class="op">:</span> <span class="kw">null</span><span class="op">,</span></span>
-<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>    formValues<span class="op">:</span>    JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> decision <span class="op">=</span> <span class="st">&quot;approved&quot;</span> <span class="op">}),</span></span>
-<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>    respondedBy<span class="op">:</span>   <span class="st">&quot;manager@company.com&quot;</span><span class="op">);</span></span>
-<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>instance <span class="op">=</span> <span class="op">(</span>await _stateStore<span class="op">.</span><span class="fu">LoadAsync</span><span class="op">(</span>instance<span class="op">.</span><span class="fu">InstanceId</span><span class="op">))!;</span></span>
-<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Completed</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span></code></pre></div>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> user <span class="op">=</span> <span class="kw">new</span> <span class="fu">ClaimsPrincipal</span><span class="op">(</span><span class="kw">new</span> <span class="fu">ClaimsIdentity</span><span class="op">([</span><span class="kw">new</span> <span class="fu">Claim</span><span class="op">(</span><span class="st">&quot;sub&quot;</span><span class="op">,</span> <span class="st">&quot;reviewer-1&quot;</span><span class="op">)],</span> <span class="st">&quot;Test&quot;</span><span class="op">));</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> respondentOptions <span class="op">=</span> <span class="kw">new</span> <span class="fu">FlowEngineHumanTaskRespondentOptions</span><span class="op">();</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> respondentId <span class="op">=</span> respondentOptions<span class="op">.</span><span class="fu">ResolveRespondent</span><span class="op">(</span>user<span class="op">)</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">??</span> <span class="kw">throw</span> <span class="kw">new</span> <span class="fu">InvalidOperationException</span><span class="op">(</span><span class="st">&quot;The test principal needs a stable respondent claim.&quot;</span><span class="op">);</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a><span class="co">// The store records the response and, once quorum is reached, resumes the instance itself.</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a><span class="co">// Do not call ResumeAsync for a human task.</span></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>await _humanTasks<span class="op">.</span><span class="fu">SubmitResponseAsync</span><span class="op">(</span></span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>    instance<span class="op">.</span><span class="fu">PendingHumanTaskId</span><span class="op">!,</span></span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>    responseToken<span class="op">:</span> <span class="kw">null</span><span class="op">,</span></span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>    formValues<span class="op">:</span>    JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span><span class="kw">new</span> <span class="op">{</span> decision <span class="op">=</span> <span class="st">&quot;approved&quot;</span> <span class="op">}),</span></span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>    respondedBy<span class="op">:</span>   respondentId<span class="op">);</span></span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>instance <span class="op">=</span> <span class="op">(</span>await _stateStore<span class="op">.</span><span class="fu">LoadAsync</span><span class="op">(</span>instance<span class="op">.</span><span class="fu">InstanceId</span><span class="op">))!;</span></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>Assert<span class="op">.</span><span class="fu">AreEqual</span><span class="op">(</span>ExecStatus<span class="op">.</span><span class="fu">Completed</span><span class="op">,</span> instance<span class="op">.</span><span class="fu">Status</span><span class="op">);</span></span></code></pre></div>
 <p><strong>Reference implementation:</strong> the source repository
 includes 9 realistic end-to-end use cases covering healthcare, loans,
 e-commerce, AI, compliance, scheduling, and orchestration patterns.</p>

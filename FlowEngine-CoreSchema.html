@@ -611,6 +611,9 @@ public sealed class ExecutionError
 <tr><td><code>NODE_NOT_FOUND</code></td><td><code>CurrentNodeId</code> does not exist in the loaded definition</td></tr>
 <tr><td><code>RUNTIME_KEY_TOO_LONG</code></td><td>A node result carried a wait event name or correlation key, or an outbox entry field, longer than its bounded store column</td></tr>
 <tr><td><code>ASSIGNEE_TOO_LONG</code></td><td>A human node resolved an <code>AssignedTo</code> longer than <code>FlowEngine.MaxAssignedToLength</code> (256)</td></tr>
+<tr><td><code>ASSIGNEE_INVALID_TYPE</code></td><td>A human node resolved an unsupported <code>AssignedTo</code> value, such as a document, object, or array</td></tr>
+<tr><td><code>ASSIGNEE_UNRESOLVED</code></td><td>A human node could not resolve an <code>AssignedTo</code> path</td></tr>
+<tr><td><code>ASSIGNEE_EMPTY</code></td><td>A configured human node <code>AssignedTo</code> has a blank assignee value or resolved to JSON null</td></tr>
 <tr><td><code>CONTEXT_REQUIREMENTS_FAILED</code></td><td>The node's <code>ContextRequirements</code> were not met before execution</td></tr>
 <tr><td><code>OUTPUT_SCHEMA_VALIDATION_FAILED</code></td><td>The node output failed its <code>OutputSchema</code></td></tr>
 <tr><td><code>RETRY_AFTER_LIMIT_EXCEEDED</code></td><td>A <code>Retry-After</code> delay exceeded the retry wait limit (integration <code>retryAfterMaxDelay</code>, else the retry policy <code>MaxDelay</code>, else 60s); the request is not resent</td></tr>
@@ -768,7 +771,8 @@ public sealed class EscalationConfig
     /// &lt;summary&gt;ISO 8601 duration or calendar expression defining when escalation triggers (e.g. &lt;c&gt;"PT1H"&lt;/c&gt;).&lt;/summary&gt;
     public string After { get; init; } = string.Empty;
 
-    /// &lt;summary&gt;The user, group, or role the task is reassigned to upon escalation.&lt;/summary&gt;
+    /// &lt;summary&gt;The assignee upon escalation, expressed as a bare user ID, &lt;c&gt;user:&amp;lt;id&amp;gt;&lt;/c&gt;,
+    /// &lt;c&gt;group:&amp;lt;id&amp;gt;&lt;/c&gt;, or &lt;c&gt;role:&amp;lt;name&amp;gt;&lt;/c&gt;.&lt;/summary&gt;
     public string ReassignTo { get; init; } = string.Empty;
 
     /// &lt;summary&gt;When &lt;c&gt;true&lt;/c&gt;, the original assignee is notified of the reassignment. Default: &lt;c&gt;true&lt;/c&gt;.&lt;/summary&gt;
@@ -790,14 +794,16 @@ public static class HumanTaskContextKeys
     /// &lt;summary&gt;
     /// Builds the resume payload a human task store passes to the engine when a task reaches its quorum: the task id
     /// under &lt;c&gt;_humanTaskId&lt;/c&gt; correlates the response to the instance's pending task, the first
-    /// response under &lt;see cref="Response"/&gt;, every response under &lt;see cref="Responses"/&gt;, and the consensus label
+    /// response under &lt;see cref="Response"/&gt;, the responses that reached quorum under &lt;see cref="Responses"/&gt;, and the consensus label
     /// (null for a single-respondent task) under &lt;see cref="Consensus"/&gt;.
     /// &lt;/summary&gt;
     /// &lt;param name="task"&gt;The completed task; it holds at least one response.&lt;/param&gt;
     /// &lt;returns&gt;The signal payload the engine promotes into the instance context on resume.&lt;/returns&gt;
     public static JsonElement BuildSignalPayload(HumanTask task)
     {
-        var first = task.Responses[0].Values;
+        var quorumResponses = task.Responses.Take(Math.Max(1, task.Quorum)).ToArray();
+        var first = quorumResponses[0].Values;
+        var values = quorumResponses.Select(response =&gt; response.Values);
 
         if (task.Quorum &lt;= 1)
         {
@@ -805,18 +811,17 @@ public static class HumanTaskContextKeys
             {
                 _humanTaskId = task.TaskId,
                 _humanTaskResponse = first,
-                _humanTaskResponses = task.Responses.Select(r =&gt; r.Values).ToArray(),
+                _humanTaskResponses = values,
                 _humanTaskConsensus = (string?)null
             });
         }
 
-        // Multi-respondent: compute consensus label from all responses
-        var consensusLabel = ComputeConsensusLabel(task.Responses);
+        var consensusLabel = ComputeConsensusLabel(quorumResponses);
         return JsonSerializer.SerializeToElement(new
         {
             _humanTaskId = task.TaskId,
             _humanTaskResponse = first,
-            _humanTaskResponses = task.Responses.Select(r =&gt; r.Values).ToArray(),
+            _humanTaskResponses = values,
             _humanTaskConsensus = consensusLabel
         });
     }
@@ -1500,21 +1505,36 @@ public interface IHumanTaskStore
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;HumanTask?&gt; LoadAsync(string taskId, CancellationToken ct = default);
 
-    /// &lt;summary&gt;Persists the current state of a human task (creates or updates).&lt;/summary&gt;
+    /// &lt;summary&gt;Creates a human task or replaces the entire stored task.&lt;/summary&gt;
+    /// &lt;remarks&gt;Use the task update methods for concurrent edits to an existing task.&lt;/remarks&gt;
     /// &lt;param name="task"&gt;The task to persist.&lt;/param&gt;
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;exception cref="Exceptions.ConcurrencyException"&gt;
+    /// A provider with a concurrency token detected a conflicting write.
+    /// &lt;/exception&gt;
     Task SaveAsync(HumanTask task, CancellationToken ct = default);
 
+    /// &lt;summary&gt;Cancels an open or in-progress task, preserving recorded responses. Missing or terminal tasks are unchanged.&lt;/summary&gt;
+    /// &lt;param name="taskId"&gt;The task to cancel.&lt;/param&gt;
+    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;returns&gt;The snapshot committed by this cancellation, or &lt;c&gt;null&lt;/c&gt; when the task is missing or terminal.&lt;/returns&gt;
+    /// &lt;exception cref="Exceptions.ConcurrencyException"&gt;The store exhausted its conditional write attempts.&lt;/exception&gt;
+    Task&lt;HumanTask?&gt; CancelAsync(string taskId, CancellationToken ct = default);
+
     /// &lt;summary&gt;
-    /// Returns all tasks assigned to &lt;paramref name="assignee"/&gt;, optionally filtered by status.
+    /// Returns tasks matching any stored assignment value ordinally, optionally filtered by status.
     /// Used by task-list UIs.
     /// &lt;/summary&gt;
-    /// &lt;param name="assignee"&gt;The assignee identifier (user, group, or role).&lt;/param&gt;
+    /// &lt;param name="assignees"&gt;Stored assignment values, including the empty string for unassigned tasks.&lt;/param&gt;
     /// &lt;param name="status"&gt;When specified, only tasks in this status are returned.&lt;/param&gt;
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
-    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetAssignedToAsync(
-        string assignee,
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetAssignedToAnyAsync(
+        IReadOnlyCollection&lt;string&gt; assignees,
         HumanTaskStatus? status = null,
+        CancellationToken ct = default);
+
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetAssignedToAnyAsync(
+        string instanceId, IReadOnlyCollection&lt;string&gt; assignees, HumanTaskStatus? status = null,
         CancellationToken ct = default);
 
     /// &lt;summary&gt;Returns all tasks created for the specified workflow execution instance.&lt;/summary&gt;
@@ -1537,21 +1557,29 @@ public interface IHumanTaskStore
     /// &lt;summary&gt;
     /// Records a response to the task, optionally validates a response token, checks
     /// form schema required fields, and advances quorum counting.
-    /// Resumes the parent workflow instance synchronously once the quorum threshold is reached -
-    /// the caller blocks until the workflow reaches its next suspension point or terminal state.
+    /// A submission on a task that has reached quorum resumes the parent workflow instance and awaits its
+    /// next suspension point or terminal state.
     /// &lt;/summary&gt;
     /// &lt;param name="taskId"&gt;The unique task ID.&lt;/param&gt;
     /// &lt;param name="responseToken"&gt;Optional secure token (for external/email channels) to prevent replay.&lt;/param&gt;
     /// &lt;param name="formValues"&gt;The form values submitted by the assignee.&lt;/param&gt;
     /// &lt;param name="respondedBy"&gt;The identifier of the user submitting the response.&lt;/param&gt;
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;returns&gt;The task with the recorded responses.&lt;/returns&gt;
     /// &lt;exception cref="UnauthorizedAccessException"&gt;
-    /// An External-channel task and the response token is missing or does not match the issued one (checked first,
-    /// so a cancelled External task also answers a bad token this way).
+    /// An External-channel task and the response token is missing or does not match the issued one
+    /// (checked before cancellation and duplicate detection).
     /// &lt;/exception&gt;
     /// &lt;exception cref="Exceptions.HumanTaskClosedException"&gt;
     /// The task is cancelled (its instance timed out, was cancelled, or left the wait): nothing waits for it any more.
     /// &lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.HumanTaskAlreadyRespondedException"&gt;
+    /// The identity has already responded (checked after the token and cancellation). For a completed task,
+    /// the store attempts to resume the workflow first if the instance still exists.
+    /// &lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.InstanceNotFoundException"&gt;The instance is absent when resuming after recording a new response.&lt;/exception&gt;
+    /// &lt;exception cref="ArgumentException"&gt;The form schema is invalid, or the values are absent or omit required fields.&lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.ConcurrencyException"&gt;The store exhausted its conditional write attempts.&lt;/exception&gt;
     Task&lt;HumanTask&gt; SubmitResponseAsync(
         string taskId,
         string? responseToken,
@@ -1562,23 +1590,30 @@ public interface IHumanTaskStore
     /// &lt;summary&gt;
     /// Records a response to the task, optionally validates a response token, checks
     /// form schema required fields, and advances quorum counting.
-    /// When quorum is reached, resumes the parent workflow on the thread pool and returns
-    /// immediately with &lt;see cref="HumanTaskStatus.Completed"/&gt; - the caller does not wait
-    /// for subsequent workflow execution. Use this overload from HTTP handlers where
-    /// response latency matters.
+    /// A submission on a task that has reached quorum starts a background resume and returns the task with
+    /// &lt;see cref="HumanTaskStatus.Completed"/&gt; status. Use this overload from HTTP handlers where response
+    /// latency matters.
     /// &lt;/summary&gt;
     /// &lt;param name="taskId"&gt;The unique task ID.&lt;/param&gt;
     /// &lt;param name="responseToken"&gt;Optional secure token (for external/email channels) to prevent replay.&lt;/param&gt;
     /// &lt;param name="formValues"&gt;The form values submitted by the assignee.&lt;/param&gt;
     /// &lt;param name="respondedBy"&gt;The identifier of the user submitting the response.&lt;/param&gt;
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
+    /// &lt;returns&gt;The task with the recorded responses.&lt;/returns&gt;
     /// &lt;exception cref="UnauthorizedAccessException"&gt;
-    /// An External-channel task and the response token is missing or does not match the issued one (checked first,
-    /// so a cancelled External task also answers a bad token this way).
+    /// An External-channel task and the response token is missing or does not match the issued one
+    /// (checked before cancellation and duplicate detection).
     /// &lt;/exception&gt;
     /// &lt;exception cref="Exceptions.HumanTaskClosedException"&gt;
     /// The task is cancelled (its instance timed out, was cancelled, or left the wait): nothing waits for it any more.
     /// &lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.HumanTaskAlreadyRespondedException"&gt;
+    /// The identity has already responded (checked after the token and cancellation). For a completed task,
+    /// the store requests a background resume first if the instance still exists.
+    /// &lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.InstanceNotFoundException"&gt;The instance is absent when requesting a resume after recording a new response.&lt;/exception&gt;
+    /// &lt;exception cref="ArgumentException"&gt;The form schema is invalid, or the values are absent or omit required fields.&lt;/exception&gt;
+    /// &lt;exception cref="Exceptions.ConcurrencyException"&gt;The store exhausted its conditional write attempts.&lt;/exception&gt;
     Task&lt;HumanTask&gt; SubmitResponseBackgroundAsync(
         string taskId,
         string? responseToken,
@@ -2697,8 +2732,7 @@ public interface IDocumentStore
 ///   flow.node.started          flow.node.completed
 ///   flow.agent.completed
 ///   flow.checkpoint.saved
-///   flow.humantask.response_discarded  (a response the store accepted after the instance left the wait, e.g.
-///                                       past its deadline; tags nodeId, taskId)
+///   flow.humantask.response_discarded  (the engine cancelled a pending task with recorded responses; tags nodeId, taskId)
 ///   flow.compensation.incomplete  (a saga step left uncompensated; nodeId is the forward step;
 ///                                  outcome is the compensation's, absent when its node is missing)
 /// &lt;/summary&gt;

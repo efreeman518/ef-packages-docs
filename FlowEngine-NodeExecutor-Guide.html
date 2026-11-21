@@ -677,7 +677,8 @@ Assert.Equal(ExecStatus.Suspended, instance.Status);   // waiting at human node
 var taskStore = provider.GetRequiredService&lt;IHumanTaskStore&gt;();
 var task      = (await taskStore.GetByInstanceAsync(instance.InstanceId, ct)).Single();
 await taskStore.SubmitResponseAsync(task.TaskId, responseToken: null,
-    JsonSerializer.SerializeToElement(new { decision = &quot;approved&quot; }), respondedBy: &quot;alice&quot;, ct);
+    JsonSerializer.SerializeToElement(new { decision = &quot;approved&quot; }), respondedBy: reviewerSubjectId, ct);
+// reviewerSubjectId is the reviewer's stable oid or sub claim.
 
 instance = (await provider.GetRequiredService&lt;IExecutionStateStore&gt;().LoadAsync(instance.InstanceId, ct))!;
 Assert.Equal(ExecStatus.Completed, instance.Status);

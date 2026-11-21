@@ -862,7 +862,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb18-1"><a href=
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Get manager approval for expenses over the auto-approval threshold&quot;</span><span class="fu">,</span></span>
 <span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;title&quot;</span><span class="fu">:</span>       <span class="st">&quot;Approve expense report {{$.entity.ReportId}} — ${{$.context.total}}&quot;</span><span class="fu">,</span></span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.context.managerEmail&quot;</span><span class="fu">,</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.context.managerId&quot;</span><span class="fu">,</span></span>
 <span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;channel&quot;</span><span class="fu">:</span>     <span class="st">&quot;Internal&quot;</span><span class="fu">,</span></span>
 <span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;formSchema&quot;</span><span class="fu">:</span>  <span class="st">&quot;{ </span><span class="ch">\&quot;</span><span class="st">required</span><span class="ch">\&quot;</span><span class="st">: [</span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">], </span><span class="ch">\&quot;</span><span class="st">properties</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">enum</span><span class="ch">\&quot;</span><span class="st">: [</span><span class="ch">\&quot;</span><span class="st">approved</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">rejected</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">needs-info</span><span class="ch">\&quot;</span><span class="st">] }, </span><span class="ch">\&quot;</span><span class="st">notes</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st"> } } }&quot;</span><span class="fu">,</span></span>
 <span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;visibleContext&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;$.entity.ReportId&quot;</span><span class="ot">,</span> <span class="st">&quot;$.context.lineItems&quot;</span><span class="ot">,</span> <span class="st">&quot;$.context.total&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
@@ -881,16 +881,23 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb18-1"><a href=
 <ul>
 <li><code>title</code> — supports <code>{{$.context.key}}</code> and
 <code>{{$.entity.field}}</code> template interpolation</li>
-<li><code>assignedTo</code> - at most 256 characters once resolved (a
-longer value fails the node with <code>ASSIGNEE_TOO_LONG</code>); one
-of:
+<li><code>assignedTo</code> - leave blank to create an unassigned task.
+A configured value with a blank assignee value fails with
+<code>ASSIGNEE_EMPTY</code>. A resolved value longer than 256 UTF-16
+code units fails with <code>ASSIGNEE_TOO_LONG</code>. Use one of:
 <ul>
-<li>Direct JSONPath: <code>"$.context.reviewerEmail"</code> (resolved to
-string value)</li>
-<li>Role reference: <code>"role:managers"</code> or
-<code>"user:alice@co.com"</code></li>
-<li>Template: <code>"role:{{$.context.tier}}-counsel"</code>
-(interpolated)</li>
+<li>Direct JSONPath: <code>"$.context.reviewerId"</code>. A value
+beginning with <code>$.</code> is resolved before template
+processing.</li>
+<li>User ID: <code>"alice-id"</code> or
+<code>"user:alice-id"</code></li>
+<li>Role name: <code>"role:managers"</code></li>
+<li>Group ID: <code>"group:finance-id"</code></li>
+<li>Template: <code>"role:{{$.context.tier}}-counsel"</code> JSON null
+fails with <code>ASSIGNEE_EMPTY</code>. An unresolved path fails with
+<code>ASSIGNEE_UNRESOLVED</code>. Numbers and booleans use their raw
+JSON text. Documents, objects, and arrays fail with
+<code>ASSIGNEE_INVALID_TYPE</code>.</li>
 </ul></li>
 <li><code>channel</code> — <code>Internal</code> (task queue) or
 <code>External</code> (notification with response link)</li>
@@ -951,14 +958,45 @@ top-level context key)</td>
 </table>
 <p>Responses are submitted through
 <code>IHumanTaskStore.SubmitResponseAsync(taskId, responseToken, formValues, respondedBy)</code>
-(or the Admin API <code>POST /human-tasks/{taskId}/respond</code>); the
-store resumes the instance when quorum is reached, so callers never call
-<code>ResumeAsync</code> for a human task. A response to a cancelled
-task throws <code>HumanTaskClosedException</code> (Admin API 409).</p>
-<p><strong>Outcomes:</strong> <code>Match</code> when quorum is reached;
+(or the Admin API <code>POST /human-tasks/{taskId}/respond</code>). The
+store resumes the instance when quorum is reached. A response to a
+cancelled task throws <code>HumanTaskClosedException</code>. A repeated
+response from the same respondent throws
+<code>HumanTaskAlreadyRespondedException</code>, after attempting to
+resume a completed task. The Admin API returns HTTP 409 for either
+exception. The Admin API derives the respondent from the caller's
+identity claims. The HTTP body carries form values and an optional
+response token. The <code>FlowEngine.HumanTask</code> policy gates all
+human-task routes. The caller's reach is the resolved respondent ID plus
+non-blank configured assignee claims (raw <code>roles</code> and
+<code>groups</code>, plus mapped <code>roles</code> by default), matched
+ordinally. Blank assignments are open to tenant-authorized callers with
+a resolved respondent ID. Other assignments outside reach return HTTP
+403 even for operators. An External task's HTTP response requires its
+token. An HTTP relay needs the assignment within its own reach. A relay
+submits on behalf of recipients through the store in process.</p>
+<p>The HTTP inbox defaults to the caller's reach, up to 50 assigned
+values, and includes open and in-progress unassigned tasks for
+identified callers. It accepts an optional <code>assignee</code>. A
+caller who also has <code>FlowEngine.Admin</code> can select an assignee
+outside their reach and see all tasks by instance. Other by-instance
+callers see reachable and unassigned tasks within their tenant.</p>
+<p>Use <code>FlowEngine.Platform</code> for workflow PUT, publish,
+unpublish, DELETE and copy, and for circuit-breaker GET and DELETE.
+Workflow definition GETs and compatibility use
+<code>FlowEngine.Admin</code>. These global routes work without a tenant
+claim. In Entra, grant delegated scopes or app-only roles and configure
+the host to normalize validated permissions to individual
+<code>scope</code> claims or evaluate them in custom named policies. If
+you replace <code>AddFlowEngineAdminPolicies</code>, register
+<code>FlowEngineTenantContext</code> as scoped and register all three
+named policies (<code>FlowEngine.Admin</code>,
+<code>FlowEngine.HumanTask</code>, and
+<code>FlowEngine.Platform</code>).</p>
+<p><strong>Outcomes:</strong> <code>Match</code> when quorum is reached.
 <code>Error</code> for a node failure such as
-<code>ASSIGNEE_TOO_LONG</code>. A timeout is not an outcome (see
-<code>onTimeoutNodeId</code>).</p>
+<code>ASSIGNEE_EMPTY</code> or <code>ASSIGNEE_TOO_LONG</code>. Timeout
+handling uses <code>onTimeoutNodeId</code>.</p>
 <p><strong>Quorum = 1 edge pattern</strong> (standard):</p>
 <div class="sourceCode" id="cb19"><pre
 class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span> <span class="dt">&quot;label&quot;</span><span class="fu">:</span> <span class="st">&quot;Approved&quot;</span><span class="fu">,</span> <span class="dt">&quot;on&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;Match&quot;</span><span class="ot">]</span><span class="fu">,</span> <span class="dt">&quot;when&quot;</span><span class="fu">:</span> <span class="st">&quot;Context[</span><span class="ch">\&quot;</span><span class="st">_humanTaskResponse</span><span class="ch">\&quot;</span><span class="st">][</span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">].ToString() == </span><span class="ch">\&quot;</span><span class="st">approved</span><span class="ch">\&quot;</span><span class="st">&quot;</span><span class="fu">,</span> <span class="dt">&quot;nextNodeId&quot;</span><span class="fu">:</span> <span class="st">&quot;n-next&quot;</span> <span class="fu">}</span></span></code></pre></div>
@@ -1531,7 +1569,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb35-1"><a href=
 <span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;type&quot;</span><span class="fu">:</span> <span class="st">&quot;human&quot;</span><span class="fu">,</span></span>
 <span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Applicant addresses the underwriter feedback and resubmits&quot;</span><span class="fu">,</span></span>
 <span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.ApplicantEmail&quot;</span><span class="fu">,</span></span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.ApplicantId&quot;</span><span class="fu">,</span></span>
 <span id="cb35-22"><a href="#cb35-22" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;channel&quot;</span><span class="fu">:</span>     <span class="st">&quot;External&quot;</span><span class="fu">,</span></span>
 <span id="cb35-23"><a href="#cb35-23" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;title&quot;</span><span class="fu">:</span>       <span class="st">&quot;Rework required — attempt {{$.engine.visits.n-review}} of 3&quot;</span><span class="fu">,</span></span>
 <span id="cb35-24"><a href="#cb35-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;formSchema&quot;</span><span class="fu">:</span>  <span class="st">&quot;{ </span><span class="ch">\&quot;</span><span class="st">changes</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st"> } }&quot;</span><span class="fu">,</span></span>
@@ -2485,7 +2523,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb43-1"><a href=
 <span id="cb43-30"><a href="#cb43-30" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;maxVisits&quot;</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span></span>
 <span id="cb43-31"><a href="#cb43-31" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb43-32"><a href="#cb43-32" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;title&quot;</span><span class="fu">:</span>       <span class="st">&quot;Expense approval required: {{$.entity.SubmitterName}} — ${{$.entity.Total}}&quot;</span><span class="fu">,</span></span>
-<span id="cb43-33"><a href="#cb43-33" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.ManagerEmail&quot;</span><span class="fu">,</span></span>
+<span id="cb43-33"><a href="#cb43-33" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.ManagerId&quot;</span><span class="fu">,</span></span>
 <span id="cb43-34"><a href="#cb43-34" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;channel&quot;</span><span class="fu">:</span>     <span class="st">&quot;Internal&quot;</span><span class="fu">,</span></span>
 <span id="cb43-35"><a href="#cb43-35" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;formSchema&quot;</span><span class="fu">:</span>  <span class="st">&quot;{ </span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">enum</span><span class="ch">\&quot;</span><span class="st">: [</span><span class="ch">\&quot;</span><span class="st">approved</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">rejected</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">needs-info</span><span class="ch">\&quot;</span><span class="st">] }, </span><span class="ch">\&quot;</span><span class="st">notes</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st"> } }&quot;</span><span class="fu">,</span></span>
 <span id="cb43-36"><a href="#cb43-36" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;visibleContext&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;$.entity&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
@@ -2507,7 +2545,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb43-1"><a href=
 <span id="cb43-52"><a href="#cb43-52" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;intent&quot;</span><span class="fu">:</span> <span class="st">&quot;Ask the submitter to clarify or add receipts. Sent back to manager after.&quot;</span><span class="fu">,</span></span>
 <span id="cb43-53"><a href="#cb43-53" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;config&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
 <span id="cb43-54"><a href="#cb43-54" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;title&quot;</span><span class="fu">:</span>       <span class="st">&quot;Additional information needed for your expense report&quot;</span><span class="fu">,</span></span>
-<span id="cb43-55"><a href="#cb43-55" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.SubmitterEmail&quot;</span><span class="fu">,</span></span>
+<span id="cb43-55"><a href="#cb43-55" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.SubmitterId&quot;</span><span class="fu">,</span></span>
 <span id="cb43-56"><a href="#cb43-56" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;channel&quot;</span><span class="fu">:</span>     <span class="st">&quot;External&quot;</span><span class="fu">,</span></span>
 <span id="cb43-57"><a href="#cb43-57" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;formSchema&quot;</span><span class="fu">:</span>  <span class="st">&quot;{ </span><span class="ch">\&quot;</span><span class="st">clarification</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st"> } }&quot;</span><span class="fu">,</span></span>
 <span id="cb43-58"><a href="#cb43-58" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;visibleContext&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;$.context._humanTaskResponse.notes&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
