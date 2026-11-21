@@ -1557,7 +1557,7 @@ public interface IHumanTaskStore
     /// &lt;summary&gt;
     /// Records a response to the task, optionally validates a response token, checks
     /// form schema required fields, and advances quorum counting.
-    /// A submission on a task that has reached quorum resumes the parent workflow instance and awaits its
+    /// The response that reaches quorum resumes the parent workflow instance and awaits its
     /// next suspension point or terminal state.
     /// &lt;/summary&gt;
     /// &lt;param name="taskId"&gt;The unique task ID.&lt;/param&gt;
@@ -1571,7 +1571,7 @@ public interface IHumanTaskStore
     /// (checked before cancellation and duplicate detection).
     /// &lt;/exception&gt;
     /// &lt;exception cref="Exceptions.HumanTaskClosedException"&gt;
-    /// The task is cancelled (its instance timed out, was cancelled, or left the wait): nothing waits for it any more.
+    /// The task is cancelled, or it is completed and the identity has not responded.
     /// &lt;/exception&gt;
     /// &lt;exception cref="Exceptions.HumanTaskAlreadyRespondedException"&gt;
     /// The identity has already responded (checked after the token and cancellation). For a completed task,
@@ -1590,7 +1590,7 @@ public interface IHumanTaskStore
     /// &lt;summary&gt;
     /// Records a response to the task, optionally validates a response token, checks
     /// form schema required fields, and advances quorum counting.
-    /// A submission on a task that has reached quorum starts a background resume and returns the task with
+    /// The response that reaches quorum starts a background resume and returns the task with
     /// &lt;see cref="HumanTaskStatus.Completed"/&gt; status. Use this overload from HTTP handlers where response
     /// latency matters.
     /// &lt;/summary&gt;
@@ -1605,7 +1605,7 @@ public interface IHumanTaskStore
     /// (checked before cancellation and duplicate detection).
     /// &lt;/exception&gt;
     /// &lt;exception cref="Exceptions.HumanTaskClosedException"&gt;
-    /// The task is cancelled (its instance timed out, was cancelled, or left the wait): nothing waits for it any more.
+    /// The task is cancelled, or it is completed and the identity has not responded.
     /// &lt;/exception&gt;
     /// &lt;exception cref="Exceptions.HumanTaskAlreadyRespondedException"&gt;
     /// The identity has already responded (checked after the token and cancellation). For a completed task,
@@ -2732,7 +2732,7 @@ public interface IDocumentStore
 ///   flow.node.started          flow.node.completed
 ///   flow.agent.completed
 ///   flow.checkpoint.saved
-///   flow.humantask.response_discarded  (the engine cancelled a pending task with recorded responses; tags nodeId, taskId)
+///   flow.humantask.response_discarded  (the engine left a wait with a completed human task or cancelled a pending task with recorded responses; tags nodeId, taskId)
 ///   flow.compensation.incomplete  (a saga step left uncompensated; nodeId is the forward step;
 ///                                  outcome is the compensation's, absent when its node is missing)
 /// &lt;/summary&gt;

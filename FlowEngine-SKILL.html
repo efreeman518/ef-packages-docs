@@ -959,22 +959,23 @@ top-level context key)</td>
 <p>Responses are submitted through
 <code>IHumanTaskStore.SubmitResponseAsync(taskId, responseToken, formValues, respondedBy)</code>
 (or the Admin API <code>POST /human-tasks/{taskId}/respond</code>). The
-store resumes the instance when quorum is reached. A response to a
-cancelled task throws <code>HumanTaskClosedException</code>. A repeated
-response from the same respondent throws
-<code>HumanTaskAlreadyRespondedException</code>, after attempting to
-resume a completed task. The Admin API returns HTTP 409 for either
-exception. The Admin API derives the respondent from the caller's
-identity claims. The HTTP body carries form values and an optional
-response token. The <code>FlowEngine.HumanTask</code> policy gates all
-human-task routes. The caller's reach is the resolved respondent ID plus
-non-blank configured assignee claims (raw <code>roles</code> and
-<code>groups</code>, plus mapped <code>roles</code> by default), matched
-ordinally. Blank assignments are open to tenant-authorized callers with
-a resolved respondent ID. Other assignments outside reach return HTTP
-403 even for operators. An External task's HTTP response requires its
-token. An HTTP relay needs the assignment within its own reach. A relay
-submits on behalf of recipients through the store in process.</p>
+store resumes the instance when quorum is reached. A cancelled task or a
+completed task receiving a submission from a new respondent throws
+<code>HumanTaskClosedException</code>. A repeated response from the same
+respondent throws <code>HumanTaskAlreadyRespondedException</code>, after
+attempting to resume a completed task. The Admin API returns HTTP 409
+for either exception. The Admin API derives the respondent from the
+caller's identity claims. The HTTP body carries form values and an
+optional response token. The <code>FlowEngine.HumanTask</code> policy
+gates all human-task routes. The caller's reach is the resolved
+respondent ID plus non-blank configured assignee claims (raw
+<code>roles</code> and <code>groups</code>, plus mapped
+<code>roles</code> by default), matched ordinally. Blank assignments are
+open to tenant-authorized callers with a resolved respondent ID. Other
+assignments outside reach return HTTP 403 even for operators. An
+External task's HTTP response requires its token. An HTTP relay needs
+the assignment within its own reach. A relay submits on behalf of
+recipients through the store in process.</p>
 <p>The HTTP inbox defaults to the caller's reach, up to 50 assigned
 values, and includes open and in-progress unassigned tasks for
 identified callers. It accepts an optional <code>assignee</code>. A
