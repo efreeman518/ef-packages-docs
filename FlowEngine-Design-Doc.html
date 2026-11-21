@@ -359,15 +359,33 @@ await sqlReg.SaveAsync(def!);</code></pre>
 <pre><span class="lang-tag">csharp</span><code>// Task response via internal UI - background variant returns immediately; workflow continues on thread pool
 app.MapPost("/api/tasks/{taskId}/complete", async (
     string taskId, TaskResponsePayload payload, ClaimsPrincipal user, IHumanTaskStore taskStore,
-    IOptions&lt;FlowEngineHumanTaskRespondentOptions&gt; respondent) =>
+    IExecutionStateStore stateStore, IOptions&lt;FlowEngineHumanTaskRespondentOptions&gt; respondent,
+    CancellationToken ct) =>
 {
     var respondedBy = respondent.Value.ResolveRespondent(user);
     if (respondedBy is null)
         return Results.Forbid();
+    var tenantId = user.FindFirst("tid")?.Value;
+    if (string.IsNullOrWhiteSpace(tenantId))
+        return Results.Forbid();
+    var task = await taskStore.LoadAsync(taskId, ct);
+    if (task is null || (await stateStore.LoadAsync(task.InstanceId, ct))?.TenantId != tenantId)
+        return Results.Problem(statusCode: 404);
+
+    var reach = respondent.Value.ResolveReach(user);
     try
     {
-        await taskStore.SubmitResponseBackgroundAsync(taskId, payload.ResponseToken, payload.FormValues, respondedBy);
+        await taskStore.SubmitResponseBackgroundAsync(
+            taskId, payload.ResponseToken, payload.FormValues, respondedBy, task.InstanceId, reach, ct);
         return Results.Ok();
+    }
+    catch (Exception ex) when (ex is HumanTaskAccessDeniedException or HumanTaskNotFoundException)
+    {
+        return Results.Problem(statusCode: 404);
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return Results.Forbid();
     }
     catch (HumanTaskAlreadyRespondedException)
     {
@@ -387,6 +405,7 @@ processor.ProcessMessageAsync += async args =>
         signalPayload:  JsonSerializer.SerializeToElement(body));
     await args.CompleteMessageAsync(args.Message);
 };</code></pre>
+<p>Response overloads without assignee reach are for trusted in-process callers only. This handler expects the authenticated tenant in the <code>tid</code> claim.</p>
 
 <div class="divider"></div>
 
@@ -1221,8 +1240,9 @@ processor.ProcessMessageAsync += async args =>
 <div class="callout callout-blue"><strong>How to resume a <code>human</code> node:</strong> automatic via <code>IHumanTaskStore</code>.
 <pre style="margin:.5rem 0 0"><span class="lang-tag">csharp</span><code>try
 {
-    // Await the next suspension point or terminal state. Use SubmitResponseBackgroundAsync to await acceptance only.
-    await taskStore.SubmitResponseAsync(taskId, responseToken, formValues, respondedBy);
+    // Pass the instance checked for the caller's tenant and the caller's resolved assignee reach.
+    await taskStore.SubmitResponseAsync(
+        taskId, responseToken, formValues, respondedBy, authorizedInstanceId, callerReach, ct);
     return Results.Ok();
 }
 catch (HumanTaskAlreadyRespondedException)
@@ -1230,7 +1250,7 @@ catch (HumanTaskAlreadyRespondedException)
     return Results.Conflict();
 }</code></pre></div>
 <div class="outcomes"><span class="pill pm">Match (quorum reached - branch via when predicates on _humanTaskResponse or _humanTaskConsensus)</span><span class="pill pe">Timeout does not emit an outcome: it jumps to onTimeoutNodeId, else globalOnDeadlineNodeId (once), else ends TimedOut (WAIT_TIMEOUT)</span></div>
-<div class="callout callout-yellow"><strong>In-memory human task store is dev/test only.</strong> <code>UseAllInMemoryProviders()</code> wires up <code>InMemoryHumanTaskStore</code>, which holds task records (form schema, assignee, partial responses) in process memory. If the process crashes, those records are lost — even if the state store is durable. The sweep service will detect the suspended instance but cannot reconstruct the task. Use a persistent store (<code>EF.FlowEngine.HumanTaskStore.Sql</code> / Redis / Cosmos) in production.</div>
+<div class="callout callout-yellow"><strong>In-memory human task store is dev/test only.</strong> <code>UseAllInMemoryProviders()</code> wires up <code>InMemoryHumanTaskStore</code>, which holds task records (form schema, assignee, partial responses) in process memory. A process crash loses those records even when the state store is durable. Use a persistent store (<code>EF.FlowEngine.HumanTaskStore.Sql</code> / Redis / Cosmos) in production.</div>
 
 <h2 id="n-wait">wait</h2>
 <p>Suspends the workflow until a named signal arrives with the matching correlation key. Zero resources consumed while dormant.</p>
@@ -1413,6 +1433,7 @@ await engine.ResumeBackgroundAsync(
 );</code></pre>
 <p>Signal payload available in subsequent nodes as <code>$.context._signal.fieldName</code>.</p>
 <h4>Resuming a human node</h4>
+<p>This overload is for trusted in-process callers. HTTP handlers pass the authorized instance ID and the caller's assignee reach to the reach-checked overload.</p>
 <pre><span class="lang-tag">csharp</span><code>try
 {
     await taskStore.SubmitResponseBackgroundAsync(taskId, responseToken, formValues, respondedBy);
@@ -1435,7 +1456,10 @@ catch (HumanTaskAlreadyRespondedException)
   <tr><td>AzureTable</td><td>AzureTable, AzureBlob, Redis</td></tr>
 </table>
 </div>
-<div class="callout callout-teal"><strong>Human task responses do not require the distributed lock.</strong> <code>IHumanTaskStore.SubmitResponseAsync</code> and <code>SubmitResponseBackgroundAsync</code> can be called on any server in the cluster at any time — no instance claim is needed. If the instance is currently claimed by another server, the response is stored and that server detects the accumulated signal on its next execution cycle. If no server holds the claim, resumption acquires the lock and proceeds immediately.</div>
+<div class="callout callout-teal"><strong>Recording a human task response requires no instance claim.</strong>
+When a response completes quorum, the task store requests a resume. If quorum is reached before the engine records
+the wait, the engine resumes the workflow after saving the suspension. If request cancellation or host shutdown
+interrupts a resume, a recorded respondent re-issues it by resubmitting.</div>
 
 <div style="margin:28px 0 32px">
 <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8b949e;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Fig 3 — Durable suspend &amp; resume across server instances</div>

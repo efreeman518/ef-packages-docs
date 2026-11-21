@@ -1555,7 +1555,7 @@ public interface IHumanTaskStore
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Records a response to the task, optionally validates a response token, checks
+    /// Records a response from a trusted in-process caller, optionally validates a response token, checks
     /// form schema required fields, and advances quorum counting.
     /// The response that reaches quorum resumes the parent workflow instance and awaits its
     /// next suspension point or terminal state.
@@ -1588,11 +1588,10 @@ public interface IHumanTaskStore
         CancellationToken ct = default);
 
     /// &lt;summary&gt;
-    /// Records a response to the task, optionally validates a response token, checks
+    /// Records a response from a trusted in-process caller, optionally validates a response token, checks
     /// form schema required fields, and advances quorum counting.
     /// The response that reaches quorum starts a background resume and returns the task with
-    /// &lt;see cref="HumanTaskStatus.Completed"/&gt; status. Use this overload from HTTP handlers where response
-    /// latency matters.
+    /// &lt;see cref="HumanTaskStatus.Completed"/&gt; status.
     /// &lt;/summary&gt;
     /// &lt;param name="taskId"&gt;The unique task ID.&lt;/param&gt;
     /// &lt;param name="responseToken"&gt;Optional secure token (for external/email channels) to prevent replay.&lt;/param&gt;
@@ -1621,6 +1620,17 @@ public interface IHumanTaskStore
         string respondedBy,
         CancellationToken ct = default);
 
+    /// &lt;summary&gt;Records a response after checking instance and assignee reach on every write attempt.
+    /// When quorum is reached, requests a background resume.&lt;/summary&gt;
+    Task&lt;HumanTask&gt; SubmitResponseBackgroundAsync(
+        string taskId,
+        string? responseToken,
+        JsonElement formValues,
+        string respondedBy,
+        string expectedInstanceId,
+        IReadOnlyCollection&lt;string&gt; assignees,
+        CancellationToken ct = default);
+
     /// &lt;summary&gt;
     /// Generates a one-time secure response token for external channel tasks
     /// (e.g. embedded in an email approval link).
@@ -1634,6 +1644,13 @@ public interface IHumanTaskStore
 }
 </code></pre>
 <hr />
+<p>Response overloads without assignee reach are for trusted in-process callers only.
+HTTP handlers resolve the respondent and reach from the authenticated caller, check the task's instance against the
+caller's tenant, and pass the checked instance ID and resolved reach to the store:</p>
+<pre><code>var reach = respondent.Value.ResolveReach(user);
+await taskStore.SubmitResponseBackgroundAsync(
+    taskId, responseToken, formValues, respondedBy, authorizedInstanceId, reach, ct);
+</code></pre>
 <h2>13. IFlowClient — unified external client hierarchy</h2>
 <p>All external integrations — REST APIs, databases, message buses, AI agents,<br />
 remote workflow engines — are registered as named <code>IFlowClient</code> implementations.<br />

@@ -648,11 +648,14 @@ caller in the tenant to respond. A configured assignment with a blank
 assignee value or JSON null fails with <code>ASSIGNEE_EMPTY</code>. An
 unresolved path fails with <code>ASSIGNEE_UNRESOLVED</code>. Unsupported
 values such as documents, objects, and arrays fail with
-<code>ASSIGNEE_INVALID_TYPE</code>. For assigned tasks, every HTTP
-respondent must match the assignment, including operators.
-External-channel HTTP responses also need the issued token. An HTTP
-relay needs the assignment within its own reach. A relay acting for
-recipients submits their responses in process.</p>
+<code>ASSIGNEE_INVALID_TYPE</code>. A new respondent outside assignment
+reach gets HTTP 404, including operators. Missing and foreign tasks also
+return HTTP 404. A new response to an External task requires its issued
+token. If a recorded respondent resubmits for a completed task, the
+store reissues the resume. The API returns HTTP 409 if the resume
+succeeds and surfaces resume failures as errors. An HTTP relay needs the
+assignment within its own reach. A relay acting for recipients submits
+their responses in process.</p>
 <h3 id="multi-tenancy-end-to-end">Multi-tenancy: end-to-end</h3>
 <p><code>StartRequest.TenantId</code> is propagated to
 <code>ExecutionInstance.TenantId</code>. The engine does not enforce

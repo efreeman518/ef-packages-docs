@@ -552,6 +552,8 @@ public class HumanTaskClosedException : InvalidOperationException { public Human
 }
 </code></pre>
 <p>The engine records the task id as <code>PendingHumanTaskId</code>. A due date routes like any wait timeout (section 17); a route away from the wait cancels the task.</p>
+<p>A response that completes quorum before the engine records the human wait still resumes the workflow.
+If request cancellation or host shutdown interrupts a resume, a recorded respondent re-issues it by resubmitting.</p>
 <h3>How SubmitResponseAsync wires back to the engine</h3>
 <p><code>IHumanTaskStore.SubmitResponseAsync(taskId, responseToken, formValues, respondedBy, ct)</code> records the response and, once the quorum is reached and the task is Completed, resumes the instance (see <code>InMemoryHumanTaskStore.SubmitResponseAsync</code>):</p>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">var signal = HumanTaskContextKeys.BuildSignalPayload(task);
