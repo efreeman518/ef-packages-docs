@@ -687,12 +687,11 @@ tenant.</li>
 value is refused (403). Only a caller without a tenant (single-tenant
 mode, or <code>RequireTenant = false</code>) can choose a tenant through
 the body.</li>
-<li>The <code>/human-tasks</code> endpoints run the same filter. Tasks
-are scoped through their instance: listings drop other tenants' tasks,
-and by-instance lookups and responses return 404 for them. A response
-from a caller with a tenant also returns 404 when no
-<code>IHumanTaskStore</code> is registered, since the task's owner
-cannot be checked.</li>
+<li>The human-task inbox and instance history filter by the tenant
+stamped on each task. Instance history for another tenant returns HTTP
+200 with an empty page. A response verifies that the caller's tenant
+owns the task's execution and returns 404 when the ownership check
+fails.</li>
 </ul>
 <p>Matching is exact and case-sensitive. An instance started without a
 <code>TenantId</code> is invisible to every caller that has a tenant:

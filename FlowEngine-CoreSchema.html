@@ -637,6 +637,12 @@ public sealed class ExecutionError
 /// &lt;/summary&gt;
 public sealed class HumanTask
 {
+    /// &lt;summary&gt;Maximum task identifier length in UTF-16 code units.&lt;/summary&gt;
+    public const int MaxTaskIdLength = 64;
+
+    /// &lt;summary&gt;The tenant of the execution that created the task.&lt;/summary&gt;
+    public string? TenantId { get; init; }
+
     /// &lt;summary&gt;Globally unique identifier for this task.&lt;/summary&gt;
     public string TaskId { get; init; } = string.Empty;
 
@@ -1521,21 +1527,18 @@ public interface IHumanTaskStore
     /// &lt;exception cref="Exceptions.ConcurrencyException"&gt;The store exhausted its conditional write attempts.&lt;/exception&gt;
     Task&lt;HumanTask?&gt; CancelAsync(string taskId, CancellationToken ct = default);
 
-    /// &lt;summary&gt;
-    /// Returns tasks matching any stored assignment value ordinally, optionally filtered by status.
-    /// Used by task-list UIs.
-    /// &lt;/summary&gt;
-    /// &lt;param name="assignees"&gt;Stored assignment values, including the empty string for unassigned tasks.&lt;/param&gt;
-    /// &lt;param name="status"&gt;When specified, only tasks in this status are returned.&lt;/param&gt;
-    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
-    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetAssignedToAnyAsync(
-        IReadOnlyCollection&lt;string&gt; assignees,
-        HumanTaskStatus? status = null,
-        CancellationToken ct = default);
+    /// &lt;summary&gt;Returns a bounded inbox page ordered by creation time and ordinal task ID.&lt;/summary&gt;
+    Task&lt;HumanTaskPage&gt; GetAssignedToAnyAsync(
+        IReadOnlyCollection&lt;string&gt; assignees, HumanTaskStatus? status,
+        HumanTaskPageRequest page, CancellationToken ct = default);
 
-    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetAssignedToAnyAsync(
-        string instanceId, IReadOnlyCollection&lt;string&gt; assignees, HumanTaskStatus? status = null,
-        CancellationToken ct = default);
+    /// &lt;summary&gt;Returns a bounded history page for one execution instance.&lt;/summary&gt;
+    Task&lt;HumanTaskPage&gt; GetByInstancePageAsync(
+        string instanceId, IReadOnlyCollection&lt;string&gt;? assignees, HumanTaskStatus? status,
+        HumanTaskPageRequest page, CancellationToken ct = default);
+
+    /// &lt;summary&gt;Returns pending tasks of the instance.&lt;/summary&gt;
+    Task&lt;IReadOnlyList&lt;HumanTask&gt;&gt; GetPendingByInstanceAsync(string instanceId, CancellationToken ct = default);
 
     /// &lt;summary&gt;Returns all tasks created for the specified workflow execution instance.&lt;/summary&gt;
     /// &lt;param name="instanceId"&gt;The workflow execution instance ID.&lt;/param&gt;

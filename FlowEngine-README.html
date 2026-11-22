@@ -3123,13 +3123,14 @@ otherwise)</td>
 <tr>
 <td><code>GET</code></td>
 <td><code>human-tasks</code></td>
-<td>List human tasks (<code>FlowEngine.HumanTask</code> policy)</td>
+<td>Page the human-task inbox within the caller's reach. Returns
+<code>{ items, continuationToken }</code>.</td>
 </tr>
 <tr>
 <td><code>GET</code></td>
 <td><code>human-tasks/instance/{instanceId}</code></td>
-<td>Tasks for one instance (<code>FlowEngine.HumanTask</code>
-policy)</td>
+<td>Page task history within the caller's tenant. Admin callers see
+every assignment within their tenant.</td>
 </tr>
 <tr>
 <td><code>POST</code></td>
@@ -3154,8 +3155,11 @@ request. A caller with a tenant sees and acts only on its own tenant's
 instances (others read as not found), and <code>instances/start</code>
 refuses a body <code>TenantId</code> that differs from the caller's
 (403). A caller without a tenant (single-tenant mode or a global admin)
-sees all. Human tasks carry no tenant and are scoped through their
-owning instance. The global workflow and circuit-breaker routes work
+sees all. Human tasks carry the owning execution's
+<code>TenantId</code>. Both human-task list routes filter on the stored
+task <code>TenantId</code>. Instance history for another tenant returns
+an empty page with HTTP 200. The respond route checks the owning
+execution's tenant. The global workflow and circuit-breaker routes work
 without a tenant claim.</p>
 <p>The default policies require individual <code>scope</code> claims.
 <code>FlowEngine.Admin</code> covers instance operations, workflow
