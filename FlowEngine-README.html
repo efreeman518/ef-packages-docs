@@ -2551,9 +2551,15 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb56-1"><a href=
 <p><code>ReplayFromDeadLetterAsync</code> throws
 <code>InvalidOperationException</code> when no
 <code>IDeadLetterStore</code> is registered. The replay re-enters
-<code>ExecuteLoopAsync</code> from <code>CurrentNodeId</code> — the
-instance resumes exactly where it faulted, with the original context
-intact.</p>
+<code>ExecuteLoopAsync</code> from the saved <code>CurrentNodeId</code>
+with the context saved there; <code>Error.NodeId</code> names the node
+that faulted, which a failed checkpoint may already have moved past. A
+rejected checkpoint (<code>CHECKPOINT_TOO_LARGE</code>,
+<code>OUTBOX_ENTRY_CONFLICT</code>) discards every outbox entry staged
+since the last durable save, so its fault is rewound to that save:
+replay re-runs the nodes after it, and a rejection during a failure or
+wait-timeout unwind resumes the unwind rather than the failed or
+timed-out node.</p>
 <hr />
 <h3 id="optional-infrastructure-extensions">Optional Infrastructure
 Extensions</h3>
