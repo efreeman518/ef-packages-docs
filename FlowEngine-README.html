@@ -570,7 +570,7 @@ class="sourceCode json"><code class="sourceCode json"><span id="cb5-1"><a href="
 <span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;title&quot;</span><span class="fu">:</span>       <span class="st">&quot;Approve expense: {{$.entity.SubmitterName}} — ${{$.entity.Total}}&quot;</span><span class="fu">,</span></span>
 <span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;assignedTo&quot;</span><span class="fu">:</span>  <span class="st">&quot;$.entity.ManagerId&quot;</span><span class="fu">,</span></span>
 <span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;channel&quot;</span><span class="fu">:</span>     <span class="st">&quot;Internal&quot;</span><span class="fu">,</span></span>
-<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;formSchema&quot;</span><span class="fu">:</span>  <span class="st">&quot;{ </span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">enum</span><span class="ch">\&quot;</span><span class="st">: [</span><span class="ch">\&quot;</span><span class="st">approved</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">rejected</span><span class="ch">\&quot;</span><span class="st">] }, </span><span class="ch">\&quot;</span><span class="st">notes</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st"> } }&quot;</span><span class="fu">,</span></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;formSchema&quot;</span><span class="fu">:</span>  <span class="st">&quot;{ </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">object</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">properties</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">enum</span><span class="ch">\&quot;</span><span class="st">: [</span><span class="ch">\&quot;</span><span class="st">approved</span><span class="ch">\&quot;</span><span class="st">,</span><span class="ch">\&quot;</span><span class="st">rejected</span><span class="ch">\&quot;</span><span class="st">] }, </span><span class="ch">\&quot;</span><span class="st">notes</span><span class="ch">\&quot;</span><span class="st">: { </span><span class="ch">\&quot;</span><span class="st">type</span><span class="ch">\&quot;</span><span class="st">: </span><span class="ch">\&quot;</span><span class="st">string</span><span class="ch">\&quot;</span><span class="st">, </span><span class="ch">\&quot;</span><span class="st">maxLength</span><span class="ch">\&quot;</span><span class="st">: 1000 } }, </span><span class="ch">\&quot;</span><span class="st">required</span><span class="ch">\&quot;</span><span class="st">: [</span><span class="ch">\&quot;</span><span class="st">decision</span><span class="ch">\&quot;</span><span class="st">] }&quot;</span><span class="fu">,</span></span>
 <span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;visibleContext&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;$.entity&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
 <span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;dueIn&quot;</span><span class="fu">:</span>       <span class="st">&quot;P2D&quot;</span><span class="fu">,</span></span>
 <span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;escalation&quot;</span><span class="fu">:</span>  <span class="fu">{</span> <span class="dt">&quot;after&quot;</span><span class="fu">:</span> <span class="st">&quot;PT4H&quot;</span><span class="fu">,</span> <span class="dt">&quot;reassignTo&quot;</span><span class="fu">:</span> <span class="st">&quot;role:finance-team&quot;</span> <span class="fu">}</span></span>
@@ -687,36 +687,40 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb9-1"><a href="
 <span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
 <span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> Results<span class="op">.</span><span class="fu">Forbid</span><span class="op">();</span></span>
 <span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    <span class="kw">catch</span> <span class="op">(</span>HumanTaskAlreadyRespondedException<span class="op">)</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    <span class="kw">catch</span> <span class="op">(</span>HumanTaskFormValidationException ex<span class="op">)</span></span>
 <span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
-<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> Results<span class="op">.</span><span class="fu">Conflict</span><span class="op">();</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> Results<span class="op">.</span><span class="fu">Problem</span><span class="op">(</span>statusCode<span class="op">:</span> <span class="dv">400</span><span class="op">,</span> detail<span class="op">:</span> ex<span class="op">.</span><span class="fu">Message</span><span class="op">);</span></span>
 <span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>    <span class="kw">catch</span> <span class="op">(</span>HumanTaskClosedException<span class="op">)</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>    <span class="kw">catch</span> <span class="op">(</span>HumanTaskAlreadyRespondedException<span class="op">)</span></span>
 <span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
 <span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> Results<span class="op">.</span><span class="fu">Conflict</span><span class="op">();</span></span>
 <span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
-<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a><span class="op">}).</span><span class="fu">RequireAuthorization</span><span class="op">(</span><span class="st">&quot;FlowEngine.HumanTask&quot;</span><span class="op">);</span></span>
-<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="co">// Or resume from Service Bus</span></span>
-<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>processor<span class="op">.</span><span class="fu">ProcessMessageAsync</span> <span class="op">+=</span> async args <span class="op">=&gt;</span></span>
-<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> body <span class="op">=</span> args<span class="op">.</span><span class="fu">Message</span><span class="op">.</span><span class="fu">Body</span><span class="op">.</span><span class="fu">ToObjectFromJson</span><span class="op">&lt;</span>dynamic<span class="op">&gt;();</span></span>
-<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> instanceId <span class="op">=</span> <span class="op">(</span><span class="dt">string</span><span class="op">)</span>body<span class="op">.</span><span class="fu">instanceId</span><span class="op">;</span>  <span class="co">// for logging; lookup uses event+correlation</span></span>
-<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Synchronous — awaits until the next suspension point or completion</span></span>
-<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>    await engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span></span>
-<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>        instanceId<span class="op">:</span>     instanceId<span class="op">,</span></span>
-<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>        eventName<span class="op">:</span>      args<span class="op">.</span><span class="fu">Message</span><span class="op">.</span><span class="fu">Subject</span><span class="op">,</span></span>
-<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>        correlationKey<span class="op">:</span> body<span class="op">.</span><span class="fu">expenseReportId</span><span class="op">.</span><span class="fu">ToString</span><span class="op">(),</span></span>
-<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>        signalPayload<span class="op">:</span>  JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span>body<span class="op">)</span></span>
-<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
-<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Background — returns immediately with Status=Running; workflow continues on thread pool</span></span>
-<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>    <span class="co">// await engine.ResumeBackgroundAsync(instanceId, args.Message.Subject,</span></span>
-<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>    <span class="co">//     body.expenseReportId.ToString(), JsonSerializer.SerializeToElement(body), ct);</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>    <span class="kw">catch</span> <span class="op">(</span>HumanTaskClosedException<span class="op">)</span></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>        <span class="kw">return</span> Results<span class="op">.</span><span class="fu">Conflict</span><span class="op">();</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="op">}).</span><span class="fu">RequireAuthorization</span><span class="op">(</span><span class="st">&quot;FlowEngine.HumanTask&quot;</span><span class="op">);</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a><span class="co">// Or resume from Service Bus</span></span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>processor<span class="op">.</span><span class="fu">ProcessMessageAsync</span> <span class="op">+=</span> async args <span class="op">=&gt;</span></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> body <span class="op">=</span> args<span class="op">.</span><span class="fu">Message</span><span class="op">.</span><span class="fu">Body</span><span class="op">.</span><span class="fu">ToObjectFromJson</span><span class="op">&lt;</span>dynamic<span class="op">&gt;();</span></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>    <span class="dt">var</span> instanceId <span class="op">=</span> <span class="op">(</span><span class="dt">string</span><span class="op">)</span>body<span class="op">.</span><span class="fu">instanceId</span><span class="op">;</span>  <span class="co">// for logging; lookup uses event+correlation</span></span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Synchronous — awaits until the next suspension point or completion</span></span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>    await engine<span class="op">.</span><span class="fu">ResumeAsync</span><span class="op">(</span></span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>        instanceId<span class="op">:</span>     instanceId<span class="op">,</span></span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a>        eventName<span class="op">:</span>      args<span class="op">.</span><span class="fu">Message</span><span class="op">.</span><span class="fu">Subject</span><span class="op">,</span></span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>        correlationKey<span class="op">:</span> body<span class="op">.</span><span class="fu">expenseReportId</span><span class="op">.</span><span class="fu">ToString</span><span class="op">(),</span></span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>        signalPayload<span class="op">:</span>  JsonSerializer<span class="op">.</span><span class="fu">SerializeToElement</span><span class="op">(</span>body<span class="op">)</span></span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
 <span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a>    await args<span class="op">.</span><span class="fu">CompleteMessageAsync</span><span class="op">(</span>args<span class="op">.</span><span class="fu">Message</span><span class="op">);</span></span>
-<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Background — returns immediately with Status=Running; workflow continues on thread pool</span></span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>    <span class="co">// await engine.ResumeBackgroundAsync(instanceId, args.Message.Subject,</span></span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>    <span class="co">//     body.expenseReportId.ToString(), JsonSerializer.SerializeToElement(body), ct);</span></span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a>    await args<span class="op">.</span><span class="fu">CompleteMessageAsync</span><span class="op">(</span>args<span class="op">.</span><span class="fu">Message</span><span class="op">);</span></span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span></code></pre></div>
 <p>Response overloads without assignee reach are for trusted in-process
 callers only. This handler expects the authenticated tenant in the
 <code>tid</code> claim.</p>
@@ -891,15 +895,15 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb10-1"><a href=
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="op">});</span></span></code></pre></div>
 <p>Filter by tenant when querying instances:</p>
 <div class="sourceCode" id="cb11"><pre
-class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instances <span class="op">=</span> await stateStore<span class="op">.</span><span class="fu">QueryAsync</span><span class="op">(</span><span class="kw">new</span> ExecutionQuery</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    TenantId   <span class="op">=</span> <span class="st">&quot;tenant-abc&quot;</span><span class="op">,</span>           <span class="co">// only return instances for this tenant</span></span>
+class="sourceCode csharp"><code class="sourceCode cs"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Only instances of this tenant; TenantScope.Tenantless and TenantScope.All select the other scopes.</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instances <span class="op">=</span> await stateStore<span class="op">.</span><span class="fu">QueryAsync</span><span class="op">(</span><span class="kw">new</span> <span class="fu">ExecutionQuery</span><span class="op">(</span>TenantScope<span class="op">.</span><span class="fu">Named</span><span class="op">(</span><span class="st">&quot;tenant-abc&quot;</span><span class="op">))</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    Status     <span class="op">=</span> ExecStatus<span class="op">.</span><span class="fu">Suspended</span><span class="op">,</span></span>
 <span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    WorkflowId <span class="op">=</span> <span class="st">&quot;expense-approval&quot;</span></span>
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="op">},</span> ct<span class="op">);</span></span></code></pre></div>
 <blockquote>
-<p><strong>Important:</strong> <code>TenantId</code> is a contract-level
-field. Each state store implementation is responsible for filtering on
+<p><strong>Important:</strong> <code>Tenant</code> is a contract-level
+scope. Each state store implementation is responsible for filtering on
 it. The engine does not enforce tenant isolation — combine with
 application-layer authorization to prevent cross-tenant reads.</p>
 </blockquote>
@@ -1029,6 +1033,13 @@ SQL state + Redis locks + SQL registry).</p>
 </tbody>
 </table>
 <h4 id="human-task-store">Human Task Store</h4>
+<p>Every save requires the owning execution snapshot with matching
+instance and tenant IDs. External response tokens are returned at
+issuance and verified against a salted hash on submission. Configured
+forms validate declared types, required fields, choices and bounds
+before recording a response. See the <a
+href="../EF.FlowEngine.AdminApi/README.md">Admin API permissions and
+form contract</a>.</p>
 <table>
 <thead>
 <tr>
@@ -1178,7 +1189,7 @@ class="sourceCode csharp"><code class="sourceCode cs"><span id="cb12-1"><a href=
 <span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
 <span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="co">// Cosmos — provide CosmosClient directly</span></span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>cosmosClient<span class="op">,</span> databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">);</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreCosmos</span><span class="op">(</span>databaseId<span class="op">:</span> <span class="st">&quot;flowengine&quot;</span><span class="op">,</span> client<span class="op">:</span> cosmosClient<span class="op">);</span></span>
 <span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="co">// Azure Table — resolve TableServiceClient from DI</span></span>
 <span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">UseStateStoreAzureTable</span><span class="op">();</span></span>
@@ -3140,27 +3151,34 @@ respondent comes from the caller's identity claims.</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Tenant scoping:</strong> instance and human-task routes run a
-tenant filter that reads the caller's tenant from the <code>tid</code>
-claim (<code>FlowEngineTenantPolicyOptions.TenantClaimType</code>,
-optional <code>FallbackHeader</code>). <code>RequireTenant</code>
-defaults to <code>true</code>, so a caller with no tenant gets 403. A
-single-tenant host opts out by also calling
-<code>builder.Services.AddFlowEngineAdminTenantPolicy(o =&gt; o.RequireTenant = false)</code>;
-leave it at the default on a multi-tenant host.
-<code>FallbackHeader</code> is caller-controlled and is read whenever
-the claim is absent, so any caller can pick its tenant with it: set it
-only behind a trusted gateway that sets or strips that header on every
-request. A caller with a tenant sees and acts only on its own tenant's
-instances (others read as not found), and <code>instances/start</code>
-refuses a body <code>TenantId</code> that differs from the caller's
-(403). A caller without a tenant (single-tenant mode or a global admin)
-sees all. Human tasks carry the owning execution's
-<code>TenantId</code>. Both human-task list routes filter on the stored
-task <code>TenantId</code>. Instance history for another tenant returns
-an empty page with HTTP 200. The respond route checks the owning
-execution's tenant. The global workflow and circuit-breaker routes work
-without a tenant claim.</p>
+<p><strong>Tenant scoping</strong> applies to instance and human-task
+routes. The tenant filter reads the caller's tenant from the
+<code>tid</code> claim
+(<code>FlowEngineTenantPolicyOptions.TenantClaimType</code>, optional
+<code>FallbackHeader</code>). <code>RequireTenant</code> defaults to
+<code>true</code>, so a caller with no tenant gets HTTP 403. A
+single-tenant host can opt out by calling
+<code>builder.Services.AddFlowEngineAdminTenantPolicy(o =&gt; o.RequireTenant = false)</code>.
+Leave the default on a multi-tenant host. <code>FallbackHeader</code>
+names the tenant for a gateway identity that holds the global-operator
+grant: it is honored only when the claim is absent and the caller
+satisfies <code>GlobalOperatorPolicy</code>, and ignored otherwise. A
+caller with a tenant sees and acts only on its own tenant's instances
+(others read as not found), and <code>instances/start</code> returns
+HTTP 403 if the body <code>TenantId</code> differs from the
+caller's.</p>
+<p>When <code>RequireTenant</code> is <code>false</code>, a caller
+without a tenant sees tenantless records by default.
+<code>FlowEngineTenantPolicyOptions.GlobalOperatorPolicy</code> names
+the policy that grants such a caller access to all tenants. It defaults
+to <code>FlowEngine.Admin</code>. The filter evaluates that policy using
+its configured authentication schemes, and each route still requires its
+own policy.</p>
+<p>Human tasks carry the owning execution's <code>TenantId</code>. Both
+human-task list routes filter on the stored task <code>TenantId</code>.
+Instance history for another tenant returns an empty page with HTTP 200.
+The respond route checks the owning execution's tenant. The global
+workflow and circuit-breaker routes work without a tenant claim.</p>
 <p>The default policies require individual <code>scope</code> claims.
 <code>FlowEngine.Admin</code> covers instance operations, workflow
 definition GETs, and compatibility. <code>FlowEngine.Platform</code>

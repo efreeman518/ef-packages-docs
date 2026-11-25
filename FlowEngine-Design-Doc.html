@@ -1789,7 +1789,7 @@ builder.Services.AddFlowEngine()
 <pre><span class="lang-tag">csharp</span><code>var store = services.GetRequiredService&lt;IExecutionStateStore&gt;();
 
 // All suspended instances for a workflow
-var result = await store.QueryAsync(new ExecutionQuery
+var result = await store.QueryAsync(new ExecutionQuery(TenantScope.All)
 {
     WorkflowId = "loan-origination",
     Status     = ExecStatus.Suspended,
@@ -1797,7 +1797,7 @@ var result = await store.QueryAsync(new ExecutionQuery
 }, ct);
 
 // All instances for a specific correlation ID
-var byCorrelation = await store.QueryAsync(new ExecutionQuery
+var byCorrelation = await store.QueryAsync(new ExecutionQuery(TenantScope.All)
 {
     CorrelationId = orderId.ToString()
 }, ct);</code></pre>
@@ -2762,10 +2762,10 @@ FLOWENGINE_CRED_RISKENGINE_TOKENENDPOINT=https://auth.example.com/oauth/token</c
 
 <h3>Audit trail retention</h3>
 <p>Every node execution is appended to <code>ExecutionInstance.History</code>. Plan for storage growth: a 20-node workflow run 10,000 times/day generates ~200,000 history records per day.</p>
-<pre><span class="lang-tag">csharp</span><code>var old = await store.QueryAsync(new ExecutionQuery
+<pre><span class="lang-tag">csharp</span><code>var old = await store.QueryAsync(new ExecutionQuery(TenantScope.All)
 {
     Status        = ExecStatus.Completed,
-    UpdatedBefore = DateTimeOffset.UtcNow.AddDays(-90)
+    CreatedBefore = DateTimeOffset.UtcNow.AddDays(-90)
 }, ct);
 foreach (var inst in old.Items)
 {
@@ -2782,19 +2782,18 @@ foreach (var inst in old.Items)
 <li><strong>Run time</strong>: a node result whose wait event name or correlation key exceeds 256, or whose outbox entry exceeds its instance id or node id (64), client ref (127) or idempotency key (512) limit, fails the node with <code>RUNTIME_KEY_TOO_LONG</code>, and its outbox entries are dropped. A human node whose resolved <code>assignedTo</code> exceeds 256 fails with <code>ASSIGNEE_TOO_LONG</code> before the task is created.</li>
 </ul>
 <p>Derived keys fit by construction: <code>circuit.{key}.reopen</code> is at most 256, and the per-tenant throttle resource <code>{tenantId}:{clientRef}</code> is at most 256. JSON payload columns (instance, definition, task and signal <code>Data</code>, outbox <code>Payload</code>, circuit <code>FailureTimestampsJson</code>) are unbounded.</p>
-<pre><span class="lang-tag">csharp</span><code>// Tag by tenant at invocation
+<p>Set <code>StartRequest.TenantId</code> at invocation; child instances inherit it. Query with <code>TenantScope.ForTenant</code>: every store filters on the tenant itself (no tag is needed), and a tenant-scoped query never returns another tenant's instances.</p>
+<pre><span class="lang-tag">csharp</span><code>// Start in a tenant
 await engine.StartAsync(new StartRequest
 {
     WorkflowId = "loan-origination",
     Entity     = entityValue,
-    Tags       = new Dictionary&lt;string, string&gt; { ["tenantId"] = customerId.ToString() }
+    TenantId   = customerId.ToString()
 });
 
 // Query by tenant
-var tenantInstances = await store.QueryAsync(new ExecutionQuery
-{
-    TagKey = "tenantId", TagValue = customerId.ToString()
-}, ct);</code></pre>
+var tenantInstances = await store.QueryAsync(
+    new ExecutionQuery(TenantScope.ForTenant(customerId.ToString())), ct);</code></pre>
 
 <h3>HumanTask access control</h3>
 <p>Before calling <code>SubmitResponseAsync</code>, verify: caller matches <code>HumanTask.AssignedTo</code> (user ID, role name, or group ID) · task is <code>Open</code>/<code>InProgress</code> · <code>DueAt</code> not passed · for External channel, <code>responseToken</code> matches the one issued at task creation.</p>

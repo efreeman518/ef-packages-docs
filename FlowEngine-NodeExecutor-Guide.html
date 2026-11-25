@@ -379,7 +379,8 @@ your node returns, saves the instance as <code>Suspended</code>, and stops. When
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">public async Task&lt;NodeResult&gt; ExecuteAsync(...)
 {
     // Check for existing task first — handles crash + re-execution
-    var existing = (await _taskStore.GetByInstanceAsync(instance.InstanceId, ct))
+    var tenant = TenantScope.ForTenant(instance.TenantId);
+    var existing = (await _taskStore.GetByInstanceAsync(instance.InstanceId, tenant, ct))
         .FirstOrDefault(t =&gt; t.NodeId == node.Id);
 
     if (existing != null)
@@ -401,8 +402,11 @@ your node returns, saves the instance as <code>Suspended</code>, and stops. When
     }
 
     // Create new task
-    var task = new HumanTask { TaskId = Guid.NewGuid().ToString(&quot;N&quot;), ... };
-    await _taskStore.SaveAsync(task, ct);
+    var task = new HumanTask
+    {
+        TaskId = Guid.NewGuid().ToString(&quot;N&quot;), InstanceId = instance.InstanceId, TenantId = instance.TenantId, ...
+    };
+    await _taskStore.SaveAsync(task, instance, ct); // the owning execution snapshot
 
     return new NodeResult
     {
@@ -675,7 +679,8 @@ Assert.Equal(ExecStatus.Suspended, instance.Status);   // waiting at human node
 // Simulate the human response. The in-memory task store resumes the instance itself once the
 // quorum is reached (responseToken is only checked for the External channel).
 var taskStore = provider.GetRequiredService&lt;IHumanTaskStore&gt;();
-var task      = (await taskStore.GetByInstanceAsync(instance.InstanceId, ct)).Single();
+var tenant    = TenantScope.ForTenant(instance.TenantId);
+var task      = (await taskStore.GetByInstanceAsync(instance.InstanceId, tenant, ct)).Single();
 await taskStore.SubmitResponseAsync(task.TaskId, responseToken: null,
     JsonSerializer.SerializeToElement(new { decision = &quot;approved&quot; }), respondedBy: reviewerSubjectId, ct);
 // reviewerSubjectId is the reviewer's stable oid or sub claim.

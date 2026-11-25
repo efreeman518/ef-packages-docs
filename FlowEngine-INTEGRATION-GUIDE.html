@@ -650,57 +650,71 @@ unresolved path fails with <code>ASSIGNEE_UNRESOLVED</code>. Unsupported
 values such as documents, objects, and arrays fail with
 <code>ASSIGNEE_INVALID_TYPE</code>. A new respondent outside assignment
 reach gets HTTP 404, including operators. Missing and foreign tasks also
-return HTTP 404. A new response to an External task requires its issued
-token. If a recorded respondent resubmits for a completed task, the
+return HTTP 404. Every external submission requires its current issued
+token. Issue it with <code>GenerateResponseTokenAsync</code> using the
+task snapshot that selected the recipient. The store keeps a per-task
+salted SHA-256 verifier and checks the supplied token in constant time.
+Admin API task responses omit the verifier. To replace a credential,
+load the current task snapshot and call
+<code>GenerateResponseTokenAsync</code> in process with
+<code>rotate: true</code>. Rotation invalidates the verifier from that
+snapshot. The write is refused if the verifier or delivery binding has
+changed. If a recorded respondent resubmits for a completed task, the
 store reissues the resume. The API returns HTTP 409 if the resume
 succeeds and surfaces resume failures as errors. An HTTP relay needs the
 assignment within its own reach. A relay acting for recipients submits
 their responses in process.</p>
+<p>For structured task forms, declare each field under
+<code>properties</code>, mark mandatory fields with
+<code>required</code>, and declare each field's type. Use
+<code>enum</code> for allowed choices, <code>minLength</code> and
+<code>maxLength</code> for string bounds, and inclusive
+<code>minimum</code> and <code>maximum</code> for numbers and integers.
+Enum choices must satisfy the field's declared type and other
+constraints. Undeclared or duplicate fields and values outside the
+schema return HTTP 400 before they count toward quorum. A blank schema
+accepts an unstructured JSON object.</p>
 <h3 id="multi-tenancy-end-to-end">Multi-tenancy: end-to-end</h3>
-<p><code>StartRequest.TenantId</code> is propagated to
-<code>ExecutionInstance.TenantId</code>. The engine does not enforce
-tenant isolation — each store implementation filters on it. Enable
-Admin-API tenant scoping by calling
-<code>AddFlowEngineAdminTenantPolicy</code> alongside
-<code>AddFlowEngineAdminPolicies</code>:</p>
+<p><code>StartRequest.TenantId</code> becomes
+<code>ExecutionInstance.TenantId</code>. Task saves require the owning
+execution snapshot with the same instance ID and tenant as the task. For
+a move, pass the destination snapshot. A move of a completed or
+cancelled task throws <code>HumanTaskClosedException</code>. Configure
+tenant resolution with <code>AddFlowEngineAdminTenantPolicy</code>.</p>
 <div class="sourceCode" id="cb21"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>builder<span class="op">.</span><span class="fu">Services</span></span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddFlowEngineAdminPolicies</span><span class="op">()</span></span>
 <span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">.</span><span class="fu">AddFlowEngineAdminTenantPolicy</span><span class="op">(</span>opts <span class="op">=&gt;</span></span>
 <span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">{</span></span>
 <span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">TenantClaimType</span> <span class="op">=</span> <span class="st">&quot;tid&quot;</span><span class="op">;</span>      <span class="co">// OIDC claim</span></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">FallbackHeader</span>  <span class="op">=</span> <span class="st">&quot;X-Tenant&quot;</span><span class="op">;</span> <span class="co">// optional, off by default</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">FallbackHeader</span>  <span class="op">=</span> <span class="st">&quot;X-Tenant&quot;</span><span class="op">;</span> <span class="co">// optional, off by default; global operators only</span></span>
 <span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>        opts<span class="op">.</span><span class="fu">RequireTenant</span>   <span class="op">=</span> <span class="kw">true</span><span class="op">;</span>       <span class="co">// 403 when neither resolves</span></span>
 <span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">});</span></span></code></pre></div>
-<p>When enabled, an endpoint filter resolves the tenant for instance and
-human-task requests and populates a request-scoped
-<code>FlowEngineTenantContext</code>. Endpoints use it as follows:</p>
+<p>The tenant filter applies to instance and human-task routes. A caller
+with a tenant is scoped to that tenant. When <code>RequireTenant</code>
+is off, a tenantless caller sees instances and tasks with a null tenant,
+including unassigned tasks in reach. A tenantless caller satisfying
+<code>GlobalOperatorPolicy</code> can access all tenants. The option
+defaults to <code>FlowEngine.Admin</code> and can name a policy
+registered by the host. The endpoint policy and task assignment rules
+still apply.</p>
 <ul>
-<li><code>GET /instances</code> injects <code>tenant.TenantId</code>
-into <code>ExecutionQuery.TenantId</code>.</li>
-<li><code>GET /instances/{id}</code> and
-<code>POST /instances/{id}/retry|terminate|resume</code> return 404
-unless the instance's <code>TenantId</code> equals the caller's
-tenant.</li>
-<li><code>POST /instances/start</code> starts in the caller's tenant.
-<code>StartWorkflowRequest.TenantId</code> may repeat it; a different
-value is refused (403). Only a caller without a tenant (single-tenant
-mode, or <code>RequireTenant = false</code>) can choose a tenant through
-the body.</li>
-<li>The human-task inbox and instance history filter by the tenant
-stamped on each task. Instance history for another tenant returns HTTP
-200 with an empty page. A response verifies that the caller's tenant
-owns the task's execution and returns 404 when the ownership check
-fails.</li>
+<li><code>GET /instances</code> sends the tenant filter to the store
+before paging and counting.</li>
+<li>Instance reads and mutations return HTTP 404 when the target is
+outside scope.</li>
+<li><code>POST /instances/start</code> uses the caller's tenant. A body
+tenant outside that scope returns HTTP 403. A global operator can select
+any tenant in the body.</li>
+<li>Task lists filter by the task's tenant stamp. Instance history
+outside scope returns HTTP 200 with an empty page. A response outside
+scope returns HTTP 404.</li>
 </ul>
-<p>Matching is exact and case-sensitive. An instance started without a
-<code>TenantId</code> is invisible to every caller that has a tenant:
-start instances with a tenant in multi-tenant hosts, including from
-background handlers.</p>
-<p><code>FallbackHeader</code> lets a caller without the claim choose
-its tenant. Set it only when a trusted gateway sets or strips that
-header; otherwise any caller with the admin scope can name any
-tenant.</p>
+<p><code>FallbackHeader</code> names the tenant for a gateway identity
+that holds the global-operator grant. It is honored only when the caller
+has no tenant claim and satisfies <code>GlobalOperatorPolicy</code>;
+other callers' headers are ignored and they resolve as tenantless (HTTP
+403 when <code>RequireTenant</code> is on).</p>
 <p>Workflow definitions, compatibility analysis and circuit breakers are
 engine-global. These routes work without a tenant claim even when
 <code>RequireTenant</code> is enabled.</p>
