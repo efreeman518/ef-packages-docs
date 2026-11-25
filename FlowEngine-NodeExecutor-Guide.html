@@ -361,7 +361,7 @@ outlast an unhandled instance <code>Deadline</code> is capped at it, and then th
         }
     };
     // The engine saves state, releases the lock, and returns.
-    // When ResumeAsync(eventName, correlationKey) is called, the engine
+    // When ResumeAsync(scope, instanceId, eventName, correlationKey) is called, the engine
     // re-enters the loop. Your node is NOT re-executed — the engine
     // reads NodeResult.PendingWait == null on the resumed instance
     // (the engine cleared it) and evaluates edges normally.
@@ -546,7 +546,7 @@ public async Task MyNode_IsIdempotent_OnReexecution()
 <p>For suspend/resume testing, use the in-memory stack (<code>AddFlowEngine()</code> registers in-memory<br />
 state store, lock provider and workflow registry by default; <code>UseAllInMemoryProviders()</code> from<br />
 <code>EF.FlowEngine.Testing</code> also adds the in-memory human task store) and call<br />
-<code>IFlowEngine.ResumeAsync(instanceId, eventName, correlationKey, payload)</code> to simulate signal arrival.</p>
+<code>IFlowEngine.ResumeAsync(scope, instanceId, eventName, correlationKey, payload)</code> to simulate signal arrival.</p>
 <hr />
 <h2>Registration and DI</h2>
 <pre><span class="lang-tag">csharp</span><code class="language-csharp">// Simple stateless executor (all built-in executors are already registered by AddFlowEngine)
@@ -738,6 +738,7 @@ public async Task WaitNode_SignalReceived_Resumes()
     Assert.Equal(&quot;payment.confirmed&quot;, instance.PendingWait!.EventName);
 
     instance = await engine.ResumeAsync(
+        ResumeTenantScope.ForTenant(null),
         instanceId:     instance.InstanceId,
         eventName:      &quot;payment.confirmed&quot;,
         correlationKey: instance.PendingWait!.CorrelationKey,

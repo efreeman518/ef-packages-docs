@@ -71,6 +71,9 @@ public sealed class ExecutionInstance
     /// &lt;summary&gt;Globally unique identifier for this execution instance (GUID, no hyphens).&lt;/summary&gt;
     public string InstanceId { get; init; } = string.Empty;
 
+    /// &lt;summary&gt;Opaque, tenant-scoped start lookup key, or null for an unkeyed start.&lt;/summary&gt;
+    public string? StartKey { get; init; }
+
     /// &lt;summary&gt;The ID of the workflow definition being executed.&lt;/summary&gt;
     public string WorkflowId { get; init; } = string.Empty;
 
@@ -413,8 +416,7 @@ public sealed class ContextDictionary
 /// &lt;see cref="IFlowEngine.ResumeByInstanceIdAsync"/&gt; to resume timed-out instances.
 /// &lt;/para&gt;
 /// &lt;para&gt;
-/// A wait is matched for resume by (&lt;c&gt;EventName&lt;/c&gt;, &lt;c&gt;CorrelationKey&lt;/c&gt;) pair via
-/// &lt;see cref="IExecutionStateStore.FindBySuspendedEventAsync"/&gt;.
+/// A named callback targets an execution ID and must match its live event and correlation pair.
 /// When &lt;see cref="MinSignalCount"/&gt; &amp;gt; 1, signals accumulate in &lt;see cref="ReceivedSignals"/&gt;
 /// and the instance resumes only once the threshold is reached.
 /// &lt;/para&gt;
@@ -1128,12 +1130,14 @@ public interface IExecutionStateStore
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task&lt;ExecutionInstance?&gt; LoadAsync(string instanceId, CancellationToken ct = default);
 
+    /// &lt;summary&gt;Loads the current execution associated with a start key.&lt;/summary&gt;
+    Task&lt;ExecutionInstance?&gt; FindByStartKeyAsync(string startKey, CancellationToken ct = default);
+
     /// &lt;summary&gt;
-    /// Persists the current state of an execution instance.
-    /// Implementations should use optimistic concurrency via &lt;see cref="ExecutionInstance.Version"/&gt;.
+    /// A version-zero save creates the execution and claims its optional start key atomically.
+    /// An update atomically matches the execution ID and stored version.
+    /// Success advances the supplied version. Failure preserves it.
     /// &lt;/summary&gt;
-    /// &lt;param name="instance"&gt;The instance to persist.&lt;/param&gt;
-    /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
     Task SaveAsync(ExecutionInstance instance, CancellationToken ct = default);
 
     /// &lt;summary&gt;
@@ -1164,7 +1168,7 @@ public interface IExecutionStateStore
     }
 
     /// &lt;summary&gt;
-    /// Permanently removes an execution instance from the store.
+    /// Permanently removes the execution and atomically releases its start key.
     /// &lt;/summary&gt;
     /// &lt;param name="instanceId"&gt;The unique workflow execution instance ID to delete.&lt;/param&gt;
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
@@ -1250,7 +1254,8 @@ public interface IExecutionStateStore
     /// &lt;param name="eventName"&gt;The event name set on the instance's &lt;see cref="WaitDescriptor"/&gt;.&lt;/param&gt;
     /// &lt;param name="correlationKey"&gt;The correlation key that uniquely identifies the signal target.&lt;/param&gt;
     /// &lt;param name="ct"&gt;Cancellation token.&lt;/param&gt;
-    Task&lt;ExecutionInstance?&gt; FindBySuspendedEventAsync(
+    Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; FindSuspendedByPairAsync(
+        ResumeTenantScope scope,
         string eventName,
         string correlationKey,
         CancellationToken ct = default);

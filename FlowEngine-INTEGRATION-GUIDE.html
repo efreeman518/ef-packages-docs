@@ -566,12 +566,12 @@ the same key already exists, the engine returns that existing instance
 instead of creating a duplicate. Keys are scoped to the tenant: the same
 key under another <code>TenantId</code> starts its own instance. So a
 client that times out and retries gets the instance it already started.
-The check is a lookup before the insert, not an atomic reservation: two
-starts with the same key that run concurrently (both lookups before
-either save) can each create an instance. A retry after the first start
-was saved returns the existing instance. A key is at most 512
-characters. The key is stored as the well-known
-<code>__idempotency</code> tag.</p>
+The first save claims the tenant and key atomically with the new
+execution, so concurrent starts return one execution. Deletion releases
+the claim. A replacement start receives a new execution ID. A key is at
+most 512 UTF-16 code units. The keyed ID prefix is a stable fingerprint
+of the tenant and key. Treat the ID as opaque and resolve authorization
+independently.</p>
 <div class="sourceCode" id="cb18"><pre
 class="sourceCode csharp"><code class="sourceCode cs"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="dt">var</span> instance <span class="op">=</span> await engine<span class="op">.</span><span class="fu">StartAsync</span><span class="op">(</span><span class="kw">new</span> StartRequest</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>

@@ -1044,12 +1044,14 @@ Use when the correlation key cannot be expressed as a simple field
 lookup.</li>
 </ul>
 <p><strong>Signal delivery:</strong> harness code calls
-<code>IFlowEngine.ResumeAsync(instanceId, eventName, correlationKey, signalPayload)</code>
-(or <code>ResumeBackgroundAsync</code>). The Admin API has no signal
-route; its <code>POST /instances/{id}/resume</code> resumes by instance
-id with an optional payload. <code>minSignalCount &gt; 1</code> —
-accumulate N signals before resuming (e.g. N lab readings, committee
-votes)</p>
+<code>IFlowEngine.ResumeAsync(scope, instanceId, eventName, correlationKey, signalPayload)</code>
+(or <code>ResumeBackgroundAsync</code>). Use
+<code>ResumeTenantScope.ForTenant</code> with the authorized tenant. A
+pair-only resume with multiple live matches throws
+<code>AmbiguousWaitException</code>. The Admin API has no signal route;
+its <code>POST /instances/{id}/resume</code> resumes by instance id with
+an optional payload. <code>minSignalCount &gt; 1</code> — accumulate N
+signals before resuming (e.g. N lab readings, committee votes)</p>
 <p><strong>Signal payload available after resume:</strong></p>
 <ul>
 <li><code>$.context._signal</code> — most recent payload</li>
@@ -2408,7 +2410,7 @@ Does the workflow need a human to act?
 
 Does the workflow need to pause and wait for an external signal?
   → wait node (eventName + correlationKeyPath/Expression)
-  -&gt; harness code calls engine.ResumeAsync(instanceId, eventName, correlationKey, payload)
+  -&gt; harness code calls engine.ResumeAsync(scope, instanceId, eventName, correlationKey, payload)
 
 Does the workflow need a pure time delay with no external dependency?
   → timer node (delay = ISO 8601 or ICalendarProvider expression)

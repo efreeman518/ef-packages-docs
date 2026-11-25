@@ -154,7 +154,7 @@ builder.Services.AddFlowEngine()
 
 <h2 id="clients-servicebus">Service Bus Client</h2>
 <p>Package: <code>EF.FlowEngine.Clients.ServiceBus</code></p>
-<p><code>ServiceBusMessageClient</code> implements <code>IMessageClient</code> and <code>IFlowClient</code>. Sends to one queue or topic. Supports <code>FireAndForget</code> and <code>RequestReply</code> delivery modes. For <code>RequestReply</code> the <code>message</code> node suspends on <code>replyEventName</code> with the message's correlation id (the instance <code>CorrelationId</code>, else the instance id) as correlation key; the package has no reply-queue listener, so the reply consumer calls <code>IFlowEngine.ResumeAsync</code> with that event name and key.</p>
+<p><code>ServiceBusMessageClient</code> implements <code>IMessageClient</code> and <code>IFlowClient</code>. Sends to one queue or topic. Supports <code>FireAndForget</code> and <code>RequestReply</code> delivery modes. For <code>RequestReply</code> the <code>message</code> node suspends on <code>replyEventName</code> with the message's correlation id (the instance <code>CorrelationId</code>, else the instance id) as correlation key. The reply consumer calls <code>IFlowEngine.ResumeAsync(ResumeTenantScope.ForTenant(authorizedTenantId), instanceId, eventName, correlationKey)</code>.</p>
 
 <h3>Registration</h3>
 <pre><span class="lang-tag">csharp</span><code>// Resolves ServiceBusClient from DI

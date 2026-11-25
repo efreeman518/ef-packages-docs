@@ -144,7 +144,7 @@
 <p>FlowEngine orchestrates the business process core while allowing choreography at the edges via its <code>message</code> and <code>wait</code> node types:</p>
 <ul style="margin:8px 0 14px;padding-left:22px;line-height:2.2;color:var(--text2);">
   <li>A <strong><code>message</code> node</strong> publishes a domain event (e.g., <code>order.created</code>) to a registered <code>IMessageClient</code> (Service Bus, Event Grid). Independent downstream services react autonomously — they have no knowledge of the workflow.</li>
-  <li>A <strong><code>wait</code> node</strong> suspends the workflow until an external event arrives (e.g., <code>order.fulfilled</code> signaled via <code>ResumeAsync(eventName, correlationKey)</code>).</li>
+  <li>A <strong><code>wait</code> node</strong> suspends the workflow until an external event arrives. For example, signal <code>order.fulfilled</code> with <code>ResumeAsync(ResumeTenantScope.ForTenant(authorizedTenantId), instanceId, eventName, correlationKey)</code>.</li>
 </ul>
 <p>The workflow remains the authoritative record of process intent and state. External participants stay fully decoupled.</p>
 <div class="arch-box"><span class="hi">Workflow</span>  (orchestrates the core process)
@@ -395,17 +395,20 @@ app.MapPost("/api/tasks/{taskId}/complete", async (
 // Use SubmitResponseAsync if you need to wait for the workflow to reach its next suspension point.
 
 // Or resume from Service Bus — background keeps the message handler fast
+// The host configures this tenant for a subscription restricted to its authorized producer.
+var resumeScope = ResumeTenantScope.ForTenant(subscriptionTenantId);
 processor.ProcessMessageAsync += async args =>
 {
     var body = args.Message.Body.ToObjectFromJson&lt;dynamic&gt;();
     await engine.ResumeBackgroundAsync(
-        instanceId:     (string)body.instanceId,  // for logging; lookup uses event+correlation
+        resumeScope,
+        instanceId:     (string)body.instanceId,  // target execution ID
         eventName:      args.Message.Subject,
         correlationKey: body.expenseReportId.ToString(),
         signalPayload:  JsonSerializer.SerializeToElement(body));
     await args.CompleteMessageAsync(args.Message);
 };</code></pre>
-<p>Response overloads without assignee reach are for trusted in-process callers only. This handler expects the authenticated tenant in the <code>tid</code> claim.</p>
+<p>Response overloads without assignee reach are for trusted in-process callers only. The HTTP handler expects the authenticated tenant in the <code>tid</code> claim.</p>
 
 <div class="divider"></div>
 
@@ -1066,7 +1069,7 @@ processor.ProcessMessageAsync += async args =>
 <p>When <code>result.PendingWait != null</code>, the descriptor is stored on <code>ExecutionInstance.PendingWait</code>:</p>
 <pre><span class="lang-tag">csharp</span><code>public sealed class WaitDescriptor
 {
-    string   EventName;        // matched against ResumeAsync(eventName, ...)
+    string   EventName;        // matched against ResumeAsync(scope, instanceId, eventName, ...)
     string   CorrelationKey;   // scopes the wait to a specific entity/task
     DateTimeOffset? TimeoutAt;       // deadline evaluated by sweep service
     string?  OnTimeoutNodeId;  // route here on timeout; null -> GlobalOnDeadlineNodeId (once), else TimedOut (saga unwinds first)
@@ -1077,10 +1080,10 @@ processor.ProcessMessageAsync += async args =>
 <p>How each suspending node type populates the descriptor:</p>
 <div class="table-wrap"><table>
   <tr><th>Node type</th><th>EventName</th><th>CorrelationKey</th><th>Resumes when</th></tr>
-  <tr><td><code>wait</code></td><td><code>WaitNodeConfig.EventName</code></td><td>Resolved from <code>CorrelationKeyPath</code> or <code>CorrelationKeyExpression</code></td><td><code>ResumeAsync</code> / <code>ResumeBackgroundAsync</code> called with <code>(eventName, correlationKey)</code></td></tr>
+  <tr><td><code>wait</code></td><td><code>WaitNodeConfig.EventName</code></td><td>Resolved from <code>CorrelationKeyPath</code> or <code>CorrelationKeyExpression</code></td><td><code>ResumeAsync</code> / <code>ResumeBackgroundAsync</code> called with <code>(scope, instanceId, eventName, correlationKey)</code></td></tr>
   <tr><td><code>human</code></td><td><code>"human.{instanceId}.{nodeId}"</code> (engine-internal)</td><td><code>task.TaskId</code></td><td><code>IHumanTaskStore.SubmitResponseAsync</code> / <code>SubmitResponseBackgroundAsync</code> called</td></tr>
   <tr><td><code>timer</code></td><td><code>"timer.{instanceId}.{nodeId}"</code> (engine-internal)</td><td><code>instanceId</code></td><td>Sweep service detects elapsed <code>Delay</code></td></tr>
-  <tr><td><code>message</code> (RequestReply)</td><td><code>MessageNodeConfig.ReplyEventName</code></td><td>Correlation ID returned by client</td><td><code>ResumeAsync</code> / <code>ResumeBackgroundAsync</code> called with <code>(replyEventName, correlationId)</code></td></tr>
+  <tr><td><code>message</code> (RequestReply)</td><td><code>MessageNodeConfig.ReplyEventName</code></td><td>Correlation ID returned by client</td><td><code>ResumeAsync</code> / <code>ResumeBackgroundAsync</code> called with <code>(scope, instanceId, replyEventName, correlationId)</code></td></tr>
 </table></div>
 <div class="callout callout-teal"><strong>human and timer use engine-internal event names.</strong> You never call <code>ResumeAsync</code> for them directly — the engine, sweep service, and <code>IHumanTaskStore</code> handle resumption automatically. Only <code>wait</code> and <code>message</code> (RequestReply) need external callers to invoke <code>ResumeAsync</code> or <code>ResumeBackgroundAsync</code>.</div>
 
@@ -1200,7 +1203,7 @@ processor.ProcessMessageAsync += async args =>
   "body": { "orderId": "$.entity.OrderId", "total": "$.context.orderTotal" },
   "deliveryMode": "FireAndForget"
 }}</code></pre>
-<p><strong>RequestReply</strong> — publishes then suspends; reply payload arrives in <code>$.context._signal</code> on resume. Resume via: <code>await engine.ResumeAsync(instanceId, "payment.result", correlationId, payload)</code> (caller waits) or <code>await engine.ResumeBackgroundAsync(...)</code> (returns immediately, workflow continues on thread pool).</p>
+<p><strong>RequestReply</strong> publishes and then suspends. The reply payload arrives in <code>$.context._signal</code> on resume. Pass the caller's authorized <code>resumeScope</code> to <code>await engine.ResumeAsync(resumeScope, instanceId, "payment.result", correlationId, payload)</code> to wait for the workflow or <code>await engine.ResumeBackgroundAsync(resumeScope, instanceId, "payment.result", correlationId, payload)</code> to return immediately.</p>
 <pre><span class="lang-tag">json</span><code>{ "type": "message", "config": {
   "clientRef":      "payment-service",
   "subject":        "payment.request",
@@ -1272,12 +1275,14 @@ catch (HumanTaskAlreadyRespondedException)
 </table>
 </div>
 <div class="callout callout-blue"><strong>How to resume a <code>wait</code> node:</strong>
-<pre style="margin:.5rem 0 0"><span class="lang-tag">csharp</span><code>// Caller blocks until workflow reaches its next suspension point or terminal state:
-await engine.ResumeAsync(instanceId, "payment.confirmed", order.Id,
+<pre style="margin:.5rem 0 0"><span class="lang-tag">csharp</span><code>var resumeScope = ResumeTenantScope.ForTenant(authorizedTenantId);
+
+// Wait for the workflow to suspend again or finish.
+await engine.ResumeAsync(resumeScope, instanceId, "payment.confirmed", order.Id,
     JsonSerializer.SerializeToElement(payload));
 
-// Caller returns immediately; workflow continues on the thread pool:
-await engine.ResumeBackgroundAsync(instanceId, "payment.confirmed", order.Id,
+// Return immediately while the workflow continues on the thread pool.
+await engine.ResumeBackgroundAsync(resumeScope, instanceId, "payment.confirmed", order.Id,
     JsonSerializer.SerializeToElement(payload));</code></pre></div>
 <div class="outcomes"><span class="pill pm">Match (signal received)</span><span class="pill pe">Timeout does not emit an outcome (see onTimeoutNodeId above)</span></div>
 
@@ -1409,16 +1414,18 @@ flowEngineBuilder.AddClient(sp =&gt;
 <p>When an instance reaches a suspending node (<code>wait</code>, <code>human</code>, <code>timer</code>, or <code>message</code> RequestReply), state is saved, the claim is released, and no resources are consumed. Each node type has its own resume path:</p>
 <div class="table-wrap"><table>
   <tr><th>Node type</th><th>How it resumes</th></tr>
-  <tr><td><code>wait</code>, <code>message</code> (RequestReply)</td><td>External caller invokes <code>engine.ResumeAsync</code> or <code>engine.ResumeBackgroundAsync</code> with the matching <code>eventName</code> and <code>correlationKey</code>. The harness does not need to know the <code>instanceId</code> — lookup is by event name + correlation key.</td></tr>
+  <tr><td><code>wait</code>, <code>message</code> (RequestReply)</td><td>External caller invokes <code>engine.ResumeAsync</code> or <code>engine.ResumeBackgroundAsync</code> with the authorized tenant scope, the target <code>instanceId</code>, and the matching live <code>eventName</code> and <code>correlationKey</code>.</td></tr>
   <tr><td><code>human</code></td><td>A user submits a response via <code>IHumanTaskStore.SubmitResponseAsync</code> / <code>SubmitResponseBackgroundAsync</code>. The task store validates the response, checks quorum, and calls <code>engine.ResumeByInstanceIdAsync</code> (or its background variant) internally with the <code>HumanTaskContextKeys.BuildSignalPayload(task)</code> payload. A response to a cancelled task or a submission from a new respondent to a completed task throws <code>HumanTaskClosedException</code> (Admin API HTTP 409). You never call <code>ResumeAsync</code> directly for a human node.</td></tr>
   <tr><td><code>timer</code></td><td>Automatic — <code>ExecutionSweepService</code> detects the elapsed delay and resumes the instance. No caller code required.</td></tr>
 </table></div>
 <p>Human-task HTTP routes require <code>FlowEngine.HumanTask</code> and apply tenant scope through the instance. Assignee reach is the caller's resolved respondent ID plus non-blank configured assignee claims (raw <code>roles</code> and <code>groups</code>, plus mapped <code>roles</code> by default), compared ordinally. The inbox defaults to this reach (up to 50 assigned values) and includes open and in-progress unassigned tasks for identified callers. A caller with <code>FlowEngine.Admin</code> can query an explicit assignee outside their reach and see all tasks by instance. Other by-instance callers see reachable and unassigned tasks. A blank definition assignment allows any identified, tenant-authorized caller to respond. A configured assignment fails with <code>ASSIGNEE_EMPTY</code> for a blank assignee value or JSON null, <code>ASSIGNEE_UNRESOLVED</code> for an unresolved path, and <code>ASSIGNEE_INVALID_TYPE</code> for unsupported values such as documents, objects, and arrays. Responses to assigned tasks require an assignee match for every caller, including HTTP relays. External tasks also require the response token. Relays acting for recipients submit in process.</p>
 <p>Global workflow mutations (PUT, publish, unpublish, DELETE and copy) and circuit-breaker GET and DELETE require <code>FlowEngine.Platform</code>. Workflow reads and compatibility require <code>FlowEngine.Admin</code>. Global routes do not require a tenant claim. See the <a href="FlowEngine-Operations.html#admin-api">Admin API operations guide</a> for Entra permission setup.</p>
 <h4>Resuming a wait or message (RequestReply) node</h4>
+<p>Build <code>resumeScope</code> with <code>ResumeTenantScope.ForTenant</code> using the tenant authorized for the caller. If two live executions in scope share the exact wait pair, the engine throws <code>AmbiguousWaitException</code>. Supply an execution ID to select one of them.</p>
 <pre><span class="lang-tag">csharp</span><code>// Caller blocks until workflow reaches its next suspension point or terminal state:
 await engine.ResumeAsync(
-    instanceId:     "",                    // for logging; lookup uses event + correlationKey
+    resumeScope,
+    instanceId:     executionId,           // target execution ID
     eventName:      "payment.confirmed",
     correlationKey: payload.OrderId,       // domain ID — not instanceId
     signalPayload:  JsonSerializer.SerializeToElement(payload)
@@ -1426,6 +1433,7 @@ await engine.ResumeAsync(
 
 // Caller returns immediately with Status=Running; workflow continues on the thread pool:
 await engine.ResumeBackgroundAsync(
+    resumeScope,
     instanceId:     "",
     eventName:      "payment.confirmed",
     correlationKey: payload.OrderId,
@@ -1629,10 +1637,12 @@ interrupts a resume, a recorded respondent re-issues it by resubmitting.</div>
 
 <h2 id="harness">Harness Patterns</h2>
 <p>Use <code>ResumeBackgroundAsync</code> in harness handlers to return quickly and avoid holding the connection open while the workflow runs. Use <code>ResumeAsync</code> when the handler must confirm the final workflow state before acknowledging.</p>
+<p>These examples assume the harness has authenticated each sender and resolved <code>authorizedTenantId</code> from its permissions or trusted connector configuration.</p>
 <h4>HTTP webhook</h4>
 <pre><span class="lang-tag">csharp</span><code>app.MapPost("/webhooks/payment", async (PaymentPayload p, FlowEngine engine) => {
     // Returns immediately; workflow continues on the thread pool
-    await engine.ResumeBackgroundAsync("", "payment.confirmed", p.OrderId, JsonSerializer.SerializeToElement(p));
+    var scope = ResumeTenantScope.ForTenant(authorizedTenantId);
+    await engine.ResumeBackgroundAsync(scope, "", "payment.confirmed", p.OrderId, JsonSerializer.SerializeToElement(p));
     return Results.Ok();
 });</code></pre>
 <h4>Azure Service Bus</h4>
@@ -1653,7 +1663,8 @@ interrupts a resume, a recorded respondent re-issues it by resubmitting.</div>
     }
 
     // Background keeps the message handler fast; complete before workflow finishes
-    await engine.ResumeBackgroundAsync("", args.Message.Subject, correlationProp.GetString()!,
+    var scope = ResumeTenantScope.ForTenant(authorizedTenantId);
+    await engine.ResumeBackgroundAsync(scope, "", args.Message.Subject, correlationProp.GetString()!,
         body, ct);
     await args.CompleteMessageAsync(args.Message);
 };
@@ -1661,8 +1672,9 @@ interrupts a resume, a recorded respondent re-issues it by resubmitting.</div>
 // that cannot be correlated rather than silently dropping them.</code></pre>
 <h4>Azure Event Grid</h4>
 <pre><span class="lang-tag">csharp</span><code>app.MapPost("/events/grid", async (EventGridEvent[] evts, FlowEngine engine) => {
+    var scope = ResumeTenantScope.ForTenant(authorizedTenantId);
     foreach (var e in evts)
-        await engine.ResumeBackgroundAsync("", e.EventType, e.Subject, e.Data);
+        await engine.ResumeBackgroundAsync(scope, "", e.EventType, e.Subject, e.Data);
     return Results.Ok();
 });</code></pre>
 
@@ -1763,8 +1775,8 @@ builder.Services.AddFlowEngine()
 <pre><span class="lang-tag">csharp</span><code>.UseStateStoreFile("/tmp/fe-state")       // dev/test — zero infra
 .UseStateStoreSql&lt;AppDbContext&gt;()          // SQL Server, Postgres, SQLite
 .UseStateStoreRedis()                      // Redis
-.UseStateStoreCosmos(databaseId: "fe")    // Azure CosmosDB
-.UseStateStoreAzureTable()                // Azure Table Storage</code></pre>
+.UseStateStoreCosmos(databaseId: "fe")    // Cosmos client configured for the execution state store
+.UseStateStoreAzureTable(options =&gt; new TableServiceClient(storageConnString, options))</code></pre>
 
 <h2 id="filterbuilder">FilterBuilder Integration</h2>
 <p><code>filter</code> and <code>query</code> nodes use <strong>EF.FilterBuilder</strong> as their condition language — serializable JSON FilterSets compiled to typed <code>Expression&lt;Func&lt;T,bool&gt;&gt;</code> trees that EF Core translates to native SQL.</p>
@@ -2346,8 +2358,9 @@ Task&lt;IReadOnlyList&lt;ExecutionInstance&gt;&gt; StartManyAsync(
     CancellationToken ct = default);
 
 // Resume via event name + correlation key (webhook, Service Bus, Event Grid)
-// instanceId is for logging only — actual lookup uses eventName + correlationKey
+// The targeted execution must be waiting on the supplied event and correlation key.
 Task&lt;ExecutionInstance&gt; ResumeAsync(
+    ResumeTenantScope scope,
     string instanceId,
     string eventName,
     string correlationKey,
@@ -2356,6 +2369,7 @@ Task&lt;ExecutionInstance&gt; ResumeAsync(
 
 // Resume via event name + correlation key — background; returns immediately with Status=Running
 Task&lt;ExecutionInstance&gt; ResumeBackgroundAsync(
+    ResumeTenantScope scope,
     string instanceId,
     string eventName,
     string correlationKey,
@@ -2381,7 +2395,7 @@ Task&lt;ExecutionInstance&gt; CancelAsync(
     CancellationToken ct = default);</code></pre>
 
 <h3>IExecutionStateStore</h3>
-<p>Source: <code>EF.FlowEngine/Abstractions/IExecutionStateStore.cs</code>. Required members: <code>LoadAsync</code>, <code>SaveAsync</code>, <code>DeleteAsync</code>, <code>FindBySuspendedEventAsync</code>, <code>FindTimedOutInstancesAsync</code>, <code>FindQueuedInstanceIdsAsync</code>, <code>QueryAsync</code>, <code>GetChildrenAsync</code>, <code>EnqueueChildSignalAsync</code>, <code>DequeueChildSignalsAsync</code> and <code>FindInstancesWithChildSignalsAsync</code>. Members with default implementations: <code>SaveWithOutboxAsync</code> (default: <code>SaveAsync</code>, then the fallback outbox store, not atomic), <code>StreamAsync</code> (default: pages through <code>QueryAsync</code>), <code>ArchiveAsync</code> (default throws <code>NotSupportedException</code>), <code>FindSuspendedOnEventAsync</code>, <code>GetStatusesAsync</code> and <code>PeekChildSignalsAsync</code> (default dequeues and re-enqueues; implement it natively).</p>
+<p>Source: <code>EF.FlowEngine/Abstractions/IExecutionStateStore.cs</code>. Required members: <code>LoadAsync</code>, <code>FindByStartKeyAsync</code>, <code>SaveAsync</code>, <code>DeleteAsync</code>, <code>FindSuspendedByPairAsync</code>, <code>FindTimedOutInstancesAsync</code>, <code>FindQueuedInstanceIdsAsync</code>, <code>QueryAsync</code>, <code>GetChildrenAsync</code>, <code>EnqueueChildSignalAsync</code>, <code>DequeueChildSignalsAsync</code> and <code>FindInstancesWithChildSignalsAsync</code>. Members with default implementations: <code>SaveWithOutboxAsync</code> (default: <code>SaveAsync</code>, then the fallback outbox store, not atomic), <code>StreamAsync</code> (default: pages through <code>QueryAsync</code>), <code>ArchiveAsync</code> (default throws <code>NotSupportedException</code>), <code>FindSuspendedOnEventAsync</code>, <code>GetStatusesAsync</code> and <code>PeekChildSignalsAsync</code> (default dequeues and re-enqueues; implement it natively).</p>
 <p><strong>Child signal delivery path.</strong> When a child workflow completes, <code>ChildSignalHandler</code> first attempts to acquire the parent's distributed lock and resume it immediately (fast path). If the parent is already locked by another server - e.g. it is mid-execution - the signal is durably enqueued via <code>EnqueueChildSignalAsync</code>. The sweep service pages through parents with queued signals (<code>FindInstancesWithChildSignalsAsync</code>, with a cursor kept across passes), reads each one's signals without removing them (<code>PeekChildSignalsAsync</code>), and resumes a parent whose signal is for the node it waits at; the run drains the signals on entry. Custom state store implementations must implement <code>FindInstancesWithChildSignalsAsync</code> (required) and should implement <code>PeekChildSignalsAsync</code> natively so signals are never lost under lock contention.</p>
 
 <h2 id="testing">Testing</h2>
@@ -2754,7 +2768,8 @@ FLOWENGINE_CRED_RISKENGINE_TOKENENDPOINT=https://auth.example.com/oauth/token</c
         return Results.Unauthorized();
 
     var payload = JsonSerializer.Deserialize&lt;PaymentWebhookPayload&gt;(body)!;
-    await engine.ResumeAsync("", "payment.confirmed", payload.OrderId,
+    var resumeScope = ResumeTenantScope.ForTenant(opts.Value.AuthorizedTenantId);
+    await engine.ResumeAsync(resumeScope, "", "payment.confirmed", payload.OrderId,
         JsonSerializer.SerializeToElement(payload));
     return Results.Ok();
 });</code></pre>

@@ -449,8 +449,8 @@ signature is then required before the document is marked approved.</p>
 <p><code>store</code> — records AI recommendation in context for human reviewer visibility</p>
 <p><code>human[Internal]</code> with <code>channel: Internal</code> and <code>assignedTo: "role:legal-team"</code></p>
 <p><code>wait</code> for digital signature — uses <code>instanceId</code> as correlation key;<br />
-   harness calls <code>engine.ResumeAsync(instance.InstanceId, "signature.received", instance.InstanceId)</code>
-   (signature <code>ResumeAsync(instanceId, eventName, correlationKey, signalPayload?)</code>)</p>
+   harness calls <code>engine.ResumeAsync(ResumeTenantScope.ForTenant(authorizedTenantId), instance.InstanceId, "signature.received", instance.InstanceId)</code>
+   with the tenant the harness authorized for that callback.</p>
 <p>Multiple <code>output</code> nodes — APPROVED, AI_REVIEW_ERROR</p>
 <p><code>document</code> node (when <code>AzuriteContainerFixture</code> is available) — uploads/downloads<br />
    document content via <code>IDocumentStore</code> backed by Azure Blob Azurite</p>
