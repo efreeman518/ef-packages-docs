@@ -1199,8 +1199,9 @@ alt="Architecture context: application, eval host, sweep runner, providers, stor
 Credentials live only on the roster side: a connection's string
 representation reports whether a key is present and never its value, a
 model under test carries no credential at all, and the eval host is
-never serialised. That is what makes a results file safe to commit,
-publish or paste into a finding.</p>
+never serialised. That is what makes a results file free of credentials.
+It still embeds every prompt and response, so it stays local and a
+finding quotes its numbers, not its transcripts.</p>
 <hr />
 <h3 id="3-core-concepts">3. Core concepts</h3>
 <h4 id="31-the-roster-connections-and-models-under-test">3.1 The roster:
@@ -2389,16 +2390,17 @@ brackets was escaped rather than rendered. Every string that came from a
 model, a prompt or a roster is HTML-encoded, and characters XML 1.0
 cannot represent are dropped, because one stray control byte in a
 truncated answer would otherwise make the file unreadable.</p>
-<p>A harness that wants to keep a round copies the file into its own
-repository as
-<code>docs/eval/&lt;yyyy-mm-dd&gt;-&lt;round&gt;.html</code>, with the
-round's summary as
-<code>docs/eval/&lt;yyyy-mm-dd&gt;-&lt;round&gt;.summary.md</code> (the
-raw <code>results.json</code> stays local). Nothing here does that:
-which runs are worth keeping is a judgement about the project, not about
-the sweep. The file embeds every prompt and every response verbatim, so
-the transcripts are read before a copy is committed - whatever a fixture
-put in front of a model is in it.</p>
+<p>A harness that wants to keep a round copies the file, its summary and
+<code>results.json</code> to a folder outside the build output and
+outside any disposable worktree (for example an ignored
+<code>.tmp/eval-archive/</code> in the main checkout); none of them is
+committed, and the project's record is the effort report the
+<code>llmeval-run</code> skill's <code>report-format.md</code>
+describes. Nothing here does that: which runs are worth keeping is a
+judgement about the project, not about the sweep. The file embeds every
+prompt and every response verbatim, so the transcripts are read before
+any of it is quoted or shared - whatever a fixture put in front of a
+model is in it.</p>
 <hr />
 <h3 id="10-the-prompt-development-loop">10. The prompt-development
 loop</h3>

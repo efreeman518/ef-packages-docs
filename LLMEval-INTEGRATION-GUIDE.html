@@ -871,8 +871,8 @@ subagent is handed.</td>
 <td><code>llmeval-run</code></td>
 <td>Run the broad first round of an existing harness: start the drainer,
 launch the sweep in the background, wait for the summary, read the
-selection and the HTML report, keep the report and write the
-findings.</td>
+selection and the HTML report, keep the round's results local and write
+the findings.</td>
 </tr>
 <tr>
 <td><code>llmeval-focus</code></td>
@@ -923,7 +923,9 @@ replay from cache.</p>
 directory: <code>summary.md</code>, <code>results.json</code> and
 <code>report.html</code>, the self-contained HTML report a person reads
 to choose a model. The report embeds every prompt and every response
-verbatim, so read the transcripts before committing a copy of it.</p>
+verbatim, so the round's files stay local: copy them to a stable folder
+outside the build output, and read the transcripts before quoting or
+sharing any of it.</p>
 <p><strong><code>summary.md</code></strong> is the one to read
 first:</p>
 <table>
@@ -973,8 +975,10 @@ line it says none qualifies rather than promoting the least-bad
 candidate.</p>
 <p><strong><code>results.json</code></strong> carries the full report,
 the same adjustments, and the selection, so a consumer does not have to
-recompute any of it. Commit a results file when a decision rests on it:
-it carries no credential and it is the evidence for the choice.</p>
+recompute any of it. Keep a results file a decision rests on in that
+stable local folder and cite it by execution id and path: it carries no
+credential, but it embeds every prompt and response, so it is never
+committed.</p>
 <p>For transcripts, render the underlying reporting store as HTML with
 the evaluation library's own report tool. The two are meant to be read
 together: the leaderboard narrows the field, the transcript report
@@ -1100,8 +1104,9 @@ with the honest count
 </tr>
 </tbody>
 </table>
-<p>It embeds every prompt and every model response verbatim, so read the
-transcripts before committing a copy of it into a repository.</p>
+<p>It embeds every prompt and every model response verbatim, so it stays
+local and the transcripts are read before any of it is quoted or
+shared.</p>
 <hr />
 <h3 id="troubleshooting">Troubleshooting</h3>
 <table>

@@ -394,8 +394,8 @@ at load time.</li>
 credential is present, never either value, so a connection is safe to
 log.</li>
 <li>A model under test carries no credential at all, and the eval host
-is never serialised. That is what makes a results file safe to
-commit.</li>
+is never serialised, so a results file holds no credential. It still
+embeds every prompt and response, so it stays local.</li>
 <li>A connection with no resolvable key or credential is
 <strong>dropped</strong> at load time, along with every model and
 assignment naming it. A developer without one provider's key still gets
@@ -517,7 +517,7 @@ whatever it ran without</td>
 <td>The decision view: a cost-versus-quality chart per role with
 intervals and thresholds, the top suggestions, the selection table and
 every cell's transcript. It embeds every prompt and response verbatim,
-so read them before committing a copy of it into a repository</td>
+so it stays local and is read before any of it is quoted or shared</td>
 </tr>
 </tbody>
 </table>
@@ -613,8 +613,9 @@ the candidate you are about to pick. If it did, say so in the finding:
 the harness judge cannot be swapped for another vendor's, so what
 settles it is the deterministic evaluators and a person reading that
 candidate's winning transcripts.</label></li>
-<li><label><input type="checkbox" />The finding records the judge and
-the date, and the results file is kept with it.</label></li>
+<li><label><input type="checkbox" />The finding records the judge, the
+date and the local path of the results file, kept in a stable
+folder.</label></li>
 </ul>
 </div>
 
