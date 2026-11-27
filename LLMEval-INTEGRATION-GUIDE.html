@@ -976,7 +976,9 @@ candidate.</p>
 <p><strong><code>results.json</code></strong> carries the full report,
 the same adjustments, and the selection, so a consumer does not have to
 recompute any of it. Keep a results file a decision rests on in that
-stable local folder and cite it by execution id and path: it carries no
+stable local folder while the effort runs and cite it by execution id,
+which stays the citation once the effort's close-out deletes the file
+(<code>llmeval-run</code>, "Eval effort order", step 10): it carries no
 credential, but it embeds every prompt and response, so it is never
 committed.</p>
 <p>For transcripts, render the underlying reporting store as HTML with

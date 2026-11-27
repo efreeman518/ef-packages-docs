@@ -242,7 +242,8 @@ count printed beside the spend line</td>
 </tr>
 <tr>
 <td><strong>Reproducible judge</strong></td>
-<td>Only in the sense that the reply files are kept</td>
+<td>Only while the reply files are kept, until the effort's close-out
+deletes them</td>
 </tr>
 </tbody>
 </table>
@@ -2227,10 +2228,11 @@ the replies, the runner from the heartbeat), and a heartbeat that names
 nobody is reported as a plain file exchange rather than as a subagent
 that may not have been one.</p>
 <p>The honest caveat: there is no model pin behind a subscription agent,
-so a run is reproducible only in the sense that its reply files were
-kept, which is exactly why they are kept. Record the judge and the date
-in any finding, and do not compare win rates across runs whose judge was
-a different thing.</p>
+so a run is reproducible only in the sense that its reply files are
+kept, which they are until the effort's close-out deletes them; the
+judge model line is what stays. Record the judge and the date in any
+finding, and do not compare win rates across runs whose judge was a
+different thing.</p>
 <hr />
 <h3 id="9-storage-layout-and-caches">9. Storage layout and caches</h3>
 <p>One storage root holds everything a sweep produces, in two halves
@@ -2393,14 +2395,14 @@ truncated answer would otherwise make the file unreadable.</p>
 <p>A harness that wants to keep a round copies the file, its summary and
 <code>results.json</code> to a folder outside the build output and
 outside any disposable worktree (for example an ignored
-<code>.tmp/eval-archive/</code> in the main checkout); none of them is
-committed, and the project's record is the effort report the
-<code>llmeval-run</code> skill's <code>report-format.md</code>
-describes. Nothing here does that: which runs are worth keeping is a
-judgement about the project, not about the sweep. The file embeds every
-prompt and every response verbatim, so the transcripts are read before
-any of it is quoted or shared - whatever a fixture put in front of a
-model is in it.</p>
+<code>.tmp/eval-archive/</code> in the main checkout) until the effort
+closes and deletes them; none of them is committed, and the project's
+record is the effort report the <code>llmeval-run</code> skill's
+<code>report-format.md</code> describes. Nothing here does that: which
+runs are worth keeping is a judgement about the project, not about the
+sweep. The file embeds every prompt and every response verbatim, so the
+transcripts are read before any of it is quoted or shared - whatever a
+fixture put in front of a model is in it.</p>
 <hr />
 <h3 id="10-the-prompt-development-loop">10. The prompt-development
 loop</h3>

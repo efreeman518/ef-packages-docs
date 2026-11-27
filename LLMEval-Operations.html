@@ -239,12 +239,13 @@ drainer was asked; an answer the Anthropic API judge gave never went
 through it, and its done entry carries the request instead.</p>
 <h4 id="reproducibility">Reproducibility</h4>
 <p>There is no model pin behind a subscription agent. A run is
-reproducible only in the sense that its reply files were kept, which is
-why they are kept. Record the judge as the report's judge model line
-names it, and the date, in every finding, and never compare win rates
-across runs whose judge was a different thing. The judge is the model
-the drainer names unless the harness pins one, so a series of rounds
-that must stay comparable pins it.</p>
+reproducible only in the sense that its reply files are kept, which they
+are until the effort's close-out deletes them (<code>llmeval-run</code>,
+"Eval effort order", step 10). Record the judge as the report's judge
+model line names it, and the date, in every finding, and never compare
+win rates across runs whose judge was a different thing. The judge is
+the model the drainer names unless the harness pins one, so a series of
+rounds that must stay comparable pins it.</p>
 <hr />
 <h3 id="3-pacing-and-429s">3. Pacing and 429s</h3>
 <p>Pacing comes first and is not retrying. Two caps apply: one per
@@ -380,9 +381,13 @@ execution: the reporting store, the response cache, one report directory
 per execution name, and the judge exchange folders. Use a timestamped or
 build-numbered execution name for runs you want to compare over time,
 because runs sharing a name overwrite each other. Prune old executions
-deliberately; nothing prunes them for you. Keep the report half of
-anything a decision rested on, and keep the exchange reply files for any
-finding judged on the subscription path.</p>
+deliberately; the package prunes nothing, and an effort's close-out
+deletes only its own. Keep the report half of anything a decision rested
+on, and the exchange reply files for any finding judged on the
+subscription path, while the effort runs; its close-out deletes its own
+once the effort report and findings are merged, and leaves a shared
+exchange's other replies and caches (<code>llmeval-run</code>, "Eval
+effort order", step 10).</p>
 <hr />
 <h3 id="5-secrets">5. Secrets</h3>
 <p><strong>Never in a repository, never in a report.</strong></p>
@@ -527,8 +532,9 @@ so it stays local and is read before any of it is quoted or shared</td>
 Neither file carries a variant's overrides, so a diff between two
 variants has to be read from the harness, not from the run.</li>
 <li><strong>The judge is not pinned.</strong> There is no model version
-behind a subscription agent, so keep the reply files with the finding
-and do not compare win rates across runs judged by different
+behind a subscription agent, so keep the reply files while the effort
+runs (its close-out deletes them; the finding records the judge model
+line) and do not compare win rates across runs judged by different
 things.</li>
 <li><strong><code>n/a</code> is not zero.</strong> An unpriced role, an
 unjudged cell and an incumbent with nothing to compare against all read
@@ -614,8 +620,8 @@ the harness judge cannot be swapped for another vendor's, so what
 settles it is the deterministic evaluators and a person reading that
 candidate's winning transcripts.</label></li>
 <li><label><input type="checkbox" />The finding records the judge, the
-date and the local path of the results file, kept in a stable
-folder.</label></li>
+date, the execution id and the local path of the results file, kept in a
+stable folder until the effort's close-out deletes it.</label></li>
 </ul>
 </div>
 
